@@ -5,6 +5,7 @@ import { db } from "./firebase";
 import { calcularParcelas } from "../utils/parcelasUtil";
 import { calculateInterest, calculatePenalty, calculateInstallmentValue, calculateDebtRemaining, calculatePrincipalQuitado, totalAbatimentos, getNextOpenInstallment, shiftFutureInstallments, avancarData } from "./paymentCalculations";
 import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
+import { registrarJurosRecebido as registrarJuros } from "./jurosRecebidosService";
 
 /**
  * Converte uma data (string YYYY-MM-DD, Date ou Firestore Timestamp) para um
@@ -596,29 +597,49 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
 
   await updateDoc(doc(db, "usuarios", usuario.uid, "contratos", contrato.id), updateData);
 
-  // Registra no histórico de pagamentos
-  try {
-    await registrarHistorico(usuario, contrato, {
-      valorRecebido: totalRecebido,
-      tipoRecebimento: modalidade === "parcela_inteira" ? "parcela"
-        : modalidade === "juros_apenas" ? "juros"
-        : modalidade === "juros_parte_divida" ? "parcial"
-        : "quitacao",
-      jurosRecebidos,
-      principalAbatido,
-      dataRecebimento,
-      parcelaNumero: parcela?.numero,
-      observacao,
-      saldoAntes: Number(contrato.valorRecebido) || 0,
-      saldoDepois: valorRecebido,
-      saldoPrincipalAntes: saldoPrincipalAntes,
-      saldoPrincipalDepois: saldoPrincipalAtual,
-      abatimentoTotalAntes: abatimentoTotalAntes,
-      abatimentoTotalDepois: abatimentoTotalFinal,
-    });
-  } catch (err) {
-    console.error("Erro ao registrar histórico de pagamento:", err);
-    // Não falha a operação principal se o histórico falhar
+  // Registra no histórico.
+  // - "Só os juros" (juros_apenas) → coleção dedicada `jurosRecebidos`
+  //   (NÃO é pagamento de parcela; apenas registro histórico para badge).
+  // - Outras modalidades → coleção `pagamentos` (comportamento existente).
+  if (modalidade === "juros_apenas") {
+    try {
+      console.log("[DIAG] gravando juros: uid=", usuario?.uid, "contratoId=", contrato?.id, "parcelaNumero=", parcela?.numero);
+      const id = await registrarJuros(usuario, contrato, {
+        parcelaNumero: parcela?.numero,
+        valorRecebido: jurosRecebidos,
+        dataRecebimento,
+        observacao,
+      });
+      console.log("[DIAG] juros gravado com id=", id);
+    } catch (err) {
+      console.error("[DIAG] erro registrar juros:", err?.code, err?.message);
+      // Não falha a operação principal se o histórico falhar
+    }
+  } else {
+    try {
+      console.log("[DIAG] gravar histórico: uid=", usuario?.uid, "contratoId=", contrato?.id, "parcelaNumero=", parcela?.numero, "modalidade=", modalidade);
+      const id = await registrarHistorico(usuario, contrato, {
+        valorRecebido: totalRecebido,
+        tipoRecebimento: modalidade === "parcela_inteira" ? "parcela"
+          : modalidade === "juros_parte_divida" ? "parcial"
+          : "quitacao",
+        jurosRecebidos,
+        principalAbatido,
+        dataRecebimento,
+        parcelaNumero: parcela?.numero,
+        observacao,
+        saldoAntes: Number(contrato.valorRecebido) || 0,
+        saldoDepois: valorRecebido,
+        saldoPrincipalAntes: saldoPrincipalAntes,
+        saldoPrincipalDepois: saldoPrincipalAtual,
+        abatimentoTotalAntes: abatimentoTotalAntes,
+        abatimentoTotalDepois: abatimentoTotalFinal,
+      });
+      console.log("[DIAG] histórico gravado com id=", id);
+    } catch (err) {
+      console.error("[DIAG] erro registrar histórico:", err?.code, err?.message);
+      // Não falha a operação principal se o histórico falhar
+    }
   }
 
   return { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal: saldoPrincipalAtual };

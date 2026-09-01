@@ -11,6 +11,26 @@ service cloud.firestore {
       match /{subcolecao}/{docId} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+
+      // Subcoleção de pagamentos de um contrato (path:
+      // usuarios/{uid}/contratos/{contratoId}/pagamentos/{pagamentoId}).
+      // O match coringa acima só alcança 2 níveis de profundidade, então
+      // precisamos de um match explícito para esta subcoleção de 3º nível.
+      // Caso contrário, registrarPagamento e buscarHistoricoPagamentos
+      // falham com "Missing or insufficient permissions".
+      match /contratos/{contratoId}/pagamentos/{pagamentoId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Subcoleção de recebimentos de JUROS de um contrato (path:
+      // usuarios/{uid}/contratos/{contratoId}/jurosRecebidos/{jurosId}).
+      // "Só os juros" NÃO é pagamento de parcela — é apenas um registro
+      // histórico de que os juros daquela semana foram recebidos, usado
+      // para exibir o badge "Juros da semana recebido" no card da parcela.
+      // Permissão segue o mesmo padrão das demais subcoleções do usuário.
+      match /contratos/{contratoId}/jurosRecebidos/{jurosId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
 
     // Clientes top-level: posse pelo campo ownerId (UID do usuário autenticado)

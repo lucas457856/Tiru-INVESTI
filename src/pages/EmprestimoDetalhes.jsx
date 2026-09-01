@@ -25,6 +25,7 @@ import { formatarMoeda, formatarTelefone, formatarData, numeroCurto } from "../u
 import { gerarPdfContrato } from "../utils/pdfContrato";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato, listarModelosContrato } from "../services/contractService";
 import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado, getNextOpenInstallment } from "../services/paymentCalculations";
+import { buscarJurosRecebidos } from "../services/jurosRecebidosService";
 import { gerarMensagem, MODELOS_PADRAO } from "../utils/mensagens";
 import logoJurex from "../assets/jurex-logo.png";
 
@@ -85,6 +86,13 @@ export default function EmprestimoDetalhes() {
   const [textoMensagem, setTextoMensagem] = useState("");
   const [copiado, setCopiado] = useState(false);
 
+  // Recebimentos de juros do contrato (subcoleção Firestore dedicada).
+  // Usado para exibir o badge "Juros da semana recebido" nas parcelas
+  // cujo recebimento foi feito via modalidade "juros_apenas".
+  // Esta coleção é INDEPENDENTE de `pagamentos` (que registra parcelas
+  // inteiras, parciais e quitações). Ler de `jurosRecebidos` apenas.
+  const [jurosRecebidosContrato, setJurosRecebidosContrato] = useState([]);
+
   const hoje = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -121,6 +129,27 @@ export default function EmprestimoDetalhes() {
     return () => { ativo = false; };
   }, [usuario, id]);
 
+  // Carrega os recebimentos de juros do contrato (subcoleção Firestore dedicada).
+  // Necessário para exibir o badge "Juros da semana recebido" nas parcelas
+  // que receberam juros via modalidade "juros_apenas".
+  useEffect(() => {
+    if (!usuario || !id) return;
+    let ativo = true;
+    console.log("[DIAG] juros encontrados: buscando para contratoId=", id, "uid=", usuario?.uid);
+    buscarJurosRecebidos(usuario, id)
+      .then((docs) => {
+        if (!ativo) return;
+        console.log("[DIAG] juros encontrados:", Array.isArray(docs) ? docs.length : 0);
+        setJurosRecebidosContrato(Array.isArray(docs) ? docs : []);
+      })
+      .catch((err) => {
+        if (!ativo) return;
+        console.error("Erro ao carregar recebimentos de juros:", err);
+        setJurosRecebidosContrato([]);
+      });
+    return () => { ativo = false; };
+  }, [usuario, id, contrato?.updatedAt]);
+
   // Força reload dos dados do Firestore (necessário após pagamento/exclusão)
   const recarregar = useCallback(() => {
     if (!usuario || !id) return;
@@ -138,6 +167,14 @@ export default function EmprestimoDetalhes() {
         setContrato(dados.contrato);
         setCliente(dados.cliente);
         setEstado("pronto");
+        // Recarrega também os recebimentos de juros para que badges recém-pagos
+        // apareçam imediatamente após o pagamento.
+        buscarJurosRecebidos(usuario, id)
+          .then((docs) => {
+            if (!ativo) return;
+            setJurosRecebidosContrato(Array.isArray(docs) ? docs : []);
+          })
+          .catch(() => { /* silencioso */ });
       })
       .catch((err) => {
         if (!ativo) return;
@@ -732,6 +769,16 @@ export default function EmprestimoDetalhes() {
                   const multaJuros = calcularMultaJuros(p);
                   const destacada = isProximaParcela(p);
 
+                  // Procura no histórico um recebimento de "Só os juros" para esta parcela.
+                  // Pode haver mais de um (vários juros_apenas cumulativos); mostra o mais recente.
+                  const jurosRecebidosParcela = jurosRecebidosContrato
+                    .filter((h) => Number(h.parcelaNumero) === Number(p.numero) && h.tipo === "juros")
+                    .sort((a, b) => {
+                      const da = a?.dataRecebimento || "";
+                      const db = b?.dataRecebimento || "";
+                      return db.localeCompare(da);
+                    })[0];
+
                   return (
                     <article
                       key={p.numero}
@@ -786,6 +833,19 @@ export default function EmprestimoDetalhes() {
                           {sp.label}
                         </span>
                       </div>
+
+                      {/* Badge: juros daquela semana já foram recebidos.
+                          Linha própria, entre o cabeçalho e os botões, ocupando
+                          a largura total do card. Dados vêm do histórico real
+                          (subcoleção Firestore de pagamentos). */}
+                      {jurosRecebidosParcela && (
+                        <p
+                          data-testid={`juros-recebidos-parcela-${p.numero}`}
+                          className="mt-2 text-[11px] font-medium text-emerald-600"
+                        >
+                          ✓ Juros da semana recebido · {formatarMoeda(jurosRecebidosParcela.valorRecebido)} em {formatarData(jurosRecebidosParcela.dataRecebimento)}
+                        </p>
+                      )}
 
                       {/* Botões de ação da parcela */}
                       {p.status !== "Paga" ? (

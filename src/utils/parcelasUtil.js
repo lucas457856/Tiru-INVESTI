@@ -305,17 +305,18 @@ export function calcularParcelas(contrato, hoje = new Date(), abatimentosParam =
       status = vencimento && vencimento < hoje ? "Vencida" : "Pendente";
     } else {
       // ---- Parcela FUTURA ORIGINAL ----
-      // REGRA 1: ainda há parcelas originais não pagas.
-      // Cálculo SEMPRE sobre o valorEmprestado ORIGINAL, não sobre saldoPrincipal.
-      // Fórmula: valorParcela = (valorEmprestado + juros) / numeroParcelas
-      //   principalParcela = valorEmprestado / total
-      //   jurosParcela      = (valorEmprestado × taxa/100) / total
-      // Isso garante que o total das parcelas é exatamente (valorEmprestado + juros)
-      // e que cada parcela é igual às outras (sem recalcular por saldo).
-      //
+      // Base de cálculo: principalRestante (= saldoPrincipal após abatimentos
+      // parciais aplicados no nível do contrato).
+      //   - Sem abatimento: principalRestante === valorEmprestado.
+      //   - Com abatimento (ex: R$ 50 abatido na P1): principalRestante cai
+      //     para 1650 e as parcelas futuras são recalculadas sobre esse novo
+      //     principal. Ex: 1650/6 + (1650×0,35)/6 = 275 + 96,25 = 371,25.
+      // Juros continuam aplicando-se uma única vez sobre o principal base
+      // (nunca juros compostos, nunca multiplicação por numeroParcelas).
       // A frequência (Semanal, Mensal, etc.) só afeta DATAS, não o valor.
-      const principalParcela = valorEmprestado / total;
-      const jurosParcela = (valorEmprestado * (jurosTaxa / 100)) / total;
+      const basePrincipal = principalRestante;
+      const principalParcela = basePrincipal / total;
+      const jurosParcela = (basePrincipal * (jurosTaxa / 100)) / total;
 
       // Multa (se aplicável) — sempre sobre o valor ORIGINAL da parcela
       let multaParcela = 0;
