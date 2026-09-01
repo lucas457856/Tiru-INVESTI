@@ -167,7 +167,14 @@ export function calcularParcelas(contrato, hoje = new Date(), abatimentosParam =
 
   // Juros SEMPRE sobre valorEmprestado ORIGINAL (nunca sobre saldo reduzido).
   // Regra: jurosOriginais = valorEmprestado × (taxaJuros / 100)
-  const jurosPorParcela = valorEmprestado * (jurosTaxa / 100);
+  // jurosPorParcela = jurosOriginais / numeroParcelas — fração de juros
+  // que cabe a CADA parcela. Para 1700/35%/6x → 595/6 = 99,17.
+  //   total: valorEmprestado * (jurosTaxa / 100)
+  //   por parcela: total / numeroParcelas
+  const jurosOriginaisTotal = valorEmprestado * (jurosTaxa / 100);
+  const jurosPorParcela = total > 0
+    ? jurosOriginaisTotal / total
+    : jurosOriginaisTotal;
 
   // Valor original de cada parcela (para histórico e cálculo de multa).
   const valorOriginalParcela = valorBaseParcela;
@@ -298,13 +305,17 @@ export function calcularParcelas(contrato, hoje = new Date(), abatimentosParam =
       status = vencimento && vencimento < hoje ? "Vencida" : "Pendente";
     } else {
       // ---- Parcela FUTURA ORIGINAL ----
-      // REGRA 1: ainda há parcelas originais não pagas
-      // valor = (saldoPrincipal / numeroParcelas) + (saldoPrincipal × juros%) + multa
-      // IMPORTANTE: divide pelo numeroParcelas ORIGINAL, não por parcelas restantes.
-      const principalParcela = principalRestante / total;
-
-      // Juros sobre saldoPrincipal atual (não sobre valorEmprestado original)
-      const jurosParcela = principalRestante * (jurosTaxa / 100);
+      // REGRA 1: ainda há parcelas originais não pagas.
+      // Cálculo SEMPRE sobre o valorEmprestado ORIGINAL, não sobre saldoPrincipal.
+      // Fórmula: valorParcela = (valorEmprestado + juros) / numeroParcelas
+      //   principalParcela = valorEmprestado / total
+      //   jurosParcela      = (valorEmprestado × taxa/100) / total
+      // Isso garante que o total das parcelas é exatamente (valorEmprestado + juros)
+      // e que cada parcela é igual às outras (sem recalcular por saldo).
+      //
+      // A frequência (Semanal, Mensal, etc.) só afeta DATAS, não o valor.
+      const principalParcela = valorEmprestado / total;
+      const jurosParcela = (valorEmprestado * (jurosTaxa / 100)) / total;
 
       // Multa (se aplicável) — sempre sobre o valor ORIGINAL da parcela
       let multaParcela = 0;

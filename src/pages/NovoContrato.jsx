@@ -106,22 +106,22 @@ export default function NovoContrato() {
   const parcelasNumero = parseInt(parcelas, 10) || 0;
 
   // Resumo calculado dinamicamente
-  // REGRA: valorParcela é o valor ORIGINAL da parcela (sem juros incorporados).
-  // Os juros são calculados separadamente sempre sobre valorEmprestado.
+  // REGRA DO SISTEMA (com juros):
+  //   juros       = valorEmprestado × (taxa / 100)        [APLICADO UMA ÚNICA VEZ]
+  //   totalReceber = valorEmprestado + juros
+  //   valorParcela = totalReceber / numeroParcelas
+  //   lucro       = totalReceber - valorEmprestado
+  // A frequência (Semanal, Mensal, etc.) controla apenas DATAS, não o total.
+  // Para "Sem Juros": valorParcela = valorEmprestado / numeroParcelas.
   const resumo = useMemo(() => {
     const totalParcelas = Math.max(parcelasNumero, 1);
-    let valorParcela = 0;
-    if (valorNumero > 0 && parcelasNumero > 0) {
-      // valorParcela = apenas o valor emprestado dividido pelas parcelas
-      // (juros são calculados à parte, nunca incorporados no valor da parcela)
-      valorParcela = valorNumero / totalParcelas;
-    }
-    // total a receber = valorEmprestado + juros totais
-    // juros totais = valorEmprestado × taxa × número de parcelas (juros simples)
     const jurosTotal = tipoEmprestimo === "Com Juros"
-      ? valorNumero * (jurosNumero / 100) * totalParcelas
+      ? Math.round(valorNumero * (jurosNumero / 100) * 100) / 100
       : 0;
-    const totalReceber = valorNumero + jurosTotal;
+    const totalReceber = Math.round((valorNumero + jurosTotal) * 100) / 100;
+    const valorParcela = totalParcelas > 0
+      ? Math.round((totalReceber / totalParcelas) * 100) / 100
+      : 0;
     return {
       valorParcela,
       totalReceber,
