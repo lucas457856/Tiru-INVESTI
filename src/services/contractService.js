@@ -1,0 +1,722 @@
+// Serviço para operações de contrato no Firestore.
+// Centraliza a leitura de contrato + cliente, cálculos derivados e atualização de pagamento.
+import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
+import { calcularParcelas } from "../utils/parcelasUtil";
+import { calculateInterest, calculatePenalty, calculateInstallmentValue, calculateDebtRemaining, calculatePrincipalQuitado, totalAbatimentos, getNextOpenInstallment, shiftFutureInstallments, avancarData } from "./paymentCalculations";
+import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
+
+/**
+ * Converte uma data (string YYYY-MM-DD, Date ou Firestore Timestamp) para um
+ * Date interpretado no HORÁRIO LOCAL — NUNCA UTC.
+ *
+ * O JavaScript trata string "YYYY-MM-DD" como meia-noite UTC. No fuso brasileiro
+ * (UTC-3) isso faz o dia "andar" para trás em 1 (ex: "2027-01-30" → 29/01 local).
+ * Fazemos parse explícito dos componentes para preservar o dia do calendário.
+ */
+function parseDataLocal(data) {
+  if (!data) return null;
+  // Firestore Timestamp
+  if (typeof data.toDate === "function") {
+    return data.toDate();
+  }
+  if (data instanceof Date) {
+    return Number.isNaN(data.getTime()) ? null : data;
+  }
+  if (typeof data === "string") {
+    // YYYY-MM-DD (sem T): string pura de data → parse LOCAL
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
+    if (m) {
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+    // ISO com hora (ex: 2026-08-30T12:00:00) → new Date respeita TZ local quando
+    // não há offset "Z"; mantemos o comportamento padrão.
+    return new Date(data);
+  }
+  return null;
+}
+
+/** Formata um Date (horário local) para string YYYY-MM-DD sem drift de timezone. */
+function formatarDataLocal(d) {
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Busca um contrato real validando a posse (subcoleção do usuário autenticado).
+// Retorna { contrato, cliente } ou null quando não encontra.
+export async function buscarContrato(usuario, id) {
+  if (!usuario || !id) return null;
+  const snap = await getDoc(doc(db, "usuarios", usuario.uid, "contratos", id));
+  if (!snap.exists()) return null;
+  const contrato = { id: snap.id, ...snap.data() };
+  let cliente = null;
+  if (contrato.clienteId) {
+    try {
+      const cliSnap = await getDoc(doc(db, "clientes", contrato.clienteId));
+      if (cliSnap.exists() && cliSnap.data().ownerId === usuario.uid) {
+        cliente = { id: cliSnap.id, ...cliSnap.data() };
+      }
+    } catch (err) {
+      console.error("Erro ao buscar cliente:", err);
+    }
+  }
+  return { contrato, cliente };
+}
+
+// Status real do contrato — reaproveita a lógica de Emprestimos.jsx
+// Recalcula quitado a partir de saldoPrincipal, não confiando no flag persistido
+// (que pode estar stale em contratos migrados da regra antiga).
+export function statusContrato(c, hoje = new Date()) {
+  const total = Number(c?.numeroParcelas) || 0;
+  const parcelasPagas = Number(c?.parcelasPagas) || 0;
+  const saldoReal = Number(c?.saldoPrincipal) ?? calculateDebtRemaining(c);
+  const realmenteQuitado = parcelasPagas >= total && saldoReal <= 0;
+  if (realmenteQuitado) return "Quitado";
+  if (c.dataProximo && parseDataLocal(c.dataProximo) < hoje) return "Atrasado";
+  return "Em dia";
+}
+
+// Parcelas calculadas a partir dos campos reais do contrato, incluindo abatimentos.
+// Passa o campo `abatimentos` (array no contrato) para que calcularParcelas
+// distribua corretamente o principal restante nas parcelas futuras.
+//
+// OVERRIDE DE VENCIMENTOS (juros_apenas):
+// Quando o usuário paga "Só os juros", o vencimento da parcela selecionada
+// e de todas as posteriores é deslocado por 1 frequência e persistido no
+// Firestore como `vencimentosCustom` (array de {numero, vencimento}).
+//
+// REGRA DEFINITIVA (corrigida):
+// - vencimentosCustom é a fonte de verdade parcial: persiste apenas os overrides
+//   aplicados por juros_apenas. As parcelas sem override DEVEM ter suas datas
+//   reconstruídas CONTINUANDO a sequência a partir do último override anterior.
+// - Isso garante que, se P1 e P2 têm overrides mas P3 não, P3 continua a partir
+//   de P2 (cumulativo), nunca da data original de dataPrimeiraParcela.
+//
+// Algoritmo:
+// 1. calcularParcelas gera o cronograma original (fonte canônica)
+// 2. Percorre em ordem numérica; para cada parcela:
+//    - Se tem override: usar a data customizada; atualiza o "último deslocamento conhecido"
+//    - Se não tem override: continuar a partir do override anterior mais próximo
+export function parcelasDoContrato(contrato, hoje = new Date()) {
+  const parcelasBase = calcularParcelas(contrato, hoje, contrato.abatimentos || null);
+
+  let parcelas = parcelasBase;
+
+  // Override de valor/vencimento/observacoes por renegociação (parcelasCustom)
+  // APLICA PRIMEIRO — representa a alteração mais antiga explícita pelo usuário.
+  const parcelasCustom = Array.isArray(contrato?.parcelasCustom) ? contrato.parcelasCustom : null;
+  if (parcelasCustom && parcelasCustom.length > 0) {
+    const mapaPC = new Map();
+    parcelasCustom.forEach((v) => {
+      const num = Number(v.numero);
+      if (!isNaN(num)) mapaPC.set(num, v);
+    });
+
+    parcelas = parcelas.map((p) => {
+      const num = Number(p.numero);
+      if (mapaPC.has(num)) {
+        const override = mapaPC.get(num);
+        return {
+          ...p,
+          // SOMENTE para parcelas NÃO pagas: o valorCustom (renegociação) prevalece.
+          // Para parcelas Pagas, o valor já é o efetivamente recebido (recebido),
+          // e não deve ser sobrescrito pelo valor renegociado original.
+          ...(override.valor !== undefined && p.status !== "Paga" && { valor: Number(override.valor) }),
+          ...(override.vencimento !== undefined && { vencimento: override.vencimento }),
+          ...(override.observacoes !== undefined && { observacoes: override.observacoes }),
+          renegociada: true,
+        };
+      }
+      return p;
+    });
+  }
+
+  // Override de vencimentos por juros_apenas (cumulativo)
+  // APLICA POR ÚLTIMO — representa a operação mais RECENTE (deslocamento de juros).
+  // Precedência: vencimentosCustom prevalece sobre parcelasCustom.
+  const custom = Array.isArray(contrato?.vencimentosCustom) ? contrato.vencimentosCustom : null;
+
+  if (custom && custom.length > 0) {
+    // Mapeia overrides por numero
+    const mapaCustom = new Map();
+    custom.forEach((v) => {
+      const num = Number(v.numero);
+      if (!isNaN(num)) {
+        mapaCustom.set(num, typeof v.vencimento === "string" ? v.vencimento.trim() : v.vencimento);
+      }
+    });
+
+    // Itera mantendo o "último vencimento conhecido" — se uma parcela não
+    // tem override, sua data continua a partir do override anterior via avancarData.
+    let ultimoVencimento = null; // vencimento da última parcela processada (override ou original)
+
+    parcelas = parcelas.map((p) => {
+      const num = Number(p.numero);
+      let vencimento;
+
+      if (mapaCustom.has(num)) {
+        // Override explícito: preserva a data customizada
+        vencimento = mapaCustom.get(num);
+        ultimoVencimento = vencimento;
+      } else if (ultimoVencimento !== null) {
+        // Sem override: continua a partir do último vencimento conhecido
+        const novaData = avancarData(contrato.frequencia, ultimoVencimento);
+        vencimento = novaData
+          ? `${novaData.getFullYear()}-${String(novaData.getMonth() + 1).padStart(2, "0")}-${String(novaData.getDate()).padStart(2, "0")}`
+          : ultimoVencimento;
+        ultimoVencimento = vencimento;
+      } else {
+        // Nenhum override anterior: usa a data original de calcularParcelas
+        vencimento = p.vencimento;
+        ultimoVencimento = vencimento;
+      }
+
+      return { ...p, vencimento };
+    });
+  }
+
+  // Preserva valores estabelecidos em parcelas, corrigindo a regressão onde
+  // calcularParcelas() recalcula o valor de parcelas PENDENTES usando
+  // saldoPrincipal (que é reduzido quando outra parcela é paga).
+  //
+  // CAUSA RAIZ: REGRA 1 de calcularParcelas() (linhas 254-271) usa
+  // `principalRestante` (= saldoPrincipal) para calcular o valor das parcelas
+  // futuras:
+  //   valor = (saldoPrincipal / numeroParcelas) + (saldoPrincipal × juros%)
+  //
+  // Quando P1 é paga INTEGRALMENTE (R$425), saldoPrincipal cai 500→250.
+  // P2 é recalculada como (250/2) + (250×0,35) = 212,50 — ERRADO.
+  // Deve permanecer R$425 (valor original estabelecido).
+  //
+  // Solução CIRÚRGICA: preservar o valor original estabelecido no momento
+  // da criação do contrato. Os campos `valorOriginalParcela` e `jurosOriginais`
+  // são derivados de `valorEmprestado` (IMUTÁVEL) e estão disponíveis em todas
+  // as parcelas produzidas por calcularParcelas().
+  //
+  // REGRA DE PRECEDÊNCIA:
+  //   1. Parcela PAGA → preserva p.recebido (já aplicado por calcularParcelas)
+  //   2. Parcela RENEGOCIADA (parcelasCustom) → valor já aplicado acima
+  //   3. Parcela DINÂMICA (numero > numeroParcelas) → preserva lógica de calcularParcelas
+  //   4. Parcela ORIGINAL PENDENTE + SEM ABATIMENTOS → valor congelado:
+  //      valorOriginalParcela + jurosOriginais (baseado em valorEmprestado, NÃO saldoPrincipal)
+  //   5. Parcela ORIGINAL PENDENTE + COM ABATIMENTOS → recalcula via calcularParcelas()
+  //      (pagamento parcial: o saldo foi reduzido de propósito e P2 deve refletir isso)
+  const totalOriginal = Number(contrato?.numeroParcelas) || 0;
+  const temAbatimento = totalAbatimentos(contrato?.abatimentos) > 0;
+  parcelas = parcelas.map((p) => {
+    // Paga: já preservado por calcularParcelas (valor = recebido)
+    if (p.status === "Paga") return p;
+
+    // Renegociada (parcelasCustom): valor já foi aplicado acima — não sobrescrever
+    if (p.renegociada) return p;
+
+    // Dinâmica: preserva lógica existente de calcularParcelas (REGRA 2)
+    if (totalOriginal > 0 && Number(p.numero) > totalOriginal) return p;
+
+    // Se há abatimentos (pagamento parcial), NÃO congelar — deixa calcularParcelas
+    // recalcular usando saldoPrincipal reduzido (regra existente de abatimento).
+    if (temAbatimento) return p;
+
+    // Original pendente sem abatimentos: paga integralmente → congela valor original
+    // Estabelecido no momento da criação do contrato (valorEmprestado imutável).
+    const valorOriginal = Math.round(
+      (Number(p.valorOriginalParcela) + Number(p.jurosOriginais)) * 100
+    ) / 100;
+    return { ...p, valor: valorOriginal };
+  });
+
+  return parcelas;
+}
+
+// Recalcula a data de próximo vencimento a partir do novo estado de parcelasPagas.
+// Usa getNextOpenInstallment para encontrar a primeira parcela não paga.
+function recalcularDataProximo(contrato, parcelasPagas, total, saldoPrincipal, abatimentos) {
+  // Se todas as parcelas originais foram pagas mas saldo ainda > 0,
+  // uma parcela dinâmica será criada — então dataProximo deve ser recalculada.
+  if (parcelasPagas >= total && saldoPrincipal <= 0) return null;
+  const contratoAtualizado = { ...contrato, parcelasPagas, quitado: false, saldoPrincipal, abatimentos };
+  const proxima = getNextOpenInstallment(contratoAtualizado, new Date());
+  if (proxima?.vencimento) {
+    // Usa parse LOCAL para evitar drift de timezone no toISOString (que é UTC).
+    // proxima.vencimento pode ser Date (calcularParcelas) ou string YYYY-MM-DD
+    // (override via vencimentosCustom). Em ambos os casos, formata como string
+    // preservando o dia do calendário exibido ao usuário.
+    return formatarDataLocal(proxima.vencimento instanceof Date ? proxima.vencimento : parseDataLocal(proxima.vencimento));
+  }
+  return contrato.dataProximo;
+}
+
+// Adiciona um novo abatimento ao array, preservando existentes
+function adicionarAbatimento(existentes, parcelaNumero, valor, data, observacao) {
+  const arr = Array.isArray(existentes) ? [...existentes] : [];
+  if (Number(valor) > 0) {
+    arr.push({ parcelaNumero, valor: Number(valor), data, observacao: observacao || "" });
+  }
+  return arr;
+}
+
+/**
+ * Processa um pagamento avançado com 4 modalidades:
+ * "parcela_inteira", "juros_apenas", "juros_parte_divida", "quitar_tudo"
+ *
+ * NOVA LÓGICA FINANCEIRA:
+ * - saldoPrincipal: saldo do contrato após abatimentos (Reduzido pelo abatimento)
+ * - juros: SEMPRE sobre valorEmprestado ORIGINAL
+ * - principalQuitado: soma de principal pago em parcelas fechadas
+ * - Abatimento reduz o saldoPrincipal (nunca a parcela já paga)
+ *
+ * Recebe:
+ * - usuario: usuário autenticado (uid)
+ * - contrato: objeto contrato completo
+ * - parcela: objeto parcela da lista calculada
+ * - modalidade: string da modalidade selecionada
+ * - valores: { valorJuros?, valorAbatimento?, valorTotal? }
+ * - dataRecebimento: ISO string (YYYY-MM-DD)
+ * - observacao: texto
+ *
+ * Retorna: { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal }
+ */
+export async function processarPagamento(usuario, contrato, parcela, modalidade, valores, dataRecebimento, observacao = "") {
+  if (!usuario || !contrato) throw new Error("Contexto inválido");
+
+  const total = Number(contrato.numeroParcelas) || 1;
+  const valorEmprestado = Number(contrato.valorEmprestado) || 0;
+  const jurosTaxa = Number(contrato.juros) || 0;
+
+  // Valor original do principal por parcela (sem juros incorporados)
+  const valorBaseParcela = valorEmprestado > 0 && total > 0
+    ? valorEmprestado / total
+    : (Number(contrato.valorParcela) || 0);
+
+  // Juros sobre o VALOR ORIGINAL (nunca sobre saldo reduzido)
+  const jurosPorParcela = calculateInterest(valorEmprestado, jurosTaxa);
+
+  // Saldo principal: usa campo existente ou calcula (fallback)
+  const saldoPrincipalAntes = contrato.saldoPrincipal !== undefined && contrato.saldoPrincipal !== null
+    ? Number(contrato.saldoPrincipal)
+    : calculateDebtRemaining(contrato);
+
+  // Abatimentos existentes no contrato
+  let abatimentos = Array.isArray(contrato.abatimentos) ? [...contrato.abatimentos] : [];
+  const abatimentoTotalAntes = totalAbatimentos(abatimentos);
+
+  // Estado atual
+  let parcelasPagas = Number(contrato.parcelasPagas) || 0;
+  let valorRecebido = Number(contrato.valorRecebido) || 0;
+  let jurosRecebidosTotal = Number(contrato.jurosRecebidos) || 0; // juros acumulados recebidos
+  let saldoPrincipalAtual = saldoPrincipalAntes;
+
+  let totalRecebido = 0;
+  let jurosRecebidos = 0;
+  let principalAbatido = 0;
+
+  // Validação: não permitir pagamento se quitado
+  if (contrato.quitado) {
+    throw new Error("Este contrato já está quitado.");
+  }
+
+  switch (modalidade) {
+    case "parcela_inteira": {
+      // Pagar uma parcela específica com juros + multa
+      const multa = calculatePenalty(contrato, parcela, new Date());
+
+      // Fonte oficial do valor da parcela:
+      // - Renegociada: parcela.valor é o TOTAL renegociado (já com juros).
+      //   NÃO recalcular a partir de valorOriginalParcela — isso descartaria
+      //   a renegociação e registraria o valor antigo.
+      // - Original: parcela.valor vem de calcularParcelas (valorBaseParcela + juros).
+      //   Mantém o cálculo de fallback se por algum motivo vier 0.
+      const valorParcelaAtual = Number(parcela.valor) > 0
+        ? Number(parcela.valor)
+        : calculateInstallmentValue(parcela.valorOriginalParcela || valorBaseParcela, jurosPorParcela + multa);
+
+      // Total a receber = parcela.valor (já inclui juros para renegociada)
+      // + multa de atraso (calculada em cima do valor original, como sempre)
+      const valorTotalParcela = Math.round((valorParcelaAtual + multa) * 100) / 100;
+
+      totalRecebido = Number(valores.valorTotal) || valorTotalParcela;
+
+      // Parte de juros desta parcela
+      // - Renegociada: juros já estão DENTRO de parcela.valor (que é o total
+      //   renegociado). A fração de juros da renegociação é jurosPorParcela
+      //   (a parte de juros que a parcela original continha). O principal
+      //   efetivo da renegociação é parcela.valor - jurosPorParcela.
+      //   Ex: parcela.valor=450, jurosPorParcela=175 → principal=275.
+      //   Sem isso, o sistema somaria jurosPorParcela de novo em jurosRecebidos
+      //   e zeraria o principal pago, gerando abatimento espúrio.
+      // - Original: jurosPorParcela + multa.
+      if (parcela.renegociada) {
+        jurosRecebidos = jurosPorParcela;
+      } else {
+        jurosRecebidos = jurosPorParcela + multa;
+      }
+
+      // Parte de principal: o que sobra após pagar juros + multa
+      // Capped no principal da parcela efetiva:
+      // - Original: valorBaseParcela (valorEmprestado / numeroParcelas)
+      // - Renegociada: (parcela.valor - jurosRecebidos) — o principal da renegociação.
+      //   Ex: parcela.valor=450, jurosRecebidos=175 → principalPago pode chegar a 275,
+      //   NÃO limitado ao valorBaseParcela original de 250. Isso evita que o pagamento
+      //   integral de R$450 gere um abatimento espúrio de R$25.
+      // Para parcelas NÃO renegociadas: mantém o cap original em valorBaseParcela.
+      const principalMaximo = parcela.renegociada
+        ? Math.max(0, Number(parcela.valor) - jurosRecebidos)
+        : valorBaseParcela;
+      let principalPago = Math.min(Math.max(0, totalRecebido - jurosRecebidos), principalMaximo);
+
+      valorRecebido += totalRecebido;
+      jurosRecebidosTotal += jurosRecebidos;
+
+      // Caso o valor pago seja MENOR que os juros (totalRecebido < jurosRecebidos):
+      // O pagamento não cobre os juros integralmente. O que foi pago é registrado
+      // como abatimento parcial do principal da parcela.
+      // Isso garante que um pagamento de R$ 50 em uma parcela cuja parte de juros
+      // é R$ 157,50 ainda reduza o saldoPrincipal em R$ 50 e marque a parcela como PAGA.
+      // Regra: qualquer pagamento parcial (mesmo menor que juros) marca a parcela atual como PAGA.
+      // O valor pago é registrado como abatimento (principal quitado) daquela parcela específica.
+      if (totalRecebido < jurosRecebidos) {
+        const abatimentoParcial = Math.min(totalRecebido, saldoPrincipalAntes);
+        if (abatimentoParcial > 0) {
+          abatimentos = adicionarAbatimento(abatimentos, parcela.numero, abatimentoParcial, dataRecebimento, observacao);
+          saldoPrincipalAtual = Math.max(0, saldoPrincipalAntes - abatimentoParcial);
+          principalAbatido = abatimentoParcial;
+          // O abatimento parcial conta como pagamento de principal da parcela
+          principalPago = abatimentoParcial;
+          // Marca a parcela atual como PAGA — qualquer pagamento parcial (mesmo < juros)
+          // quita a parcela atual. O saldo restante do principal continua no contrato.
+          parcelasPagas += 1;
+          // Não cobra juros quando o pagamento não cobre a parte de juros
+          jurosRecebidos = 0;
+          jurosRecebidosTotal = Math.max(0, jurosRecebidosTotal - jurosRecebidos);
+        }
+      } else {
+        // Pagamento maior ou igual aos juros: atualiza saldoPrincipal normalmente
+        saldoPrincipalAtual = Math.max(0, saldoPrincipalAntes - principalPago);
+
+        // Se houver excedente (total > juros + principal base), registra como abatimento extra
+        const excedente = Math.max(0, totalRecebido - jurosRecebidos - principalPago);
+        if (excedente > 0) {
+          abatimentos = adicionarAbatimento(abatimentos, parcela.numero, excedente, dataRecebimento, observacao);
+          saldoPrincipalAtual = Math.max(0, saldoPrincipalAtual - excedente);
+          principalAbatido = excedente;
+        }
+
+        // Atualiza parcelasPagas: marca como paga quando o pagamento cobre
+        // pelo menos o principal da parcela (totalRecebido >= jurosRecebidos + valorBaseParcela)
+        const principalPagoAcumulado = (parcelasPagas * valorBaseParcela) + principalPago;
+        while (parcelasPagas < total) {
+          const proximaParcelaBase = (parcelasPagas + 1) * valorBaseParcela;
+          if (principalPagoAcumulado >= proximaParcelaBase) {
+            parcelasPagas += 1;
+          } else {
+            break;
+          }
+        }
+      }
+      break;
+    }
+
+    case "juros_apenas": {
+      // Receber apenas juros — não reduz principal
+      const multa = calculatePenalty(contrato, parcela, new Date());
+      const jurosParcela = jurosPorParcela + multa;
+
+      jurosRecebidos = valores.valorJuros !== undefined ? Number(valores.valorJuros) : jurosParcela;
+      jurosRecebidos = Math.max(0, jurosRecebidos);
+
+      totalRecebido = jurosRecebidos;
+      valorRecebido += totalRecebido;
+      jurosRecebidosTotal += jurosRecebidos;
+
+      // Principal NÃO é reduzido — nenhum abatimento
+      principalAbatido = 0;
+      break;
+    }
+
+    case "juros_parte_divida": {
+      // Receber juros + parte do principal (abatimento do saldoPrincipal)
+      const multa = calculatePenalty(contrato, parcela, new Date());
+
+      // Juros recebidos (sobre valor original, editável pelo usuário)
+      jurosRecebidos = valores.valorJuros !== undefined ? Number(valores.valorJuros) : jurosPorParcela;
+      jurosRecebidos = Math.max(0, jurosRecebidos);
+
+      // Principal abatido (reduz o saldoPrincipal)
+      principalAbatido = valores.valorAbatimento !== undefined ? Number(valores.valorAbatimento) : 0;
+      principalAbatido = Math.max(0, principalAbatido);
+
+      // Validação: abatimento não pode exceder o saldo principal restante
+      // saldoPrincipalAntes já reflete abatimentos + principal pago via parcelas anteriores
+      const principalDisponivel = saldoPrincipalAntes;
+
+      if (principalAbatido > principalDisponivel) {
+        throw new Error(
+          `O abatimento não pode exceder ${Math.round(principalDisponivel * 100) / 100} (saldo principal restante).`
+        );
+      }
+
+      totalRecebido = jurosRecebidos + principalAbatido;
+      valorRecebido += totalRecebido;
+      jurosRecebidosTotal += jurosRecebidos;
+
+      // Aplica abatimento ao saldoPrincipal
+      if (principalAbatido > 0 && parcela?.numero) {
+        abatimentos = adicionarAbatimento(abatimentos, parcela.numero, principalAbatido, dataRecebimento, observacao);
+        saldoPrincipalAtual = Math.max(0, saldoPrincipalAntes - principalAbatido);
+      }
+      break;
+    }
+
+    case "quitar_tudo": {
+      // Pagar tudo: principal restante + juros sobre original + multa da parcela atual
+      const multa = calculatePenalty(contrato, parcela, new Date());
+      const jurosQuitacao = calculateInterest(valorEmprestado, jurosTaxa);
+
+      jurosRecebidos = jurosQuitacao + multa;
+      principalAbatido = saldoPrincipalAntes; // paga todo o principal restante
+      totalRecebido = valores.valorTotal !== undefined ? Number(valores.valorTotal) : (jurosRecebidos + principalAbatido);
+
+      valorRecebido += totalRecebido;
+      jurosRecebidosTotal += jurosRecebidos;
+      saldoPrincipalAtual = 0;
+
+      parcelasPagas = total;
+      break;
+    }
+
+    default:
+      throw new Error(`Modalidade desconhecida: ${modalidade}`);
+  }
+
+  const abatimentoTotalFinal = totalAbatimentos(abatimentos);
+  // quitado apenas quando todas as parcelas originais foram pagas E saldo zerado
+  // Se saldoPrincipalAtual > 0 após pagar todas originais, o contrato NÃO está
+  // quitado — uma parcela dinâmica (REGRA 2) deve ser criada.
+  const quitado = parcelasPagas >= total && saldoPrincipalAtual <= 0;
+  const dataProximo = recalcularDataProximo(contrato, parcelasPagas, total, saldoPrincipalAtual, abatimentos);
+
+  // saldoPrincipalAtual já reflete abatimentos + principal pago via parcelas.
+  // Como saldoPrincipalAtual é o total restante, não precisamos subtrair principalQuitado.
+  // principalQuitadoFinal é apenas para registro/informação.
+  const principalQuitadoFinal = parcelasPagas * valorBaseParcela;
+  const saldoRestante = Math.max(0, saldoPrincipalAtual);
+
+  // Persiste no Firestore — inclui o array de abatimentos.
+  // REGRA vencimentosCustom: o array é PRESERVADO em todas as modalidades.
+  // - juros_apenas: recalcula (bloque abaixo) e sobrescreve com deslocamento cumulativo.
+  // - outras modalidades: mantêm o array existente para que as datas
+  //   personalizadas não voltem para dataPrimeiraParcela original.
+  const vencimentosCustomExistente = Array.isArray(contrato?.vencimentosCustom)
+    ? contrato.vencimentosCustom
+    : null;
+
+  const updateData = {
+    parcelasPagas,
+    valorRecebido,
+    jurosRecebidos: jurosRecebidosTotal,
+    saldoPrincipal: saldoPrincipalAtual,
+    abatimentoTotal: abatimentoTotalFinal,
+    quitado,
+    dataProximo,
+    abatimentos,
+    updatedAt: serverTimestamp(),
+  };
+
+  // Preserva vencimentosCustom existente para modalidades que não recalculam.
+  // juros_apenas é tratado no bloco abaixo (onde recalcula e sobrescreve).
+  if (modalidade !== "juros_apenas" && vencimentosCustomExistente) {
+    updateData.vencimentosCustom = vencimentosCustomExistente;
+  }
+
+  // "Só os juros" — desloca o vencimento da parcela selecionada e de todas as
+  // posteriores por 1 frequência. Persiste como vencimentosCustom para que o
+  // deslocamento seja refletido nas próximas leituras (override em parcelasDoContrato).
+  // - Parcelas anteriores: NÃO alteram.
+  // - Juros só na parcela selecionada (já registrado acima).
+  // - Valores e status das posteriores preservados.
+  if (modalidade === "juros_apenas" && parcela?.numero) {
+    const contratoAposPagamento = {
+      ...contrato,
+      parcelasPagas,
+      saldoPrincipal: saldoPrincipalAtual,
+      abatimentos,
+    };
+    // FIX CUMULATIVO: usa parcelasDoContrato ao invés de calcularParcelas —
+    // parcelasDoContrato aplica vencimentosCustom existente como override antes
+    // do shift, garantindo que o novo deslocamento prossiga das datas já
+    // customizadas (não das originais de dataPrimeiraParcela).
+    const parcelasPosPagamento = parcelasDoContrato(contratoAposPagamento, new Date());
+    const indiceSelecionado = parcelasPosPagamento.findIndex(
+      (p) => p.numero === parcela.numero
+    );
+    if (indiceSelecionado >= 0) {
+      const parcelasDeslocadas = shiftFutureInstallments(
+        parcelasPosPagamento,
+        indiceSelecionado,
+        contrato.frequencia
+      );
+
+      // MERGE CUMULATIVO: o novo vencimentosCustom deve CONTER:
+      //  (a) os overrides já existentes das parcelas ANTERIORES à selecionada
+      //      (que não sofreram shift nesta operação) — preservados por número;
+      //  (b) as novas datas deslocadas da parcela selecionada em diante.
+      //
+      // Regra: nunca apagar um override existente. Usa um Map por numero para
+      // unir sem perder nenhuma data customizada anterior.
+      const merged = new Map();
+
+      // (a) Preserva overrides existentes de parcelas anteriores à selecionada
+      if (vencimentosCustomExistente && indiceSelecionado > 0) {
+        vencimentosCustomExistente.forEach((v) => {
+          if (Number(v.numero) < Number(parcelasPosPagamento[indiceSelecionado].numero)) {
+            merged.set(Number(v.numero), v.vencimento);
+          }
+        });
+      }
+      // (b) Novas datas deslocadas (selecionada + posteriores)
+      parcelasDeslocadas.slice(indiceSelecionado).forEach((p) => {
+        merged.set(Number(p.numero), p.vencimento);
+      });
+
+      // Serializa preservando a ordem numérica crescente
+      updateData.vencimentosCustom = Array.from(merged.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([numero, vencimento]) => ({ numero, vencimento }));
+    }
+  }
+
+  // Se não há abatimentos, remove os campos do objeto de atualização
+  if (!abatimentos || abatimentos.length === 0) {
+    delete updateData.abatimentos;
+    delete updateData.abatimentoTotal;
+  }
+
+  await updateDoc(doc(db, "usuarios", usuario.uid, "contratos", contrato.id), updateData);
+
+  // Registra no histórico de pagamentos
+  try {
+    await registrarHistorico(usuario, contrato, {
+      valorRecebido: totalRecebido,
+      tipoRecebimento: modalidade === "parcela_inteira" ? "parcela"
+        : modalidade === "juros_apenas" ? "juros"
+        : modalidade === "juros_parte_divida" ? "parcial"
+        : "quitacao",
+      jurosRecebidos,
+      principalAbatido,
+      dataRecebimento,
+      parcelaNumero: parcela?.numero,
+      observacao,
+      saldoAntes: Number(contrato.valorRecebido) || 0,
+      saldoDepois: valorRecebido,
+      saldoPrincipalAntes: saldoPrincipalAntes,
+      saldoPrincipalDepois: saldoPrincipalAtual,
+      abatimentoTotalAntes: abatimentoTotalAntes,
+      abatimentoTotalDepois: abatimentoTotalFinal,
+    });
+  } catch (err) {
+    console.error("Erro ao registrar histórico de pagamento:", err);
+    // Não falha a operação principal se o histórico falhar
+  }
+
+  return { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal: saldoPrincipalAtual };
+}
+
+// Mantém a função original para compatibilidade
+export async function registrarPagamento(usuario, contrato, valorPago, dataPagamento, observacao = "") {
+  return processarPagamento(
+    usuario,
+    contrato,
+    null,
+    "parcela_inteira",
+    { valorTotal: Number(valorPago) || 0 },
+    dataPagamento,
+    observacao
+  );
+}
+
+// Remove um contrato (apenas para o proprietário)
+export async function excluirContrato(usuario, contratoId) {
+  if (!usuario || !contratoId) throw new Error("Contexto inválido");
+  await deleteDoc(doc(db, "usuarios", usuario.uid, "contratos", contratoId));
+}
+
+/**
+ * Renegocia uma parcela: atualiza valor, vencimento e observações.
+ *
+ * Persiste como `parcelasCustom` (array de {numero, valor, vencimento, observacoes})
+ * dentro do documento do contrato — mesmo padrão de vencimentosCustom/abatimentos.
+ *
+ * Se a parcela já foi renegociada anteriormente (mesmo número), atualiza o
+ * override existente — NÃO acumula entradas duplicadas.
+ *
+ * @param {object} usuario - usuário autenticado (uid)
+ * @param {object} contrato - documento do contrato completo
+ * @param {number} parcelaNumero - número da parcela a renegociar
+ * @param {number} novoValor - novo valor da parcela
+ * @param {string} novoVencimento - nova data (YYYY-MM-DD)
+ * @param {string} observacoes - observações da renegociação
+ * @returns {Promise<{ parcela: object }>} - a parcela atualizada
+ */
+export async function renegociarParcela(usuario, contrato, parcelaNumero, novoValor, novoVencimento, observacoes = "") {
+  if (!usuario || !contrato) throw new Error("Contexto inválido");
+  if (!parcelaNumero || isNaN(Number(parcelaNumero))) throw new Error("Número da parcela inválido");
+  if (!novoValor || Number(novoValor) <= 0) throw new Error("O novo valor deve ser maior que zero");
+  if (!novoVencimento) throw new Error("A nova data de vencimento é obrigatória");
+
+  const num = Number(parcelaNumero);
+  const valor = Number(novoValor);
+  const vencimento = String(novoVencimento).trim();
+
+  // Carrega o estado atual do Firestore para evitar perda de concorrência
+  const snap = await getDoc(doc(db, "usuarios", usuario.uid, "contratos", contrato.id));
+  if (!snap.exists()) throw new Error("Contrato não encontrado");
+  const dadosAtuais = snap.data();
+
+  // Verifica permissão: o documento deve pertencer ao usuário
+  if (dadosAtuais.ownerId !== usuario.uid && dadosAtuais.uid !== usuario.uid && dadosAtuais.ownerUid !== usuario.uid) {
+    // Se não houver ownerId explícito, assume que o caminho já garante
+    // a posse (Firestore rules). Mas verificamos se há alguma proteção.
+    // Em contratos criados pelo próprio usuário, não há ownerId separado.
+  }
+
+  // Existente parcelasCustom ou inicia um novo array
+  const existentes = Array.isArray(dadosAtuais?.parcelasCustom) ? [...dadosAtuais.parcelasCustom] : [];
+
+  // Verifica se já existe override para esta parcela
+  const idxExistente = existentes.findIndex((v) => Number(v.numero) === num);
+
+  if (idxExistente >= 0) {
+    // Atualiza o override existente (não duplica)
+    existentes[idxExistente] = { numero: num, valor, vencimento, observacoes };
+  } else {
+    // Adiciona novo override
+    existentes.push({ numero: num, valor, vencimento, observacoes });
+  }
+
+  await updateDoc(doc(db, "usuarios", usuario.uid, "contratos", contrato.id), {
+    parcelasCustom: existentes,
+    updatedAt: serverTimestamp(),
+  });
+
+  // Retorna a parcela atualizada (recomputa a partir do contrato atualizado)
+  const contratoAtualizado = { ...dadosAtuais, id: snap.id, parcelasCustom: existentes };
+  const parcelasCalc = parcelasDoContrato(contratoAtualizado, new Date());
+  const parcelaAtualizada = parcelasCalc.find((p) => Number(p.numero) === num) || null;
+
+  return { parcela: parcelaAtualizada };
+}
+
+/**
+ * Lista os modelos de mensagem de contrato do usuário.
+ * Coleção: usuarios/{uid}/modelosContrato/{id} com shape { titulo, texto }.
+ * Usado pelo popup "Enviar contrato via WhatsApp" para carregar os templates
+ * editáveis em /configuracoes/modelos-contrato. Retorna [] se não houver.
+ */
+export async function listarModelosContrato(uid) {
+  if (!uid) return [];
+  const snap = await getDocs(collection(db, "usuarios", uid, "modelosContrato"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
