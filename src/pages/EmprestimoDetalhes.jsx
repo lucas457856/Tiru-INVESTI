@@ -24,7 +24,7 @@ import { useAuth } from "../context/useAuth";
 import { formatarMoeda, formatarTelefone, formatarData, numeroCurto } from "../utils/formatadores";
 import { gerarPdfContrato } from "../utils/pdfContrato";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato, listarModelosContrato } from "../services/contractService";
-import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado, getNextOpenInstallment } from "../services/paymentCalculations";
+import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado, getNextOpenInstallment, calculatePenalty } from "../services/paymentCalculations";
 import { buscarJurosRecebidos } from "../services/jurosRecebidosService";
 import { gerarMensagem, MODELOS_PADRAO } from "../utils/mensagens";
 import logoJurex from "../assets/jurex-logo.png";
@@ -199,6 +199,29 @@ export default function EmprestimoDetalhes() {
     return parcelasDoContrato(contrato, hoje);
   }, [contrato, hoje]);
 
+  // Parcelas COM multa aplicada para EXIBIÇÃO nesta tela.
+  // A multa é derivada de `calcularParcelas` (parcelasDoContrato) e somada ao
+  // valor congelado apenas para mostrar o valor atualizado na lista e no card
+  // "Próximo vencimento". Não é gravada no Firestore, não é exposta em
+  // `parcela.valorOriginalParcela` (permanece intocado) e não afeta o cálculo
+  // de pagamento em `ReceberPagamento` (que já soma a multa em `valorParcelaOriginal + multa`).
+  // - `calcularMultaJuros` (linha 241) e `calculatePenalty` (paymentCalculations)
+  //   retornam 0 para parcelas pagas, futuras (v >= hoje) e contratos sem
+  //   `cobrarJurosAtraso`. Portanto, apenas parcelas ATRASADAS com multa configurada
+  //   ganham acréscimo aqui.
+  // - Quando o dia virar, `hoje` muda, `parcelas` é recomputado, e este useMemo
+  //   recomputa → o valor exibido cresce automaticamente.
+  const parcelasComMulta = useMemo(() => {
+    if (!contrato) return parcelas;
+    return parcelas.map((p) => {
+      const multa = calculatePenalty(contrato, p, hoje);
+      if (multa > 0) {
+        return { ...p, valor: Math.round((Number(p.valor) + multa) * 100) / 100 };
+      }
+      return p;
+    });
+  }, [parcelas, contrato, hoje]);
+
   // Progresso e resumo financeiro (dados reais — sem alteração de cálculo)
   const progresso = useMemo(() => {
     if (!contrato || !parcelas.length) return { porcentagem: 0, pagas: 0, total: 0, recebido: 0 };
@@ -221,12 +244,12 @@ export default function EmprestimoDetalhes() {
   }, [contrato]);
 
   // Próxima parcela em aberto (primeira não paga com saldo > 0).
-  // Usa a lista `parcelas` (já processada por parcelasDoContrato, que aplica
-  // vencimentosCustom) para que a data de vencimento exibida no card
-  // "Próximo vencimento" reflita os deslocamentos cumulativos de juros_apenas.
+  // Usa `parcelasComMulta` para que o card "Próximo vencimento" exiba o valor
+  // atualizado (original + multa) quando a próxima parcela estiver atrasada
+  // e o contrato tiver `cobrarJurosAtraso` configurado.
   const proximaParcela = useMemo(
-    () => parcelas.find((p) => p.status !== "Paga" && Number(p.valor) > 0) || null,
-    [parcelas]
+    () => parcelasComMulta.find((p) => p.status !== "Paga" && Number(p.valor) > 0) || null,
+    [parcelasComMulta]
   );
 
   // Juros recebidos (calculado a partir do contrato — SEM alteração de fórmula)
@@ -238,18 +261,12 @@ export default function EmprestimoDetalhes() {
   }, [contrato]);
 
   // Valor de multa/juros da parcela (cobrarJurosAtraso configurado)
+  // Usa a função canônica `calculatePenalty` de `paymentCalculations.js` para
+  // garantir coerência com o valor somado em `parcelasComMulta` e o cálculo
+  // de pagamento em `ReceberPagamento.jsx`. Parse LOCAL, arredondamento e
+  // `valorOriginalParcela` (não `contrato.valorParcela`) preservados.
   function calcularMultaJuros(parcela) {
-    if (!contrato?.cobrarJurosAtraso || !parcela?.vencimento) return 0;
-    if (parcela.status === "Paga") return 0;
-    const venc = new Date(parcela.vencimento);
-    const diffDias = Math.floor((HOJE - venc) / (1000 * 60 * 60 * 24));
-    if (diffDias <= 0) return 0;
-    const valorParcela = Number(contrato.valorParcela) || 0;
-    const taxa = Number(contrato.jurosAtrasoValor) || 0;
-    if (contrato.modoJurosAtraso === "% ao valor da parcela") {
-      return valorParcela * (taxa / 100) * diffDias;
-    }
-    return taxa * diffDias; // Valor fixo por dia
+    return calculatePenalty(contrato, parcela, HOJE);
   }
 
   // WhatsApp com telefone real do cliente (botão de cada parcela)
@@ -756,7 +773,7 @@ export default function EmprestimoDetalhes() {
               Parcelas
             </h2>
 
-            {parcelas.length === 0 ? (
+            {parcelasComMulta.length === 0 ? (
               <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-5 py-6 text-center">
                 <p className="text-sm text-slate-500">
                   Nenhuma parcela.
@@ -764,7 +781,7 @@ export default function EmprestimoDetalhes() {
               </div>
             ) : (
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {parcelas.map((p) => {
+                {parcelasComMulta.map((p) => {
                   const sp = STATUS_PARCELA[p.status] || STATUS_PARCELA.Pendente;
                   const multaJuros = calcularMultaJuros(p);
                   const destacada = isProximaParcela(p);

@@ -43,6 +43,13 @@ import {
   parcelasDoContrato,
 } from "../services/contractService";
 import { formatarMoeda } from "../utils/formatadores";
+import {
+  janelaPeriodo,
+  filtrarPorTipo,
+  filtrarPorAba,
+  calcularParcelasAReceber,
+  calcularTotaisAReceber,
+} from "../utils/relatorioAReceber";
 
 const ABAS = ["Todos", "Em aberto"];
 const PERIODOS = ["Este mês", "Próximos 30 dias", "Próximos 90 dias", "Personalizado"];
@@ -55,31 +62,19 @@ function hojeDate() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-function isoLocal(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function addDias(d, dias) {
-  const r = new Date(d);
-  r.setDate(r.getDate() + dias);
-  return r;
-}
 
 // Normaliza QUALQUER fonte de data (Firestore Timestamp, ISO string,
-// YYYY-MM-DD, Date) para um Date LOCAL válido. Retorna null se a data
-// for ausente, inválida (NaN) ou não conversível. NUNCA inventa data
-// — quem recebe null deve descartar o registro.
+// YYYY-MM-DD, Date) para um Date LOCAL válido. Mantida localmente para o
+// gráfico Entrada vs Saída (que tem outro consumidor: `grafDataIni/Fim`).
 function toValidDate(value) {
   if (value === null || value === undefined || value === "") return null;
-  // Firestore Timestamp
   if (typeof value?.toDate === "function") {
     const d = value.toDate();
     return Number.isNaN(d.getTime()) ? null : d;
   }
-  // Date nativo
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : value;
   }
-  // String: prefere parse LOCAL para YYYY-MM-DD (evita drift de UTC)
   if (typeof value === "string") {
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
       const [y, m, d] = value.slice(0, 10).split("-").map(Number);
@@ -89,12 +84,9 @@ function toValidDate(value) {
     const dt = new Date(value);
     return Number.isNaN(dt.getTime()) ? null : dt;
   }
-  // Qualquer outro tipo: tenta o construtor padrão como último recurso
   const dt = new Date(value);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
-
-// Atalho usado no cálculo das parcelas (mantém semântica de "vencimento")
 function parseVencimento(v) {
   return toValidDate(v);
 }
@@ -122,45 +114,9 @@ function formatarMoedaSinal(v) {
   return m;
 }
 
-// Calcula a janela do filtro "A receber" em [inicioPeriodo, fimPeriodo]
-// (Date locais). SEMPRE retorna duas Dates válidas — sem fallback fictício.
-//
-// IMPORTANTE: `fimPeriodo` é estendido atÉ o FINAL do dia (23:59:59.999)
-// para que parcelas com horário intradiário (ex.: 12:00 gravado em
-// `calcularParcelas` como `T12:00:00`) caiam DENTRO da janela. Sem isso,
-// uma parcela com vencimento 02/10/2026 12:00 seria rejeitada pela
-// comparação `v > fimPeriodo` quando `fimPeriodo` é 02/10/2026 00:00 —
-// o que causava a perda da P2 no filtro "Próximos 30 dias".
-function janelaPeriodo(periodo, personalizadoIni, personalizadoFim) {
-  const h = hojeDate();
-  const fimDoDia = (d) => {
-    const r = new Date(d);
-    r.setHours(23, 59, 59, 999);
-    return r;
-  };
-  if (periodo === "Este mês") {
-    const inicioPeriodo = new Date(h.getFullYear(), h.getMonth(), 1);
-    const fimBase = new Date(h.getFullYear(), h.getMonth() + 1, 0);
-    return { inicioPeriodo, fimPeriodo: fimDoDia(fimBase) };
-  }
-  if (periodo === "Próximos 30 dias") {
-    return { inicioPeriodo: h, fimPeriodo: fimDoDia(addDias(h, 30)) };
-  }
-  if (periodo === "Próximos 90 dias") {
-    return { inicioPeriodo: h, fimPeriodo: fimDoDia(addDias(h, 90)) };
-  }
-  if (periodo === "Personalizado" && personalizadoIni && personalizadoFim) {
-    const ini = parseVencimento(personalizadoIni);
-    const fim = parseVencimento(personalizadoFim);
-    if (ini && fim) return { inicioPeriodo: ini, fimPeriodo: fimDoDia(fim) };
-  }
-  // Padrão: "Este mês" — se período vier desconhecido, mantém comportamento seguro
-  const fimBasePadrao = new Date(h.getFullYear(), h.getMonth() + 1, 0);
-  return {
-    inicioPeriodo: new Date(h.getFullYear(), h.getMonth(), 1),
-    fimPeriodo: fimDoDia(fimBasePadrao),
-  };
-}
+// Função `janelaPeriodo` movida para `src/utils/relatorioAReceber.js`
+// (fonte única de verdade compartilhada com outras telas que precisem
+// da mesma janela de "A receber").
 
 export default function Relatorios() {
   const { usuario } = useAuth();
@@ -254,13 +210,11 @@ export default function Relatorios() {
   // gráfico "Entrada vs Saída" continua usando `baseGeral` para
   // preservar o histórico de capital e recebimentos ao longo do
   // tempo (inclui contratos já quitados).
+  // REGRAS DE TIPO e ABA agora vivem em `utils/relatorioAReceber.js` —
+  // qualquer outra tela (ex.: uma futura "A Receber" dedicada) pode
+  // compor a mesma base e exibir números idênticos.
   const baseGeral = useMemo(
-    () =>
-      contratos.filter((c) => {
-        if (tipo === "Contratos" && c.nomeProduto != null) return false;
-        if (tipo === "Vendas" && c.nomeProduto == null) return false;
-        return true;
-      }),
+    () => filtrarPorTipo(contratos, tipo),
     [contratos, tipo]
   );
 
@@ -276,11 +230,7 @@ export default function Relatorios() {
   //   A seção "A receber" também usa `baseEmAberto` (mesma fonte,
   //   comportamento consistente).
   const baseEmAberto = useMemo(
-    () =>
-      baseGeral.filter((c) => {
-        if (aba === "Em aberto" && c.quitado) return false;
-        return true;
-      }),
+    () => filtrarPorAba(baseGeral, aba),
     [baseGeral, aba]
   );
 
@@ -404,59 +354,11 @@ export default function Relatorios() {
   // IMPORTANTE: usa `baseEmAberto` (filtro de TIPO + aba) — o filtro
   // "Em aberto" afeta ESTA lista por design (mostra apenas o que ainda
   // falta receber). Indicadores e gráfico usam `baseGeral`.
-  const parcelasAReceber = useMemo(() => {
-    const out = [];
-    for (const c of baseEmAberto) {
-      if (c.quitado) continue; // só contratos em aberto
-      let ps;
-      try {
-        ps = parcelasDoContrato(c, new Date());
-      } catch (err) {
-        console.warn("parcelasDoContrato falhou para", c.id, err);
-        continue;
-      }
-      for (const p of ps) {
-        if (p.status === "Paga") continue;
-        // parseVencimento (via toValidDate) já valida: retorna null se
-        // a data for ausente ou inválida. Descartamos o registro sem
-        // quebrar o relatório, sem inventar data.
-        const v = parseVencimento(p.vencimento);
-        if (!v) continue;
-        // Guardas: inicioPeriodo/fimPeriodo DEVEM ser Date válidas
-        // (janelaPeriodo sempre retorna, mas validamos por segurança).
-        if (
-          !(inicioPeriodo instanceof Date) ||
-          Number.isNaN(inicioPeriodo.getTime()) ||
-          !(fimPeriodo instanceof Date) ||
-          Number.isNaN(fimPeriodo.getTime())
-        ) {
-          // Se a janela está corrompida, ignora o filtro e aceita a parcela
-          // (melhor mostrar do que esconder dados por bug interno).
-        } else if (periodo === "Este mês") {
-          // Match EXATO por ano/mês — não junta parcelas de outros meses.
-          if (
-            v.getFullYear() !== inicioPeriodo.getFullYear() ||
-            v.getMonth() !== inicioPeriodo.getMonth()
-          ) {
-            continue;
-          }
-        } else if (periodo === "Próximos 30 dias" || periodo === "Próximos 90 dias") {
-          // Sem limite inferior: inclui parcelas ATRASADAS (v < hoje)
-          // e futuras até o limite superior (hoje + N dias).
-          if (v > fimPeriodo) continue;
-        } else {
-          // Personalizado: intervalo fechado [inicio, fim]
-          if (v < inicioPeriodo || v > fimPeriodo) continue;
-        }
-        out.push({
-          contratoId: c.id,
-          parcela: p,
-          vencimentoDate: v,
-        });
-      }
-    }
-    return out;
-  }, [baseEmAberto, inicioPeriodo, fimPeriodo, periodo]);
+  // A função vive em `utils/relatorioAReceber.js` — fonte única de verdade.
+  const parcelasAReceber = useMemo(
+    () => calcularParcelasAReceber(baseEmAberto, inicioPeriodo, fimPeriodo, periodo),
+    [baseEmAberto, inicioPeriodo, fimPeriodo, periodo]
+  );
 
   // ---- Totais do "A receber" (TOTAL, JUROS PREVISTOS, VENCIDO, Nº DE PARCELAS)
   // Regras:
@@ -469,24 +371,11 @@ export default function Relatorios() {
   //   VENCIDO          = Σ valor das parcelas do conjunto com
   //                       vencimento < HOJE. É um subset do total que
   //                       destaca o atraso.
-  const totaisAReceber = useMemo(() => {
-    const hoje = hojeDate();
-    let total = 0;
-    let juros = 0;
-    let vencido = 0;
-    let count = 0;
-    for (const item of parcelasAReceber) {
-      const v = Number(item.parcela.valor) || 0;
-      // jurosOriginais é o campo canônico de juros por parcela (definido em
-      // parcelasDoContrato / calcularParcelas e IMUTÁVEL ao longo do ciclo).
-      const j = Number(item.parcela.jurosOriginais) || 0;
-      total += v;
-      juros += j;
-      if (item.vencimentoDate < hoje) vencido += v;
-      count += 1;
-    }
-    return { total, juros, vencido, count };
-  }, [parcelasAReceber]);
+  // Agregação extraída para `utils/relatorioAReceber.js` (fonte única).
+  const totaisAReceber = useMemo(
+    () => calcularTotaisAReceber(parcelasAReceber),
+    [parcelasAReceber]
+  );
 
   // ---- Janela do gráfico "Entrada vs Saída" / "Evolução"
   const janelaGrafico = useMemo(() => {
