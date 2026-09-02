@@ -57,6 +57,29 @@ export function totalAbatimentos(abatimentos) {
   return abatimentos.reduce((s, a) => s + (Number(a?.valor) || 0), 0);
 }
 
+// Fração de juros por parcela (em decimal sobre o principal base), ajustada
+// pela periodicidade do contrato.
+//
+// REGRA POR PERIODICIDADE:
+// - Mensal: `juros` é taxa AO MÊS. Aplica-se diretamente sobre o principal
+//   base, SEM dividir por `numeroParcelas`. Ex: 500/35%/2x → 0,35 (35% a.m.),
+//   juros por parcela = 500 × 0,35 = 175. Valor = 250 + 175 = 425.
+// - Semanal/Diária/Quinzenal: `juros` representa o TOTAL do contrato (não
+//   taxa por período). Divide-se por `numeroParcelas` para obter a fração
+//   por parcela. Ex: 1700/35%/6x → 0,35/6 ≈ 0,0583, juros por parcela =
+//   1700 × 0,35 / 6 = 99,17. Valor = 283,33 + 99,17 = 382,50. Este é o
+//   comportamento já validado para contratos semanais.
+export function jurosPorParcelaPorFrequencia(contrato) {
+  const juros = Number(contrato?.juros) || 0;
+  const total = Number(contrato?.numeroParcelas) || 0;
+  if ((contrato?.frequencia || "") === "Mensal") {
+    // 35% a.m. → 0,35 (sem dividir por N)
+    return juros / 100;
+  }
+  // Semanal/Diária/Quinzenal: juros total ÷ N
+  return total > 0 ? (juros / 100) / total : 0;
+}
+
 // Helper inline para calcular multa (evita import circular)
 function calculatePenaltyInline(contrato, valorParcela, vencimento, hoje) {
   if (!contrato?.cobrarJurosAtraso) return 0;
@@ -166,15 +189,12 @@ export function calcularParcelas(contrato, hoje = new Date(), abatimentosParam =
   const principalRestante = Math.max(0, saldoPrincipal);
 
   // Juros SEMPRE sobre valorEmprestado ORIGINAL (nunca sobre saldo reduzido).
-  // Regra: jurosOriginais = valorEmprestado × (taxaJuros / 100)
-  // jurosPorParcela = jurosOriginais / numeroParcelas — fração de juros
-  // que cabe a CADA parcela. Para 1700/35%/6x → 595/6 = 99,17.
-  //   total: valorEmprestado * (jurosTaxa / 100)
-  //   por parcela: total / numeroParcelas
+  // Regra: jurosOriginais (display) = valorEmprestado × (taxaJuros / 100).
+  // jurosPorParcela (campo da parcela) usa a função jurosPorParcelaPorFrequencia:
+  //   - Mensal: 35% × valorEmprestado (sem dividir por N) → 500×0,35 = 175
+  //   - Semanal: (35% × valorEmprestado) / N → (1700×0,35)/6 = 99,17
   const jurosOriginaisTotal = valorEmprestado * (jurosTaxa / 100);
-  const jurosPorParcela = total > 0
-    ? jurosOriginaisTotal / total
-    : jurosOriginaisTotal;
+  const jurosPorParcela = valorEmprestado * jurosPorParcelaPorFrequencia(contrato);
 
   // Valor original de cada parcela (para histórico e cálculo de multa).
   const valorOriginalParcela = valorBaseParcela;
@@ -312,11 +332,15 @@ export function calcularParcelas(contrato, hoje = new Date(), abatimentosParam =
       //     para 1650 e as parcelas futuras são recalculadas sobre esse novo
       //     principal. Ex: 1650/6 + (1650×0,35)/6 = 275 + 96,25 = 371,25.
       // Juros continuam aplicando-se uma única vez sobre o principal base
-      // (nunca juros compostos, nunca multiplicação por numeroParcelas).
-      // A frequência (Semanal, Mensal, etc.) só afeta DATAS, não o valor.
+      // (nunca juros compostos). A fração de juros por parcela depende da
+      // periodicidade:
+      //   - Mensal: juros × principal (sem dividir por N) — taxa a.m.
+      //   - Semanal/Diária/Quinzenal: (juros × principal) / N — juros total ÷ N
+      // Para 500/35%/2x Mensal: 250 + 175 = 425. Para 1700/35%/6x Semanal:
+      // 283,33 + 99,17 = 382,50.
       const basePrincipal = principalRestante;
       const principalParcela = basePrincipal / total;
-      const jurosParcela = (basePrincipal * (jurosTaxa / 100)) / total;
+      const jurosParcela = basePrincipal * jurosPorParcelaPorFrequencia(contrato);
 
       // Multa (se aplicável) — sempre sobre o valor ORIGINAL da parcela
       let multaParcela = 0;

@@ -4,7 +4,7 @@
 
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { calcularParcelas } from "../utils/parcelasUtil.js";
+import { parcelasDoContrato } from "./contractService.js";
 
 function totalAbatimentos(abatimentos) {
   if (!abatimentos || !Array.isArray(abatimentos)) return 0;
@@ -669,7 +669,11 @@ window.inspectContract = async function (targetUid, targetContractId) {
 };
 
 function parcelasDoContratoGlobal(contrato, hoje = new Date()) {
-  return calcularParcelas(contrato, hoje, contrato.abatimentos || null);
+  // Delega para `parcelasDoContrato` de contractService.js, que aplica a
+  // sobrescrita CIRÚRGICA sobre `calcularParcelas`: preserva o valor original
+  // das parcelas futuras quando não há abatimento explícito, e recalcula
+  // com `valorEmprestado - abatimentoTotal` como base quando há (juros_parte_divida).
+  return parcelasDoContrato(contrato, hoje);
 }
 
 window.__applyMigrationToContracts = async function (simples, targetUid) {

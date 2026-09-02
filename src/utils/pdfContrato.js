@@ -2,7 +2,7 @@
 // Puro: recebe os dados prontos (contrato, cliente, logo em dataURL) — sem acessos ao Firestore.
 import jsPDF from "jspdf";
 import { formatarMoeda, formatarData, formatarTelefone, numeroCurto } from "./formatadores.js";
-import { calcularParcelas } from "./parcelasUtil.js";
+import { parcelasDoContrato } from "../services/contractService.js";
 import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado } from "../services/paymentCalculations.js";
 
 // Re-exporta para compatibilidade com importadores existentes
@@ -107,8 +107,11 @@ export function construirPdfContrato({ contrato, cliente, logoDataUrl, agora = n
   linhaCampo("Parcelas:", `${contrato.numeroParcelas ?? 0}x`);
   y += 3;
 
-  // ---- Seção: Cronograma de parcelas (usando calcularParcelas do parcelasUtil)
-  const parcelas = calcularParcelas(contrato, agora);
+  // ---- Seção: Cronograma de parcelas (usando parcelasDoContrato — inclui
+  // a sobrescrita que preserva o valor original das parcelas futuras quando
+  // há apenas pagamento normal, e recalcula com `valorEmprestado - abatimentoTotal`
+  // como base quando há abatimento explícito via juros_parte_divida).
+  const parcelas = parcelasDoContrato(contrato, agora);
 
   tituloSecao("CRONOGRAMA DE PARCELAS");
   // Cabeçalho da tabela

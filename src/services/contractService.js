@@ -2,7 +2,7 @@
 // Centraliza a leitura de contrato + cliente, cálculos derivados e atualização de pagamento.
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
-import { calcularParcelas } from "../utils/parcelasUtil";
+import { calcularParcelas, jurosPorParcelaPorFrequencia } from "../utils/parcelasUtil";
 import { calculateInterest, calculatePenalty, calculateInstallmentValue, calculateDebtRemaining, calculatePrincipalQuitado, totalAbatimentos, getNextOpenInstallment, shiftFutureInstallments, avancarData } from "./paymentCalculations";
 import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
 import { registrarJurosRecebido as registrarJuros } from "./jurosRecebidosService";
@@ -201,12 +201,32 @@ export function parcelasDoContrato(contrato, hoje = new Date()) {
   //   1. Parcela PAGA → preserva p.recebido (já aplicado por calcularParcelas)
   //   2. Parcela RENEGOCIADA (parcelasCustom) → valor já aplicado acima
   //   3. Parcela DINÂMICA (numero > numeroParcelas) → preserva lógica de calcularParcelas
-  //   4. Parcela ORIGINAL PENDENTE + SEM ABATIMENTOS → valor congelado:
+  //   4. Parcela ORIGINAL PENDENTE + SEM ABATIMENTO EXPLÍCITO → valor congelado:
   //      valorOriginalParcela + jurosOriginais (baseado em valorEmprestado, NÃO saldoPrincipal)
-  //   5. Parcela ORIGINAL PENDENTE + COM ABATIMENTOS → recalcula via calcularParcelas()
-  //      (pagamento parcial: o saldo foi reduzido de propósito e P2 deve refletir isso)
+  //   5. Parcela ORIGINAL PENDENTE + COM ABATIMENTO EXPLÍCITO (juros_parte_divida)
+  //      → recalcula via calcularParcelas() (o saldo foi reduzido de propósito
+  //      e P2 deve refletir isso)
+  //
+  // IMPORTANTE: o array `abatimentos` é reservado EXCLUSIVAMENTE para a
+  // modalidade `juros_parte_divida`. Pagamentos normais (parcela_inteira) e
+  // "só juros" (juros_apenas) NÃO gravam nesse array — eles apenas
+  // decrementam saldoPrincipal e incrementam parcelasPagas.
   const totalOriginal = Number(contrato?.numeroParcelas) || 0;
   const temAbatimento = totalAbatimentos(contrato?.abatimentos) > 0;
+  // Para o recálculo em caso de abatimento explícito, a base é
+  // `valorEmprestado - abatimentoTotal` (NÃO `saldoPrincipal` do Firestore).
+  // Pagamentos normais (parcela_inteira) já quitaram suas parcelas; eles não
+  // devem reduzir a base das parcelas futuras. Apenas o `juros_parte_divida`
+  // (abatimento explícito) reduz a base de cálculo.
+  const valorEmprestadoBase = Number(contrato?.valorEmprestado) || 0;
+  const baseRecalculo = Math.max(0, valorEmprestadoBase - totalAbatimentos(contrato?.abatimentos));
+  // Fração de juros por parcela varia por periodicidade:
+  //   - Mensal: 0,35 (sem dividir por N) — taxa a.m.
+  //   - Semanal/Diária/Quinzenal: 0,35/N — juros total ÷ N
+  const fracaoJuros = jurosPorParcelaPorFrequencia(contrato);
+  const valorRecalculado = totalOriginal > 0
+    ? Math.round(((baseRecalculo / totalOriginal) + (baseRecalculo * fracaoJuros)) * 100) / 100
+    : 0;
   parcelas = parcelas.map((p) => {
     // Paga: já preservado por calcularParcelas (valor = recebido)
     if (p.status === "Paga") return p;
@@ -217,12 +237,17 @@ export function parcelasDoContrato(contrato, hoje = new Date()) {
     // Dinâmica: preserva lógica existente de calcularParcelas (REGRA 2)
     if (totalOriginal > 0 && Number(p.numero) > totalOriginal) return p;
 
-    // Se há abatimentos (pagamento parcial), NÃO congelar — deixa calcularParcelas
-    // recalcular usando saldoPrincipal reduzido (regra existente de abatimento).
-    if (temAbatimento) return p;
+    // Se há abatimento EXPLÍCITO (juros_parte_divida), recalcula o valor
+    // das parcelas futuras usando `valorEmprestado - abatimentoTotal` como
+    // base. Isso garante que a fórmula correta (ex: 1700-50=1650; 1650/6 +
+    // 1650×0,35/6 = 371,25) seja aplicada.
+    if (temAbatimento) {
+      return { ...p, valor: valorRecalculado };
+    }
 
-    // Original pendente sem abatimentos: paga integralmente → congela valor original
-    // Estabelecido no momento da criação do contrato (valorEmprestado imutável).
+    // Original pendente sem abatimento explícito: pagamento normal ou
+    // nenhuma redução de saldo. Congela o valor original estabelecido
+    // no momento da criação do contrato (valorEmprestado imutável).
     const valorOriginal = Math.round(
       (Number(p.valorOriginalParcela) + Number(p.jurosOriginais)) * 100
     ) / 100;
@@ -372,19 +397,22 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
       jurosRecebidosTotal += jurosRecebidos;
 
       // Caso o valor pago seja MENOR que os juros (totalRecebido < jurosRecebidos):
-      // O pagamento não cobre os juros integralmente. O que foi pago é registrado
-      // como abatimento parcial do principal da parcela.
+      // O pagamento não cobre os juros integralmente. O que foi pago é contabilizado
+      // como redução do saldoPrincipal (principal quitado desta parcela), sem
+      // registrar em `abatimentos` — o array `abatimentos` é reservado EXCLUSIVAMENTE
+      // para abatimentos EXPLÍCITOS (modalidade `juros_parte_divida`).
       // Isso garante que um pagamento de R$ 50 em uma parcela cuja parte de juros
-      // é R$ 157,50 ainda reduza o saldoPrincipal em R$ 50 e marque a parcela como PAGA.
+      // é R$ 157,50 ainda reduza o saldoPrincipal em R$ 50 e marque a parcela como PAGA,
+      // sem disparar recálculo das parcelas futuras.
       // Regra: qualquer pagamento parcial (mesmo menor que juros) marca a parcela atual como PAGA.
-      // O valor pago é registrado como abatimento (principal quitado) daquela parcela específica.
       if (totalRecebido < jurosRecebidos) {
         const abatimentoParcial = Math.min(totalRecebido, saldoPrincipalAntes);
         if (abatimentoParcial > 0) {
-          abatimentos = adicionarAbatimento(abatimentos, parcela.numero, abatimentoParcial, dataRecebimento, observacao);
+          // Decrementa o saldoPrincipal (reflete o principal quitado) sem criar
+          // registro em `abatimentos` — pagamento NORMAL nunca é abatimento explícito.
           saldoPrincipalAtual = Math.max(0, saldoPrincipalAntes - abatimentoParcial);
           principalAbatido = abatimentoParcial;
-          // O abatimento parcial conta como pagamento de principal da parcela
+          // O valor pago conta como pagamento de principal da parcela
           principalPago = abatimentoParcial;
           // Marca a parcela atual como PAGA — qualquer pagamento parcial (mesmo < juros)
           // quita a parcela atual. O saldo restante do principal continua no contrato.
@@ -397,10 +425,11 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
         // Pagamento maior ou igual aos juros: atualiza saldoPrincipal normalmente
         saldoPrincipalAtual = Math.max(0, saldoPrincipalAntes - principalPago);
 
-        // Se houver excedente (total > juros + principal base), registra como abatimento extra
+        // Se houver excedente (total > juros + principal base), desconta do saldo
+        // sem criar registro em `abatimentos` — pagamento NORMAL nunca é
+        // abatimento explícito.
         const excedente = Math.max(0, totalRecebido - jurosRecebidos - principalPago);
         if (excedente > 0) {
-          abatimentos = adicionarAbatimento(abatimentos, parcela.numero, excedente, dataRecebimento, observacao);
           saldoPrincipalAtual = Math.max(0, saldoPrincipalAtual - excedente);
           principalAbatido = excedente;
         }
