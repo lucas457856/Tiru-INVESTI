@@ -84,7 +84,7 @@ export default function Sidebar() {
   const iniciais = useMemo(() => iniciaisDoNome(nomeUsuario), [nomeUsuario]);
 
   return (
-    <aside className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto">
+    <aside className="hidden md:flex w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col overflow-y-auto">
       {/* Marca */}
       <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2.5">

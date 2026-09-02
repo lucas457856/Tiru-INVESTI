@@ -405,7 +405,7 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-10 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:px-10 py-6">
         {/* Cabeçalho */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -438,7 +438,7 @@ export default function Dashboard() {
         {/* Card financeiro */}
         <section
           aria-label="Resumo financeiro"
-          className="relative mt-5 overflow-hidden rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 p-6 sm:p-7 shadow-sm"
+          className="relative mt-5 overflow-hidden rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 p-5 sm:p-7 shadow-sm"
         >
           {/* Ondas decorativas (canto superior direito) */}
           <svg
@@ -671,43 +671,60 @@ export default function Dashboard() {
                 const progresso = total > 0 ? (pagas / total) * 100 : 0;
                 const saldoPrincipal = c.quitado ? 0 : calculateDebtRemaining(c);
                 const nome = (c.nome ?? "Contrato").toUpperCase();
+                // Inicial do cliente para o avatar circular (esquerda).
+                // Usa a primeira letra do nome — segue o padrão do avatar
+                // da Sidebar. Quando o nome é vazio, cai em "?".
+                const inicial = (nome.trim()[0] || "?").toUpperCase();
                 return (
                   <Link
                     key={c.id}
                     to={`/emprestimos/${c.id}`}
-                    className="block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-jurex/40 hover:shadow-md transition"
+                    className="block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:border-jurex/40 hover:shadow-md transition"
                   >
-                    {/* Nome + badge de status (igual à página Contratos) */}
-                    <div className="flex items-start justify-between gap-3">
+                    {/* Linha topo: avatar + nome/valor + badge de status.
+                        Em mobile (sm:hidden) só o avatar + nome + valor;
+                        a badge vai para a linha de baixo do progress.
+                        Em desktop (sm:flex) layout completo em uma linha. */}
+                    <div className="flex items-center gap-3">
+                      <span className="shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-emerald-500 text-white text-sm sm:text-base font-extrabold flex items-center justify-center">
+                        {inicial}
+                      </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold uppercase text-slate-900 dark:text-white">
-                          {nome}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-bold uppercase text-slate-900 dark:text-white">
+                            {nome}
+                          </p>
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                              st === "Atrasado"
+                                ? "bg-red-50 dark:bg-red-500/10 text-red-500"
+                                : st === "Quitado"
+                                  ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                                  : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
+                            }`}
+                          >
+                            {st}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                           {numeroCurto(c.id)}
                           {c.juros ? ` · ${c.juros}% a.m.` : ""}
                         </p>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                          st === "Atrasado"
-                            ? "bg-red-50 dark:bg-red-500/10 text-red-500"
-                            : st === "Quitado"
-                              ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                              : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
-                        }`}
-                      >
-                        {st}
-                      </span>
                     </div>
 
-                    {/* Valor original + saldo atual */}
-                    <div className="mt-3">
+                    {/* Valor: em mobile fica em uma linha só ("Saldo: R$X");
+                        em desktop pode quebrar em duas (Original / Saldo). */}
+                    <div className="mt-3 sm:mt-4">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Original: {formatarMoeda(c.valorEmprestado)}
-                      </p>
-                      <p className="text-lg font-extrabold tabular-nums text-jurex">
-                        Saldo: {formatarMoeda(saldoPrincipal)}
+                        Saldo: <span className="text-base sm:text-lg font-extrabold tabular-nums text-jurex">{formatarMoeda(saldoPrincipal)}</span>
+                        <span className="hidden sm:inline">
+                          {" "}
+                          <span className="text-slate-400">·</span>{" "}
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            Original {formatarMoeda(c.valorEmprestado)}
+                          </span>
+                        </span>
                       </p>
                     </div>
 
