@@ -6,6 +6,7 @@ import {
   Users,
   ChartLine,
   Settings,
+  LifeBuoy,
   ChevronDown,
 } from "lucide-react";
 
@@ -14,6 +15,7 @@ const itens = [
   { to: "/emprestimos", label: "Contratos", icone: FileText },
   { to: "/clientes", label: "Clientes", icone: Users },
   { to: "/relatorios", label: "Relatórios", icone: ChartLine },
+  { to: "/suporte", label: "Suporte", icone: LifeBuoy },
 ];
 
 // Itens do submenu, agrupados

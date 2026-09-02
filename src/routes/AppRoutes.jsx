@@ -12,6 +12,7 @@ import NovaSenha from "../pages/NovaSenha";
 
 import Dashboard from "../pages/Dashboard";
 import Calendario from "../pages/Calendario";
+import Parcelas from "../pages/Parcelas";
 import Emprestimos from "../pages/Emprestimos";
 import NovoContrato from "../pages/NovoContrato";
 import ContratoSucesso from "../pages/ContratoSucesso";
@@ -23,6 +24,8 @@ import PerfilCliente from "../pages/PerfilCliente";
 import EditarCliente from "../pages/EditarCliente";
 import ModelosCobranca from "../pages/ModelosCobranca";
 import ModelosContrato from "../pages/ModelosContrato";
+import HistoricoFinanceiro from "../pages/HistoricoFinanceiro";
+import Suporte from "../pages/Suporte";
 import BackupDados from "../pages/BackupDados";
 import Funcionarios from "../pages/Funcionarios";
 import CentralAjuda from "../pages/CentralAjuda";
@@ -75,6 +78,9 @@ export default function AppRoutes() {
           <Route path="/clientes/:id" element={<RotaPrivada><PerfilCliente /></RotaPrivada>} />
           <Route path="/clientes/:id/editar" element={<RotaPrivada><EditarCliente /></RotaPrivada>} />
           <Route path="/calendario" element={<RotaPrivada><Calendario /></RotaPrivada>} />
+          <Route path="/parcelas" element={<RotaPrivada><Parcelas /></RotaPrivada>} />
+          <Route path="/historico-financeiro" element={<RotaPrivada><HistoricoFinanceiro /></RotaPrivada>} />
+          <Route path="/suporte" element={<RotaPrivada><Suporte /></RotaPrivada>} />
           <Route path="/relatorios" element={<RotaPrivada><Relatorios /></RotaPrivada>} />
           <Route path="/perfil" element={<RotaPrivada><Perfil /></RotaPrivada>} />
           <Route path="/configuracoes/modelos-cobranca" element={<RotaPrivada><ModelosCobranca /></RotaPrivada>} />
