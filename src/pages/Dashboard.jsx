@@ -49,6 +49,7 @@ import {
   urlConfiguracoesNotificacoes,
 } from "../utils/notifications";
 import { useNotificacoes } from "../hooks/useNotificacoes";
+import { useNotificadorVencimentos } from "../hooks/useNotificadorVencimentos";
 
 // Data local de hoje (YYYY-MM-DD) — usada para "Parcelas de hoje".
 // Construída a partir dos componentes locais para evitar drift de timezone
@@ -81,22 +82,58 @@ export default function Dashboard() {
   const [notifPermissao, setNotifPermissao] = useState(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
   );
-  // Confirmação própria do app para o caso `denied`: o Chrome não exibe
-  // o popup nativo novamente, então mostramos uma confirmação antes de
-  // orientar o usuário a liberar a permissão nas configurações.
+  // State mantido pelo useEffect que fecha modais ao virar "granted".
+  // O fluxo de `denied` no `ativarNotificacoes` agora abre DIRETO o
+  // modal de orientação, então este state permanece `false` na prática.
   const [mostrarConfirmacaoNotif, setMostrarConfirmacaoNotif] = useState(false);
   const [mostrarOrientacaoNotif, setMostrarOrientacaoNotif] = useState(false);
+  // Mensagem inline mostrada no modal de orientação quando o
+  // `window.open` falha (a maioria dos browsers bloqueia `chrome://...`
+  // aberto a partir de páginas web). Orienta o usuário a usar o
+  // cadeado/câmera ao lado da URL.
+  const [mensagemOrientacao, setMensagemOrientacao] = useState("");
   // Lista de notificações do app + contador de não lidas. Fonte única
   // consumida também pela página /notificacoes (sino ↔ lista em sync).
   const { naoLidas } = useNotificacoes();
 
-  // Detecta suporte à Notification API (sem push — só permissão local do browser)
+  // Detecta suporte à Notification API (sem push — só permissão local do
+  // browser) e re-detecta a permissão quando o usuário RETORNA à aba.
+  // Caso ele tenha liberado as notificações nas configurações do navegador
+  // após o modal de orientação estar aberto, o Jurex detecta automaticamente
+  // ao receber `visibilitychange` (aba voltou a ficar visível) ou `focus`
+  // (janela recebeu foco) — sem precisar de F5.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const suportada = "Notification" in window;
     setNotifSuportada(suportada);
-    if (suportada) setNotifPermissao(Notification.permission);
+    if (!suportada) {
+      setNotifPermissao("unsupported");
+      return;
+    }
+    const atualizarPermissao = () => setNotifPermissao(Notification.permission);
+    atualizarPermissao();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") atualizarPermissao();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", atualizarPermissao);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", atualizarPermissao);
+    };
   }, []);
+
+  // Quando a permissão passa a "granted", fecha automaticamente o modal
+  // de orientação/confirmação caso esteja aberto. O card "Ativar
+  // notificações" some pela regra `{notifPermissao !== "granted" && ...}`
+  // no JSX — não é preciso tocá-lo aqui.
+  useEffect(() => {
+    if (notifPermissao === "granted") {
+      setMostrarConfirmacaoNotif(false);
+      setMostrarOrientacaoNotif(false);
+      setMensagemOrientacao("");
+    }
+  }, [notifPermissao]);
 
   // ---- Carrega contratos do usuário (em tempo real) — mesma collection usada
   // em Emprestimos.jsx; evita listeners duplicados via cleanup do onSnapshot.
@@ -123,6 +160,12 @@ export default function Dashboard() {
     () => contratos.filter((c) => !c.quitado),
     [contratos]
   );
+
+  // Detecta parcelas vencendo hoje / atrasadas e dispara a notificação
+  // (Firestore + nativa). Roda sempre que `contratosAtivos` muda (incluindo
+  // re-emissões do onSnapshot). O dedup (Set em memória + localStorage)
+  // garante 1 notificação por evento, mesmo com re-renders / F5 / navegação.
+  useNotificadorVencimentos(contratosAtivos, usuario?.uid);
 
   // ---- Carrega TODOS os pagamentos do usuário (fontes REAIS).
   // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.
@@ -306,11 +349,11 @@ export default function Dashboard() {
   //   - default: chama Notification.requestPermission() DIRETAMENTE no click
   //     (sem await antes, preservando a "transient activation" do Chrome) e
   //     exibe o popup nativo. Atualiza o estado com a decisão do usuário.
-  //   - granted: no-op silencioso (botão continua clicável mas não
-  //     re-solicita, o helper retorna "granted" sem prompt).
-  //   - denied: o Chrome não exibe o popup nativo novamente. Mostramos uma
-  //     confirmação própria do app; se o usuário confirmar, exibimos
-  //     uma orientação para liberar nas configurações do navegador.
+  //   - granted: no-op silencioso (o card "Ativar notificações" já não é
+  //     renderizado pela guarda `{notifPermissao !== "granted" && ...}`).
+  //   - denied: NÃO chamamos requestPermission() (Chrome não exibe o popup
+  //     novamente quando a permissão já está bloqueada). Abrimos DIRETO o
+  //     modal de orientação com o passo-a-passo para liberar nas configs.
   //   - unsupported: no-op silencioso.
   //
   // IMPORTANTE: o handler é SÍNCRONO (sem await antes de
@@ -319,17 +362,20 @@ export default function Dashboard() {
   // o user gesture e exibe um aviso interno em vez do popup nativo.
   function ativarNotificacoes(e) {
     if (e && typeof e.stopPropagation === "function") e.stopPropagation();
-    // Se já está bloqueado, abre a confirmação própria do app
-    // (requestPermission() não vai exibir o popup nativo de novo).
-    if (notifPermissao === "denied") {
-      setMostrarConfirmacaoNotif(true);
-      return;
-    }
-    // granted/unsupported: no-op silencioso (helper já lida).
+    // granted/unsupported: no-op silencioso (o card some quando granted).
     if (notifPermissao === "granted" || notifPermissao === "unsupported") {
       return;
     }
-    // default: chamada SÍNCRONA no user gesture do click handler.
+    // denied: NÃO chamamos requestPermission() (Chrome não exibe o popup
+    // novamente quando a permissão já está bloqueada). Abrimos DIRETO o
+    // modal de orientação com o passo-a-passo para liberar nas configs.
+    if (notifPermissao === "denied") {
+      setMensagemOrientacao("");
+      setMostrarOrientacaoNotif(true);
+      return;
+    }
+    // default: chamada SÍNCRONA no user gesture do click handler para
+    // preservar a "transient activation" do Chrome (sem await antes).
     const promise = solicitarPermissaoNotificacoes();
     if (promise && typeof promise.then === "function") {
       promise
@@ -467,44 +513,47 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Ativar notificações */}
-        <section
-          onClick={
-            notifPermissao === "default" && notifSuportada
-              ? ativarNotificacoes
-              : undefined
-          }
-          className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm transition ${
-            notifPermissao === "default" && notifSuportada
-              ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60"
-              : ""
-          }`}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-              <Bell className="w-5 h-5 text-emerald-600" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                {notifPermissao === "granted"
-                  ? "Notificações ativadas"
-                  : notifPermissao === "denied"
-                    ? "Notificações bloqueadas"
-                    : "Ativar notificações"}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                Receba alertas de pagamentos mesmo com o app fechado
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={ativarNotificacoes}
-            className="text-sm font-bold transition shrink-0 text-jurex hover:text-jurex-dark"
+        {/* Ativar notificações — visível SOMENTE enquanto a permissão
+            ainda não foi concedida. Quando `notifPermissao === "granted"`,
+            o card inteiro é removido do layout (sem espaço vazio, sem
+            re-render do texto). Para `default` e `denied` (e para
+            `notifSuportada === false`), o card continua renderizado com
+            título "Ativar notificações" e botão "Ativar" clicável. */}
+        {notifPermissao !== "granted" && (
+          <section
+            onClick={
+              notifPermissao === "default" && notifSuportada
+                ? ativarNotificacoes
+                : undefined
+            }
+            className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm transition ${
+              notifPermissao === "default" && notifSuportada
+                ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                : ""
+            }`}
           >
-            Ativar
-          </button>
-        </section>
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
+                <Bell className="w-5 h-5 text-emerald-600" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  Ativar notificações
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  Receba alertas de pagamentos mesmo com o app fechado
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={ativarNotificacoes}
+              className="text-sm font-bold transition shrink-0 text-jurex hover:text-jurex-dark"
+            >
+              Ativar
+            </button>
+          </section>
+        )}
 
         {/* Parcelas de hoje */}
         <Link
@@ -789,21 +838,63 @@ export default function Dashboard() {
                 &quot;Bloquear&quot; para &quot;Permitir&quot;.
               </li>
               <li>
-                Volte aqui e atualize a página para que o Jurex detecte a
-                nova permissão.
+                Volte para esta aba — o Jurex detecta a nova permissão
+                automaticamente, sem precisar recarregar a página.
               </li>
             </ol>
             {(() => {
               const url = urlConfiguracoesNotificacoes();
-              if (!url) return null;
+              if (!url) {
+                // Sem URL conhecida (browser exótico): instrução inline.
+                return (
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    Abra as configurações do seu navegador, encontre a opção
+                    <strong className="text-slate-700 dark:text-slate-200">
+                      {" "}
+                      Notificações{" "}
+                    </strong>
+                    deste site e mude para <em>Permitir</em>. Volte aqui em
+                    seguida — o Jurex detecta a mudança automaticamente.
+                  </p>
+                );
+              }
               return (
                 <button
                   type="button"
                   onClick={() => {
+                    setMensagemOrientacao("");
+                    let ref = null;
                     try {
-                      window.open(url, "_blank", "noopener,noreferrer");
+                      ref = window.open(url, "_blank", "noopener,noreferrer");
                     } catch {
-                      // silencioso
+                      ref = null;
+                    }
+                    // `window.open` pode retornar `null` quando o browser
+                    // bloqueia a janela (popup blocker) ou quando a URL é
+                    // `chrome://`/`about:` que o browser recusa de abrir a
+                    // partir de uma página web. Em ambos os casos exibimos
+                    // uma instrução inline orientando o cadeado/câmera.
+                    if (!ref) {
+                      setMensagemOrientacao(
+                        "Não foi possível abrir as configurações automaticamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Jurex detecta a mudança automaticamente quando você voltar a esta aba.",
+                      );
+                      return;
+                    }
+                    // Tenta detectar fechamento imediato (URL recusada).
+                    try {
+                      setTimeout(() => {
+                        try {
+                          if (ref.closed) {
+                            setMensagemOrientacao(
+                              "Não foi possível abrir as configurações diretamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Jurex detecta a mudança automaticamente quando você voltar a esta aba.",
+                            );
+                          }
+                        } catch {
+                          // cross-origin ou já fechado: ignora
+                        }
+                      }, 600);
+                    } catch {
+                      // sem suporte a `closed` (raro): ignora
                     }
                   }}
                   className="mt-4 w-full h-11 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 shadow hover:brightness-105 transition"
@@ -812,6 +903,11 @@ export default function Dashboard() {
                 </button>
               );
             })()}
+            {mensagemOrientacao && (
+              <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+                {mensagemOrientacao}
+              </p>
+            )}
             <div className="mt-3 flex justify-end">
               <button
                 type="button"

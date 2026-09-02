@@ -57,6 +57,68 @@ export function solicitarPermissaoNotificacoes() {
 }
 
 /**
+ * Mostra uma notificação NATIVA do navegador (Chrome/Edge/Firefox toast)
+ * usando a Web Notifications API.
+ *
+ * REGRAS:
+ * - Só dispara se `Notification.permission === "granted"`. Sem prompt aqui —
+ *   a permissão é solicitada separadamente via `solicitarPermissaoNotificacoes`
+ *   (em user gesture).
+ * - Best-effort: NUNCA propaga erro. A função envolve toda a lógica em
+ *   try/catch para que uma falha do browser (Chromium travado, service de
+ *   notif offline, etc.) não quebre o fluxo que a chamou (ex.: pagamento).
+ * - NÃO é chamada em listeners `onSnapshot` — só no call site do evento
+ *   real (criação de contrato, pagamento confirmado, etc.). Isso garante
+ *   1 documento Firestore ↔ 1 toast nativo, sem duplicação em re-emissões
+ *   do snapshot.
+ * - Só funciona com a aplicação em execução. NÃO finge push com site
+ *   fechado (sem Service Worker / FCM neste escopo).
+ *
+ * DEDUPLICAÇÃO:
+ * - O parâmetro `opts.tag` é usado pelo Chrome para SUBSTITUIR um toast
+ *   anterior em vez de empilhar. Convenção usada no projeto:
+ *     `jurex:<tipo>:<contratoId>:<parcelaNumero>`
+ *   Dois eventos idênticos na mesma janela do browser viram 1 toast.
+ *   Se `tag` não for informada, uma é gerada a partir de `contratoId` /
+ *   `parcelaNumero` / `tipo` / `Date.now()` (fallback).
+ *
+ * @param {string} titulo - Título da notificação (ex.: "Pagamento recebido").
+ * @param {string} body - Corpo/descrição (ex.: "João · parcela 3 · R$ 250,00").
+ * @param {{
+ *   tag?: string,
+ *   icon?: string,
+ *   tipo?: string,
+ *   contratoId?: string,
+ *   parcelaNumero?: number,
+ * }} [opts]
+ * @returns {void}
+ */
+export function mostrarNotificacaoNativa(titulo, body, opts = {}) {
+  try {
+    if (!notifSuportada()) return;
+    if (Notification.permission !== "granted") return;
+
+    // Logo padrão do Jurex (public/logo.png) — mesmo asset usado no Sidebar.
+    // Sobrescrevível via opts.icon se algum evento precisar de ícone próprio.
+    const icon = opts.icon || "/logo.png";
+
+    // Tag dedup: se o chamador informar, usa. Senão, monta uma baseada nos
+    // campos disponíveis (contrato+parcela deduplica no nível do browser).
+    const tag =
+      opts.tag ||
+      (opts.contratoId
+        ? `jurex:${opts.tipo || "evt"}:${opts.contratoId}:${opts.parcelaNumero ?? "-"}`
+        : `jurex:${opts.tipo || "evt"}:${Date.now()}`);
+
+    // Fire-and-forget. Não aguardar `notification.close` nem eventos da notif.
+    new Notification(titulo, { body, icon, tag });
+  } catch (err) {
+    // Best-effort: log e segue. Não propaga para o chamador.
+    console.warn("mostrarNotificacaoNativa falhou (ignorado):", err);
+  }
+}
+
+/**
  * Retorna a URL da página de configurações de notificações do navegador
  * atual, ou null se o navegador não expõe uma URL pública. Usado para
  * orientar o usuário a liberar notificações bloqueadas para o site.

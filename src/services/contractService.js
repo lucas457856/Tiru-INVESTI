@@ -7,6 +7,7 @@ import { calculateInterest, calculatePenalty, calculateInstallmentValue, calcula
 import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
 import { registrarJurosRecebido as registrarJuros } from "./jurosRecebidosService";
 import { criarNotificacao } from "./notificationsService";
+import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { formatarMoeda } from "../utils/formatadores";
 
 /**
@@ -666,25 +667,55 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
     }
   }
 
-  // Notificação do app: "pagamento_recebido". Best-effort — não bloqueia
-  // nem falha o fluxo de pagamento se o Firestore recusar a escrita.
-  // Para "só os juros" também geramos notificação, mas com título diferente
-  // para deixar claro que foi só a parte de juros.
-  try {
-    const titulo = modalidade === "juros_apenas" ? "Juros recebidos" : "Pagamento recebido";
-    const nomeCliente = contrato?.clienteNome || contrato?.nome || "cliente";
-    const valorNotif = modalidade === "juros_apenas" ? jurosRecebidos : totalRecebido;
-    await criarNotificacao(usuario.uid, {
-      tipo: "pagamento_recebido",
-      titulo,
-      descricao: `${nomeCliente} · parcela ${parcela?.numero} · ${formatarMoeda(valorNotif)}`,
-      contratoId: contrato.id,
-      parcelaNumero: parcela?.numero,
-      valor: valorNotif,
-    });
-  } catch (err) {
-    console.error("criarNotificacao(pagamento_recebido):", err?.code, err?.message);
-  }
+  // Notificação do app: "pagamento_recebido".
+  //
+  // IMPORTANTE: esta chamada acontece DEPOIS do `updateDoc` do contrato
+  // (linha 620) e DEPOIS do registro no histórico (parcelas / jurosRecebidos).
+  // Ou seja: o pagamento já está confirmado no Firestore antes da notificação
+  // ser criada — não criamos notificações "fantasma" se o pagamento falhar.
+  //
+  // O erro de criarNotificacao é propagado (NÃO silenciado). Se as regras
+  // de segurança do Firestore bloquearem a escrita em `notificacoes`, o
+  // erro aparece no console e no fluxo chamador (`ReceberPagamento`).
+  const titulo = modalidade === "juros_apenas" ? "Juros recebidos" : "Pagamento recebido";
+  const nomeCliente = contrato?.clienteNome || contrato?.nome || "cliente";
+  const valorNotif = modalidade === "juros_apenas" ? jurosRecebidos : totalRecebido;
+  const descricaoNotif = `${nomeCliente} · parcela ${parcela?.numero} · ${formatarMoeda(valorNotif)}`;
+  const notifId = await criarNotificacao(usuario.uid, {
+    tipo: "pagamento_recebido",
+    titulo,
+    descricao: descricaoNotif,
+    contratoId: contrato.id,
+    parcelaNumero: parcela?.numero,
+    valor: valorNotif,
+  });
+  console.log(
+    "[notif] pagamento_recebido criada:",
+    notifId,
+    "uid=",
+    usuario?.uid,
+    "contratoId=",
+    contrato?.id,
+    "parcela=",
+    parcela?.numero,
+    "valor=",
+    valorNotif,
+  );
+
+  // Notificação NATIVA do navegador (Windows/Chrome toast).
+  // - Disparada SOMENTE após a confirmação Firestore do `criarNotificacao`
+  //   (1 doc Firestore ↔ 1 toast nativo, sem duplicação).
+  // - `mostrarNotificacaoNativa` é best-effort: checa `Notification.permission
+  //   === "granted"`, é envolvida em try/catch interno, e não propaga erro.
+  //   Falha da nativa NUNCA quebra o pagamento.
+  // - `tag` dedup no nível do Chrome: dois eventos idênticos para o mesmo
+  //   contrato+parcela na mesma janela viram 1 toast (substitui em vez de empilhar).
+  mostrarNotificacaoNativa(titulo, descricaoNotif, {
+    tipo: "pagamento_recebido",
+    contratoId: contrato.id,
+    parcelaNumero: parcela?.numero,
+    tag: `jurex:pagamento_recebido:${contrato.id}:${parcela?.numero ?? "-"}`,
+  });
 
   return { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal: saldoPrincipalAtual };
 }

@@ -21,6 +21,7 @@ import { collection, addDoc, getDocs, query, serverTimestamp, where } from "fire
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { criarNotificacao } from "../services/notificationsService";
+import { mostrarNotificacaoNativa } from "../utils/notifications";
 import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
@@ -222,13 +223,25 @@ export default function NovoContrato() {
       });
       // Notificação do app: aparece no sino e na página /notificacoes.
       // Best-effort: se falhar (offline, permissão), não bloqueia o fluxo.
+      //
+      // Toast nativo: disparado APENAS se o doc Firestore foi criado
+      // (success branch via .then). Garante 1 doc ↔ 1 notificação nativa,
+      // sem duplicar se a Firestore write falhar.
+      const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
       criarNotificacao(usuario.uid, {
         tipo: "contrato_criado",
         titulo: "Novo contrato criado",
-        descricao: `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`,
+        descricao: descricaoContrato,
         contratoId: docRef.id,
         valor: valorNumero,
-      }).catch((err) => console.error("criarNotificacao(contrato_criado):", err));
+      })
+        .then(() => {
+          mostrarNotificacaoNativa("Novo contrato criado", descricaoContrato, {
+            tipo: "contrato_criado",
+            contratoId: docRef.id,
+          });
+        })
+        .catch((err) => console.error("criarNotificacao(contrato_criado):", err));
       navigate(`/contratos/${docRef.id}/sucesso`);
     } catch (err) {
       console.error("Erro ao salvar contrato:", err);
