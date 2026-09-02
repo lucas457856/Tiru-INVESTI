@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Bell,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -8,6 +7,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import NotificationBellButton from "../components/NotificationBellButton";
 
 const MESES = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -74,14 +74,7 @@ export default function Calendario() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">
             Calendário
           </h1>
-          <button
-            type="button"
-            aria-label="Notificações"
-            className="relative rounded-full p-2.5 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-          >
-            <Bell className="w-5 h-5 text-emerald-600" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-jurex" />
-          </button>
+          <NotificationBellButton />
         </div>
 
         {/* Cards resumo */}

@@ -26,7 +26,6 @@
 // Sem dados mockados, sem valores hardcoded, sem datas fixas.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bell,
   TrendingUp,
   TrendingDown,
   Activity,
@@ -37,6 +36,7 @@ import {
 } from "lucide-react";
 import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
+import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
 import {
@@ -503,14 +503,7 @@ export default function Relatorios() {
               <h1 className="text-xl font-bold text-slate-900 dark:text-white">Relatórios</h1>
               <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Visão financeira</p>
             </div>
-            <button
-              type="button"
-              aria-label="Notificações"
-              className="relative rounded-full p-2.5 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-            >
-              <Bell className="w-5 h-5 text-emerald-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-jurex" />
-            </button>
+            <NotificationBellButton />
           </div>
         </div>
 

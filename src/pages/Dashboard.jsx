@@ -31,6 +31,7 @@ import {
 import { collection, getDocs, onSnapshot, query } from "firebase/firestore";
 import { db } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
+import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
 import {
   parcelasDoContrato,
@@ -419,19 +420,7 @@ export default function Dashboard() {
           </div>
 
           <div className="relative">
-            <button
-              type="button"
-              aria-label="Notificações"
-              onClick={() => navigate("/notificacoes")}
-              className="relative rounded-full p-2.5 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-            >
-              <Bell className="w-5 h-5 text-emerald-600" />
-              {naoLidas > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold ring-2 ring-white dark:ring-slate-900">
-                  {naoLidas > 99 ? "99+" : naoLidas}
-                </span>
-              )}
-            </button>
+            <NotificationBellButton naoLidas={naoLidas} />
           </div>
         </div>
 
