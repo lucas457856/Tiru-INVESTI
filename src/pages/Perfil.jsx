@@ -16,6 +16,10 @@ import { useTheme } from "../context/useTheme";
 import { sair, buscarPerfil } from "../services/authService";
 import { db } from "../services/firebase";
 import { doc, setDoc } from "firebase/firestore";
+import {
+  notifSuportada,
+  solicitarPermissaoNotificacoes,
+} from "../utils/notifications";
 
 const INPUT_CLASSE =
   "w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 dark:text-slate-100 dark:bg-slate-900 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
@@ -28,6 +32,40 @@ export default function Perfil() {
   const [nome, setNome] = useState(usuario?.displayName ?? "");
   const [telefone, setTelefone] = useState("");
   const [salvo, setSalvo] = useState(false);
+
+  // Estado de permissão de notificações do navegador.
+  // Mesmo padrão do Dashboard: sincroniza com Notification.permission no mount
+  // e respeita granted/denied/unsupported sem re-solicitar.
+  const [notifPermissao, setNotifPermissao] = useState(
+    notifSuportada() ? Notification.permission : "unsupported"
+  );
+  useEffect(() => {
+    if (notifSuportada()) setNotifPermissao(Notification.permission);
+  }, []);
+
+  // Ativação de notificações. Igual ao Dashboard: chamada SÍNCRONA
+  // no caminho síncrono do click handler para preservar o user gesture
+  // do Chrome (sem await antes de Notification.requestPermission()).
+  function ativarNotificacoesPerfil() {
+    if (!notifSuportada() || notifPermissao !== "default") return;
+    const promise = solicitarPermissaoNotificacoes();
+    if (promise && typeof promise.then === "function") {
+      promise
+        .then((r) => {
+          if (
+            r === "granted" ||
+            r === "denied" ||
+            r === "default" ||
+            r === "unsupported"
+          ) {
+            setNotifPermissao(r);
+          }
+        })
+        .catch((err) => {
+          console.error("Falha ao solicitar permissão de notificação:", err);
+        });
+    }
+  }
 
   // Carrega os dados do perfil gravados no Firestore
   useEffect(() => {
@@ -196,10 +234,18 @@ export default function Perfil() {
             <div className="px-5 pb-5 pt-4">
               <button
                 type="button"
-                className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-sm font-bold text-white shadow flex items-center justify-center gap-2 hover:brightness-105 transition"
+                onClick={ativarNotificacoesPerfil}
+                disabled={!notifSuportada() || notifPermissao !== "default"}
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-sm font-bold text-white shadow flex items-center justify-center gap-2 hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Fingerprint className="w-5 h-5" />
-                Ativar notificações push
+                {notifPermissao === "granted"
+                  ? "Notificações ativadas"
+                  : notifPermissao === "denied"
+                    ? "Notificações bloqueadas"
+                    : !notifSuportada()
+                      ? "Notificações indisponíveis"
+                      : "Ativar notificações push"}
               </button>
             </div>
           </div>

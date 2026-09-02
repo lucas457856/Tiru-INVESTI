@@ -34,6 +34,7 @@ import SobreJurex from "../pages/SobreJurex";
 import ModeloContratoEditor from "../pages/ModeloContratoEditor";
 import Relatorios from "../pages/Relatorios";
 import Perfil from "../pages/Perfil";
+import Notificacoes from "../pages/Notificacoes";
 import Configuracoes from "../pages/Configuracoes";
 
 // Redireciona usuários autenticados para o dashboard
@@ -83,6 +84,7 @@ export default function AppRoutes() {
           <Route path="/suporte" element={<RotaPrivada><Suporte /></RotaPrivada>} />
           <Route path="/relatorios" element={<RotaPrivada><Relatorios /></RotaPrivada>} />
           <Route path="/perfil" element={<RotaPrivada><Perfil /></RotaPrivada>} />
+          <Route path="/notificacoes" element={<RotaPrivada><Notificacoes /></RotaPrivada>} />
           <Route path="/configuracoes/modelos-cobranca" element={<RotaPrivada><ModelosCobranca /></RotaPrivada>} />
           <Route path="/configuracoes/modelos-contrato" element={<RotaPrivada><ModelosContrato /></RotaPrivada>} />
           <Route path="/configuracoes/modelos-contrato/:id/editar" element={<RotaPrivada><ModeloContratoEditor /></RotaPrivada>} />

@@ -6,6 +6,8 @@ import { calcularParcelas, jurosPorParcelaPorFrequencia } from "../utils/parcela
 import { calculateInterest, calculatePenalty, calculateInstallmentValue, calculateDebtRemaining, calculatePrincipalQuitado, totalAbatimentos, getNextOpenInstallment, shiftFutureInstallments, avancarData } from "./paymentCalculations";
 import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
 import { registrarJurosRecebido as registrarJuros } from "./jurosRecebidosService";
+import { criarNotificacao } from "./notificationsService";
+import { formatarMoeda } from "../utils/formatadores";
 
 /**
  * Converte uma data (string YYYY-MM-DD, Date ou Firestore Timestamp) para um
@@ -662,6 +664,26 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
       console.error("[DIAG] erro registrar histórico:", err?.code, err?.message);
       // Não falha a operação principal se o histórico falhar
     }
+  }
+
+  // Notificação do app: "pagamento_recebido". Best-effort — não bloqueia
+  // nem falha o fluxo de pagamento se o Firestore recusar a escrita.
+  // Para "só os juros" também geramos notificação, mas com título diferente
+  // para deixar claro que foi só a parte de juros.
+  try {
+    const titulo = modalidade === "juros_apenas" ? "Juros recebidos" : "Pagamento recebido";
+    const nomeCliente = contrato?.clienteNome || contrato?.nome || "cliente";
+    const valorNotif = modalidade === "juros_apenas" ? jurosRecebidos : totalRecebido;
+    await criarNotificacao(usuario.uid, {
+      tipo: "pagamento_recebido",
+      titulo,
+      descricao: `${nomeCliente} · parcela ${parcela?.numero} · ${formatarMoeda(valorNotif)}`,
+      contratoId: contrato.id,
+      parcelaNumero: parcela?.numero,
+      valor: valorNotif,
+    });
+  } catch (err) {
+    console.error("criarNotificacao(pagamento_recebido):", err?.code, err?.message);
   }
 
   return { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal: saldoPrincipalAtual };

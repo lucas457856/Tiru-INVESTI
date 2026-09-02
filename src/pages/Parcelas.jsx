@@ -22,7 +22,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Bell,
   MessageCircle,
   ChevronLeft,
   ChevronRight,
@@ -30,7 +29,6 @@ import {
   CalendarX2,
   Inbox,
   LoaderCircle,
-  X,
 } from "lucide-react";
 import {
   collection,
@@ -298,7 +296,6 @@ export default function Parcelas() {
   // estiver vazia, filtra apenas pela dataInicial.
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
-  const [sinoAberto, setSinoAberto] = useState(false);
   const [feedback, setFeedback] = useState(null); // {tipo, texto} para mensagens curtas
   const [dataPickerAberto, setDataPickerAberto] = useState(false);
   const dataPickerRef = useRef(null);
@@ -544,46 +541,13 @@ export default function Parcelas() {
 
         <div className="relative max-w-5xl mx-auto px-6 sm:px-8 py-6">
           {/* Cabeçalho */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 sm:px-8 py-5 shadow-sm flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Parcelas
-              </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                {carregando ? "..." : `${todasParcelas.length} no total`}
-              </p>
-            </div>
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Notificações"
-                onClick={() => setSinoAberto((v) => !v)}
-                className="relative rounded-full p-2.5 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-              >
-                <Bell className="w-5 h-5 text-emerald-600" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-jurex" />
-              </button>
-              {sinoAberto && (
-                <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl z-30 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                      Notificações
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setSinoAberto(false)}
-                      className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                      aria-label="Fechar"
-                    >
-                      <X className="w-3.5 h-3.5 text-slate-500" />
-                    </button>
-                  </div>
-                  <div className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
-                    Nenhuma notificação no momento.
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 sm:px-8 py-5 shadow-sm">
+            <h1 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Parcelas
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {carregando ? "..." : `${todasParcelas.length} no total`}
+            </p>
           </div>
 
           {/* Filtros */}

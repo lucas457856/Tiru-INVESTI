@@ -20,6 +20,7 @@ import { db } from "../services/firebase";
 import { collection, addDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
+import { criarNotificacao } from "../services/notificationsService";
 import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
@@ -219,6 +220,15 @@ export default function NovoContrato() {
         criadoEm: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      // Notificação do app: aparece no sino e na página /notificacoes.
+      // Best-effort: se falhar (offline, permissão), não bloqueia o fluxo.
+      criarNotificacao(usuario.uid, {
+        tipo: "contrato_criado",
+        titulo: "Novo contrato criado",
+        descricao: `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`,
+        contratoId: docRef.id,
+        valor: valorNumero,
+      }).catch((err) => console.error("criarNotificacao(contrato_criado):", err));
       navigate(`/contratos/${docRef.id}/sucesso`);
     } catch (err) {
       console.error("Erro ao salvar contrato:", err);

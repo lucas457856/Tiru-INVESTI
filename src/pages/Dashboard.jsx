@@ -13,7 +13,7 @@
 // Nenhum valor é hardcoded. Os números exibidos vêm das regras financeiras
 // já implementadas no resto do sistema (Emprestimos, EmprestimoDetalhes,
 // ReceberPagamento, Relatorios).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -44,6 +44,11 @@ import {
   formatarData,
   numeroCurto,
 } from "../utils/formatadores";
+import {
+  solicitarPermissaoNotificacoes,
+  urlConfiguracoesNotificacoes,
+} from "../utils/notifications";
+import { useNotificacoes } from "../hooks/useNotificacoes";
 
 // Data local de hoje (YYYY-MM-DD) — usada para "Parcelas de hoje".
 // Construída a partir dos componentes locais para evitar drift de timezone
@@ -72,12 +77,18 @@ export default function Dashboard() {
   const [contratos, setContratos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [ocultarValores, setOcultarValores] = useState(false);
-  const [mostrarNotificacoes, setMostrarNotificacoes] = useState(false);
   const [notifSuportada, setNotifSuportada] = useState(false);
   const [notifPermissao, setNotifPermissao] = useState(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
   );
-  const sinoRef = useRef(null);
+  // Confirmação própria do app para o caso `denied`: o Chrome não exibe
+  // o popup nativo novamente, então mostramos uma confirmação antes de
+  // orientar o usuário a liberar a permissão nas configurações.
+  const [mostrarConfirmacaoNotif, setMostrarConfirmacaoNotif] = useState(false);
+  const [mostrarOrientacaoNotif, setMostrarOrientacaoNotif] = useState(false);
+  // Lista de notificações do app + contador de não lidas. Fonte única
+  // consumida também pela página /notificacoes (sino ↔ lista em sync).
+  const { naoLidas } = useNotificacoes();
 
   // Detecta suporte à Notification API (sem push — só permissão local do browser)
   useEffect(() => {
@@ -288,29 +299,55 @@ export default function Dashboard() {
     return ocultarValores ? "••••••" : formatarMoeda(v);
   }
 
-  // Ativação de notificações — usa Notification API (sem push, sem FCM).
-  // Se o navegador não suporta, o botão fica inativo (sem fingir ativação).
-  async function ativarNotificacoes() {
-    if (!notifSuportada) return;
-    try {
-      const r = await Notification.requestPermission();
-      setNotifPermissao(r);
-    } catch (err) {
-      console.error("Falha ao solicitar permissão de notificação:", err);
+  // Ativação de notificações — usa a função centralizada em
+  // utils/notifications.js (mesma do botão "Ativar notificações" do Perfil).
+  //
+  // Comportamento por estado:
+  //   - default: chama Notification.requestPermission() DIRETAMENTE no click
+  //     (sem await antes, preservando a "transient activation" do Chrome) e
+  //     exibe o popup nativo. Atualiza o estado com a decisão do usuário.
+  //   - granted: no-op silencioso (botão continua clicável mas não
+  //     re-solicita, o helper retorna "granted" sem prompt).
+  //   - denied: o Chrome não exibe o popup nativo novamente. Mostramos uma
+  //     confirmação própria do app; se o usuário confirmar, exibimos
+  //     uma orientação para liberar nas configurações do navegador.
+  //   - unsupported: no-op silencioso.
+  //
+  // IMPORTANTE: o handler é SÍNCRONO (sem await antes de
+  // Notification.requestPermission()) para preservar a "transient activation"
+  // do Chrome. Se houver qualquer await antes da chamada, o Chrome quebra
+  // o user gesture e exibe um aviso interno em vez do popup nativo.
+  function ativarNotificacoes(e) {
+    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+    // Se já está bloqueado, abre a confirmação própria do app
+    // (requestPermission() não vai exibir o popup nativo de novo).
+    if (notifPermissao === "denied") {
+      setMostrarConfirmacaoNotif(true);
+      return;
+    }
+    // granted/unsupported: no-op silencioso (helper já lida).
+    if (notifPermissao === "granted" || notifPermissao === "unsupported") {
+      return;
+    }
+    // default: chamada SÍNCRONA no user gesture do click handler.
+    const promise = solicitarPermissaoNotificacoes();
+    if (promise && typeof promise.then === "function") {
+      promise
+        .then((r) => {
+          if (
+            r === "granted" ||
+            r === "denied" ||
+            r === "default" ||
+            r === "unsupported"
+          ) {
+            setNotifPermissao(r);
+          }
+        })
+        .catch((err) => {
+          console.error("Falha ao solicitar permissão de notificação:", err);
+        });
     }
   }
-
-  // Click-outside para o sino de notificações
-  useEffect(() => {
-    if (!mostrarNotificacoes) return;
-    function onDown(e) {
-      if (sinoRef.current && !sinoRef.current.contains(e.target)) {
-        setMostrarNotificacoes(false);
-      }
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [mostrarNotificacoes]);
 
   // Atalhos — usa APENAS rotas existentes (sem criar rota quebrada).
   const atalhos = [
@@ -335,38 +372,20 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="relative" ref={sinoRef}>
+          <div className="relative">
             <button
               type="button"
               aria-label="Notificações"
-              onClick={() => setMostrarNotificacoes((v) => !v)}
+              onClick={() => navigate("/notificacoes")}
               className="relative rounded-full p-2.5 bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
             >
               <Bell className="w-5 h-5 text-emerald-600" />
-              {/* Badge sempre presente para seguir o design da referência;
-                  sem sistema de notificações, mantemos apenas o ícone ativo. */}
+              {naoLidas > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold ring-2 ring-white dark:ring-slate-900">
+                  {naoLidas > 99 ? "99+" : naoLidas}
+                </span>
+              )}
             </button>
-
-            {mostrarNotificacoes && (
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl z-30 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    Notificações
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setMostrarNotificacoes(false)}
-                    className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    aria-label="Fechar notificações"
-                  >
-                    <X className="w-3.5 h-3.5 text-slate-500" />
-                  </button>
-                </div>
-                <div className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
-                  Nenhuma notificação no momento.
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -449,7 +468,18 @@ export default function Dashboard() {
         </section>
 
         {/* Ativar notificações */}
-        <section className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
+        <section
+          onClick={
+            notifPermissao === "default" && notifSuportada
+              ? ativarNotificacoes
+              : undefined
+          }
+          className={`mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm transition ${
+            notifPermissao === "default" && notifSuportada
+              ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              : ""
+          }`}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
               <Bell className="w-5 h-5 text-emerald-600" />
@@ -458,7 +488,9 @@ export default function Dashboard() {
               <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                 {notifPermissao === "granted"
                   ? "Notificações ativadas"
-                  : "Ativar notificações"}
+                  : notifPermissao === "denied"
+                    ? "Notificações bloqueadas"
+                    : "Ativar notificações"}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                 Receba alertas de pagamentos mesmo com o app fechado
@@ -468,18 +500,9 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={ativarNotificacoes}
-            disabled={!notifSuportada || notifPermissao === "granted"}
-            className={`text-sm font-bold transition shrink-0 ${
-              notifPermissao === "granted" || !notifSuportada
-                ? "text-slate-400 cursor-not-allowed"
-                : "text-jurex hover:text-jurex-dark"
-            }`}
+            className="text-sm font-bold transition shrink-0 text-jurex hover:text-jurex-dark"
           >
-            {notifPermissao === "granted"
-              ? "Ativado"
-              : !notifSuportada
-                ? "Indisponível"
-                : "Ativar"}
+            Ativar
           </button>
         </section>
 
@@ -667,6 +690,140 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+
+      {/* Modal de confirmação — caso denied. Como o Chrome não exibe o popup
+          nativo novamente, mostramos uma confirmação própria do app antes
+          de orientar o usuário a liberar a permissão nas configurações. */}
+      {mostrarConfirmacaoNotif && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          onClick={() => setMostrarConfirmacaoNotif(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="conf-notif-titulo"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2
+                id="conf-notif-titulo"
+                className="text-base font-bold text-slate-900 dark:text-white"
+              >
+                Ativar notificações
+              </h2>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setMostrarConfirmacaoNotif(false)}
+                className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              As notificações estão bloqueadas. Deseja ativar as notificações?
+            </p>
+            <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarConfirmacaoNotif(false)}
+                className="h-11 px-4 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarConfirmacaoNotif(false);
+                  setMostrarOrientacaoNotif(true);
+                }}
+                className="h-11 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 shadow hover:brightness-105 transition"
+              >
+                Ativar notificações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de orientação — passo a passo para liberar notificações
+          nas configurações do navegador. Não chama requestPermission
+          (o Chrome já a tem como denied e não permite resetar). */}
+      {mostrarOrientacaoNotif && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          onClick={() => setMostrarOrientacaoNotif(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ori-notif-titulo"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2
+                id="ori-notif-titulo"
+                className="text-base font-bold text-slate-900 dark:text-white"
+              >
+                Como ativar notificações
+              </h2>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setMostrarOrientacaoNotif(false)}
+                className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ol className="mt-3 list-decimal pl-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+              <li>
+                Abra as configurações do navegador (clique no cadeado/câmera
+                ao lado do endereço).
+              </li>
+              <li>
+                Encontre a opção <strong>Notificações</strong> e mude de
+                &quot;Bloquear&quot; para &quot;Permitir&quot;.
+              </li>
+              <li>
+                Volte aqui e atualize a página para que o Jurex detecte a
+                nova permissão.
+              </li>
+            </ol>
+            {(() => {
+              const url = urlConfiguracoesNotificacoes();
+              if (!url) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    } catch {
+                      // silencioso
+                    }
+                  }}
+                  className="mt-4 w-full h-11 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 shadow hover:brightness-105 transition"
+                >
+                  Abrir configurações do navegador
+                </button>
+              );
+            })()}
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMostrarOrientacaoNotif(false)}
+                className="h-10 px-4 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

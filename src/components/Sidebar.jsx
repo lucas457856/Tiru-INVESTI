@@ -1,17 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Home,
   FileText,
   Users,
   ChartLine,
+  Bell,
   Settings,
   LifeBuoy,
   ChevronDown,
 } from "lucide-react";
+import { useAuth } from "../context/useAuth";
 
+// Itens principais do menu lateral.
+// "Notificações" é o segundo item para acesso rápido à página /notificacoes.
 const itens = [
   { to: "/dashboard", label: "Início", icone: Home, fim: true },
+  { to: "/notificacoes", label: "Notificações", icone: Bell },
   { to: "/emprestimos", label: "Contratos", icone: FileText },
   { to: "/clientes", label: "Clientes", icone: Users },
   { to: "/relatorios", label: "Relatórios", icone: ChartLine },
@@ -47,24 +52,69 @@ const classeItem = ({ isActive }) =>
       : "text-slate-600 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
   }`;
 
+// Extrai as iniciais do nome do usuário (máx 2 letras) para o avatar da sidebar.
+function iniciaisDoNome(nome) {
+  if (!nome) return "?";
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
 export default function Sidebar() {
   const [aberto, setAberto] = useState(false);
+  const { usuario } = useAuth();
+
+  // Mesmo padrão do Dashboard: prioriza displayName, cai para o usuário
+  // do email e por último "Usuário". Tudo em maiúsculas para o avatar.
+  const nomeUsuario = useMemo(() => {
+    const dn = usuario?.displayName?.trim();
+    if (dn) return dn;
+    if (usuario?.email) return usuario.email.split("@")[0];
+    return "Usuário";
+  }, [usuario]);
+
+  // Saudação curta para a sidebar (primeiro nome). Não exibe nada
+  // enquanto o usuário não estiver autenticado (evita flicker).
+  const primeiroNome = useMemo(() => {
+    if (!nomeUsuario) return "";
+    return nomeUsuario.split(/\s+/)[0];
+  }, [nomeUsuario]);
+
+  const iniciais = useMemo(() => iniciaisDoNome(nomeUsuario), [nomeUsuario]);
 
   return (
     <aside className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col overflow-y-auto">
       {/* Marca */}
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <img
-          src="/logo.png"
-          alt="Jurex"
-          className="w-9 h-9 rounded-lg object-cover"
-        />
-        <div className="leading-tight">
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Jurex</p>
-          <p className="text-[10px] tracking-wide text-emerald-600 font-semibold uppercase">
-            Controle de empréstimos
-          </p>
+      <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/logo.png"
+            alt="Jurex"
+            className="w-9 h-9 rounded-lg object-cover"
+          />
+          <div className="leading-tight">
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Jurex</p>
+            <p className="text-[10px] tracking-wide text-emerald-600 font-semibold uppercase">
+              Controle de empréstimos
+            </p>
+          </div>
         </div>
+        {primeiroNome && (
+          <div className="mt-3 flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+              {iniciais}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] tracking-widest text-slate-400 uppercase">
+                Usuário
+              </p>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                {primeiroNome}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navegação */}
