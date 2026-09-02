@@ -192,13 +192,13 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
           tablets). Sombra à direita, sem cantos arredondados à
           esquerda. */}
       <aside
-        className={`absolute top-0 left-0 h-full w-[75%] max-w-[320px] bg-white shadow-2xl shadow-black/30 flex flex-col transform transition-transform duration-300 ease-out ${
+        className={`absolute top-0 left-0 h-full w-[75%] max-w-[320px] bg-white dark:bg-slate-900 shadow-2xl shadow-black/30 flex flex-col transform transition-transform duration-300 ease-out ${
           entrando ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Header (altura 88px conforme referência) */}
-        <header className="relative h-[88px] shrink-0 bg-emerald-50/60 border-b border-slate-200 px-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 overflow-hidden">
+        <header className="relative h-[88px] shrink-0 bg-emerald-50/60 dark:bg-emerald-500/10 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
             <img
               src="/logo.png"
               alt="Jurex"
@@ -206,8 +206,8 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
             />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="text-base font-bold text-slate-800">Jurex</p>
-            <p className="text-[11px] tracking-[0.18em] text-slate-500 font-semibold uppercase truncate">
+            <p className="text-base font-bold text-slate-800 dark:text-slate-100">Jurex</p>
+            <p className="text-[11px] tracking-[0.18em] text-slate-500 dark:text-slate-400 font-semibold uppercase truncate">
               {nomeHeader}
             </p>
           </div>
@@ -217,7 +217,7 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
             type="button"
             onClick={onFechar}
             aria-label="Fechar menu"
-            className="absolute top-3 right-3 w-9 h-9 rounded-full border border-emerald-300 bg-white flex items-center justify-center hover:bg-emerald-50 transition"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-800 flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
           >
             <X className="w-4 h-4 text-jurex" strokeWidth={2.25} />
           </button>
@@ -228,7 +228,7 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
         <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-5 scrollbar-thin">
           {secoes.map((secao) => (
             <div key={secao.titulo}>
-              <p className="px-1 pb-2 text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
+              <p className="px-1 pb-2 text-[11px] font-semibold tracking-[0.18em] text-slate-500 dark:text-slate-400 uppercase">
                 {secao.titulo}
               </p>
               <ul className="space-y-1.5">
@@ -239,13 +239,13 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
                       onClick={() => aoClicarItem(to)}
                       className={`w-full flex items-center gap-3 px-3 h-12 rounded-2xl text-left transition ${
                         destaque
-                          ? "bg-slate-100 hover:bg-slate-200/70"
-                          : "hover:bg-slate-50"
+                          ? "bg-slate-100 hover:bg-slate-200/70 dark:bg-slate-800 dark:hover:bg-slate-700"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
                       }`}
                     >
                       <span
                         className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                          destaque ? "bg-white" : "bg-slate-100"
+                          destaque ? "bg-white dark:bg-slate-700" : "bg-slate-100 dark:bg-slate-800"
                         }`}
                       >
                         <Icone
@@ -253,10 +253,10 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
                           strokeWidth={2}
                         />
                       </span>
-                      <span className="text-sm font-medium text-slate-700 truncate">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
                         {label}
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-400 ml-auto shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 ml-auto shrink-0" />
                     </button>
                   </li>
                 ))}

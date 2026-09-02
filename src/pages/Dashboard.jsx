@@ -431,15 +431,16 @@ export default function Dashboard() {
         >
           {/* Ondas decorativas (canto superior direito) */}
           <svg
-            viewBox="0 0 220 130"
+            viewBox="0 0 140 90"
             aria-hidden
-            className="pointer-events-none absolute right-10 top-2 h-28 w-56 text-emerald-200/60"
+            preserveAspectRatio="xMaxYMin meet"
+            className="pointer-events-none absolute right-0 top-0 h-24 w-44 sm:right-10 sm:top-2 sm:h-28 sm:w-56 text-emerald-200/70"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.2"
+            strokeWidth="1"
           >
-            {[12, 32, 52, 72, 92, 112].map((y) => (
-              <path key={y} d={`M0 ${y} q 55 -18 110 0 t 110 0`} />
+            {[10, 26, 42, 58, 74].map((y) => (
+              <path key={y} d={`M0 ${y} C 30 ${y - 8}, 70 ${y - 8}, 100 ${y} S 135 ${y + 6}, 140 ${y}`} />
             ))}
           </svg>
 
