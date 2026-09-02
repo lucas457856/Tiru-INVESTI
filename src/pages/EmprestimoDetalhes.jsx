@@ -501,20 +501,20 @@ export default function EmprestimoDetalhes() {
     status !== "Quitado" && valorExibido > 0 && saldoDifereDoContrato;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Sidebar esquerda — 240px fixo */}
-      <aside className="hidden xl:flex xl:flex-col xl:w-[240px] xl:fixed xl:inset-y-0 xl:border-r xl:border-slate-200">
+      <aside className="hidden xl:flex xl:flex-col xl:w-[240px] xl:fixed xl:inset-y-0 xl:border-r xl:border-slate-200 xl:bg-white dark:xl:bg-slate-900 xl:dark:border-slate-800">
         <div className="flex flex-col flex-1 overflow-y-auto">
           {/* Marca */}
-          <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-200">
+          <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-200 dark:border-slate-800">
             <div className="w-[38px] h-[38px] rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
               <span className="text-emerald-500 font-bold text-base">J</span>
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-slate-800 text-[15px] truncate max-w-[170px]">
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate max-w-[170px]">
                 Jurex
               </p>
-              <p className="text-[10px] font-medium tracking-wider text-blue-600 uppercase truncate max-w-[170px]">
+              <p className="text-[10px] font-medium tracking-wider text-blue-600 dark:text-blue-400 uppercase truncate max-w-[170px]">
                 FREDERICO KILLER
               </p>
             </div>
@@ -527,8 +527,8 @@ export default function EmprestimoDetalhes() {
               const isSelected = !!item.selected;
               const baseClasses = "flex items-center gap-3 h-[42px] mx-[15px] rounded-[11px] px-[14px] text-sm font-medium transition-all";
               const selectedClasses = isSelected
-                ? "bg-[#F0FBF6] border border-[#BBF7D0] text-[#059669]"
-                : "text-slate-600 hover:bg-slate-50";
+                ? "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800";
               return (
                 <button
                   key={item.id}
@@ -542,8 +542,8 @@ export default function EmprestimoDetalhes() {
                   }}
                   className={`${baseClasses} ${selectedClasses}`}
                 >
-                  {Icon && <Icon className={`w-[18px] h-[18px] ${isSelected ? "text-[#059669]" : "text-slate-500"}`} />}
-                  <span className={isSelected ? "text-[#059669]" : ""}>{item.label}</span>
+                  {Icon && <Icon className={`w-[18px] h-[18px] ${isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`} />}
+                  <span className={isSelected ? "text-emerald-600 dark:text-emerald-400" : ""}>{item.label}</span>
                   {item.hasSubmenu && (
                     <ChevronDown
                       className={`w-[18px] h-[18px] text-slate-400 transition-transform ml-auto ${configAberto ? "rotate-180" : ""}`}
@@ -556,13 +556,13 @@ export default function EmprestimoDetalhes() {
 
           {/* Submenu Configurações */}
           {configAberto && (
-            <div className="mt-1 mx-[15px] mb-4 border-l border-slate-200 pl-4 space-y-0.5">
+            <div className="mt-1 mx-[15px] mb-4 border-l border-slate-200 dark:border-slate-800 pl-4 space-y-0.5">
               {SUB_CONFIG.map((sub) => (
                 <button
                   key={sub.to}
                   type="button"
                   onClick={() => navigate(sub.to)}
-                  className="flex items-center gap-2 h-[32px] w-full rounded-[8px] px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                  className="flex items-center gap-2 h-[32px] w-full rounded-[8px] px-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                 >
                   {sub.label}
                 </button>
@@ -577,32 +577,32 @@ export default function EmprestimoDetalhes() {
         <div className="max-w-[1240px] mx-auto px-6 py-6 mb-10">
 
           {/* Header superior */}
-          <header className="rounded-[22px] border border-[#E8FAF2] bg-[#F1FCF7] px-6 py-5 shadow-[0_8px_25px_rgba(20,100,70,0.05)]">
+          <header className="rounded-[22px] border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/60 dark:bg-slate-900 px-6 py-5 shadow-[0_8px_25px_rgba(20,100,70,0.05)] dark:shadow-none">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <button
                   type="button"
                   onClick={() => navigate("/emprestimos")}
                   aria-label="Voltar"
-                  className="w-[42px] h-[42px] rounded-full bg-white border border-[#E1E7E5] shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 transition"
+                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 border shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
                 >
-                  <ArrowLeft className="w-[18px] h-[18px] text-slate-700" />
+                  <ArrowLeft className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate("/dashboard")}
                   aria-label="Início"
-                  className="w-[42px] h-[42px] rounded-full bg-white border border-[#E1E7E5] shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 transition"
+                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 border shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
                 >
-                  <Home className="w-[18px] h-[18px] text-slate-600" />
+                  <Home className="w-[18px] h-[18px] text-slate-600 dark:text-slate-200" />
                 </button>
 
                 {/* Identificação do contrato */}
                 <div className="min-w-0">
-                  <h1 className="text-[22px] font-bold text-slate-900">
+                  <h1 className="text-[22px] font-bold text-slate-900 dark:text-white">
                     #{contrato.id?.slice(0, 6).toUpperCase() ?? "—"}
                   </h1>
-                  <p className="text-[12px] font-medium text-blue-600 uppercase tracking-wider">
+                  <p className="text-[12px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                     {cliente?.nomeCompleto ?? contrato?.clienteNome ?? "FREDERICO KILLER"}
                   </p>
                 </div>
@@ -618,20 +618,20 @@ export default function EmprestimoDetalhes() {
           </header>
 
           {/* Card principal do contrato */}
-          <section className="mt-6 rounded-[24px] border border-[#E8FAF2] bg-gradient-to-br from-white to-[#EFFCF6] px-[23px] py-6 shadow-[0_12px_35px_rgba(0,180,100,0.08)]">
+          <section className="mt-6 rounded-[24px] border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-br from-white to-emerald-50/40 dark:from-slate-900 dark:to-emerald-950/20 px-[23px] py-6 shadow-[0_12px_35px_rgba(0,180,100,0.08)] dark:shadow-none">
             {/* VALOR DO CONTRATO + Status */}
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-bold tracking-[1px] text-slate-600 uppercase">
+                <p className="text-[11px] font-bold tracking-[1px] text-slate-600 dark:text-slate-400 uppercase">
                   Valor do contrato
                 </p>
                 <p className="mt-1 text-[30px] font-extrabold text-[#00B86B] tabular-nums">
                   {formatarMoeda(valorExibido)}
                 </p>
                 {mostrarSaldoAReceber && (
-                  <p className="mt-1 text-[11px] text-slate-500 tabular-nums">
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                     Saldo a receber:{" "}
-                    <span className="font-bold text-slate-700">
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
                       {formatarMoeda(saldos.saldoPrincipal)}
                     </span>
                   </p>
@@ -647,27 +647,27 @@ export default function EmprestimoDetalhes() {
 
             {/* Três caixas na horizontal: Juros / Parcelas / Início */}
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-[11px] border border-[#DDE5E2] bg-white/0 px-4 py-3.5 text-center">
-                <p className="text-[8px] font-bold tracking-widest text-slate-500 uppercase">
+              <div className="rounded-[11px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-800/40 px-4 py-3.5 text-center">
+                <p className="text-[8px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                   Juros
                 </p>
-                <p className="mt-1 text-[12px] font-bold text-slate-900 tabular-nums">
+                <p className="mt-1 text-[12px] font-bold text-slate-900 dark:text-white tabular-nums">
                   {jurosTexto}
                 </p>
               </div>
-              <div className="rounded-[11px] border border-[#DDE5E2] bg-white/0 px-4 py-3.5 text-center">
-                <p className="text-[8px] font-bold tracking-widest text-slate-500 uppercase">
+              <div className="rounded-[11px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-800/40 px-4 py-3.5 text-center">
+                <p className="text-[8px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                   Parcelas
                 </p>
-                <p className="mt-1 text-[12px] font-bold text-slate-900">
+                <p className="mt-1 text-[12px] font-bold text-slate-900 dark:text-white">
                   {contrato.numeroParcelas ?? 0}x
                 </p>
               </div>
-              <div className="rounded-[11px] border border-[#DDE5E2] bg-white/0 px-4 py-3.5 text-center">
-                <p className="text-[8px] font-bold tracking-widest text-slate-500 uppercase">
+              <div className="rounded-[11px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-800/40 px-4 py-3.5 text-center">
+                <p className="text-[8px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                   Início
                 </p>
-                <p className="mt-1 text-[12px] font-bold text-slate-900">
+                <p className="mt-1 text-[12px] font-bold text-slate-900 dark:text-white">
                   {formatarData(contrato.dataPrimeiraParcela) || "—"}
                 </p>
               </div>
@@ -676,37 +676,37 @@ export default function EmprestimoDetalhes() {
             {/* Progresso: barra + texto */}
             <div className="mt-6">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-slate-500">
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                   Progresso
                 </span>
                 <span className="text-sm font-bold text-[#00B86B] tabular-nums">
                   {progresso.porcentagem.toFixed(0)}%
                 </span>
               </div>
-              <div className="mt-2 h-[7px] rounded-full bg-slate-200 overflow-hidden">
+              <div className="mt-2 h-[7px] rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-jurex to-emerald-500 transition-all"
                   style={{ width: `${progresso.porcentagem}%` }}
                 />
               </div>
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">
-                  <span className="font-bold text-slate-900">{progresso.pagas}</span> de {progresso.total} pagas
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                  <span className="font-bold text-slate-900 dark:text-white">{progresso.pagas}</span> de {progresso.total} pagas
                 </span>
                 <span className="text-[10px]">
-                  <span className="text-slate-500">Recebido: </span>
+                  <span className="text-slate-500 dark:text-slate-400">Recebido: </span>
                   <span className="font-bold text-[#00B86B] tabular-nums">{formatarMoeda(progresso.recebido)}</span>
                 </span>
               </div>
             </div>
 
             {/* Próximo vencimento */}
-            <div className="mt-6 rounded-[16px] border border-[#CCF7E5] bg-white/60 px-4 py-3.5">
-              <p className="text-[9px] font-bold tracking-widest text-slate-500 uppercase">
+            <div className="mt-6 rounded-[16px] border border-emerald-200 dark:border-emerald-500/30 bg-white/60 dark:bg-slate-800/60 px-4 py-3.5">
+              <p className="text-[9px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                 Próximo vencimento
               </p>
               {status === "Quitado" ? (
-                <p className="mt-1 text-[12px] font-semibold text-slate-500">
+                <p className="mt-1 text-[12px] font-semibold text-slate-500 dark:text-slate-400">
                   Contrato quitado
                 </p>
               ) : proximaParcela ? (
@@ -715,16 +715,16 @@ export default function EmprestimoDetalhes() {
                   className="mt-2 cursor-pointer flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-[15px] font-bold text-slate-900">
+                    <p className="truncate text-[15px] font-bold text-slate-900 dark:text-white">
                       Parcela {proximaParcela.numero} · {formatarMoeda(proximaParcela.valor)}
                     </p>
-                    <p className="truncate text-[11px] text-slate-500">
+                    <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
                       Vence {formatarData(proximaParcela.vencimento)}
                     </p>
                   </div>
                 </div>
               ) : (
-                <p className="mt-1 text-[12px] font-semibold text-slate-500">
+                <p className="mt-1 text-[12px] font-semibold text-slate-500 dark:text-slate-400">
                   Sem vencimento pendente
                 </p>
               )}
@@ -744,38 +744,38 @@ export default function EmprestimoDetalhes() {
             <button
               type="button"
               onClick={compartilharPdf}
-              className="h-[46px] rounded-[14px] border border-[#B5DEC9] bg-white text-slate-800 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition"
+              className="h-[46px] rounded-[14px] border border-emerald-300 dark:border-emerald-500/30 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
             >
-              <FileImage className="w-[18px] h-[18px] text-slate-700" />
+              <FileImage className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
               Compartilhar PDF atualizado
             </button>
             <button
               type="button"
               onClick={editar}
-              className="h-[46px] rounded-[14px] border border-[#B5DEC9] bg-white text-slate-800 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 transition"
+              className="h-[46px] rounded-[14px] border border-emerald-300 dark:border-emerald-500/30 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
             >
-              <Pencil className="w-[18px] h-[18px] text-slate-700" />
+              <Pencil className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
               Editar
             </button>
             <button
               type="button"
               onClick={excluir}
-              className="h-[46px] rounded-[14px] border border-[#F89C9C] bg-white text-[#FF3B30] text-sm font-bold flex items-center justify-center gap-2 hover:bg-red-50 transition"
+              className="h-[46px] rounded-[14px] border border-red-300 dark:border-red-500/40 bg-white dark:bg-slate-800 text-red-500 dark:text-red-400 text-sm font-bold flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
             >
-              <Trash2 className="w-[18px] h-[18px] text-[#FF3B30]" />
+              <Trash2 className="w-[18px] h-[18px] text-red-500 dark:text-red-400" />
               Excluir
             </button>
           </div>
 
           {/* Parcelas */}
           <section className="mt-10 mb-12">
-            <h2 className="text-[13px] font-bold tracking-[1px] text-slate-800 uppercase">
+            <h2 className="text-[13px] font-bold tracking-[1px] text-slate-800 dark:text-white uppercase">
               Parcelas
             </h2>
 
             {parcelasComMulta.length === 0 ? (
-              <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-5 py-6 text-center">
-                <p className="text-sm text-slate-500">
+              <div className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-6 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Nenhuma parcela.
                 </p>
               </div>
@@ -801,8 +801,8 @@ export default function EmprestimoDetalhes() {
                       key={p.numero}
                       className={`rounded-[16px] border p-3 shadow-[0_4px_6px_rgba(15,23,42,0.02)] transition-all duration-200 ${
                         destacada
-                          ? "border-[#00B86B] bg-white"
-                          : "border-[#DDE5E2] bg-white"
+                          ? "border-emerald-500 bg-white dark:bg-slate-900"
+                          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                       }`}
                       onClick={() => pagar(p)}
                     >
@@ -813,10 +813,10 @@ export default function EmprestimoDetalhes() {
                           <div
                             className={`shrink-0 w-[42px] h-[42px] rounded-[11px] flex items-center justify-center transition-colors ${
                               p.status === "Paga"
-                                ? "bg-[#E8FAF2] text-[#00B86B]"
+                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                 : destacada
                                 ? "bg-[#00B86B] text-white"
-                                : "bg-[#FFFBEB] text-[#F59E0B]"
+                                : "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400"
                             }`}
                           >
                             <span className="text-[17px] font-bold">
@@ -826,16 +826,16 @@ export default function EmprestimoDetalhes() {
                           <div className="min-w-0">
                             <p
                               className={`text-[14px] font-bold ${
-                                destacada ? "text-slate-900" : "text-slate-900"
+                                destacada ? "text-slate-900 dark:text-white" : "text-slate-900 dark:text-white"
                               }`}
                             >
                               {formatarMoeda(p.valor)}
                             </p>
-                            <p className="mt-0.5 text-[10px] text-slate-500">
+                            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                               Vence {formatarData(p.vencimento)}
                             </p>
                             {multaJuros > 0 && (
-                              <p className="mt-0.5 text-[10px] text-red-500">
+                              <p className="mt-0.5 text-[10px] text-red-500 dark:text-red-400">
                                 + {formatarMoeda(multaJuros)} multa/juros
                               </p>
                             )}
@@ -858,7 +858,7 @@ export default function EmprestimoDetalhes() {
                       {jurosRecebidosParcela && (
                         <p
                           data-testid={`juros-recebidos-parcela-${p.numero}`}
-                          className="mt-2 text-[11px] font-medium text-emerald-600"
+                          className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
                         >
                           ✓ Juros da semana recebido · {formatarMoeda(jurosRecebidosParcela.valorRecebido)} em {formatarData(jurosRecebidosParcela.dataRecebimento)}
                         </p>
@@ -873,14 +873,14 @@ export default function EmprestimoDetalhes() {
                           <button
                             type="button"
                             onClick={() => enviarWhatsappParcela(p)}
-                            className="h-[30px] px-[11px] rounded-full text-[10px] font-bold flex items-center justify-center gap-1 bg-[#E8FAF2] border border-[#B5DEC9] text-[#00B86B] hover:bg-emerald-50 transition"
+                            className="h-[30px] px-[11px] rounded-full text-[10px] font-bold flex items-center justify-center gap-1 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition"
                           >
                             Cobrar
                           </button>
                           <button
                             type="button"
                             onClick={() => renegociar(p)}
-                            className="h-[30px] px-[11px] rounded-full text-[10px] font-bold flex items-center justify-center gap-1 bg-[#FFFBEB] border border-[#FDE68A] text-[#F59E0B] hover:bg-amber-100 transition"
+                            className="h-[30px] px-[11px] rounded-full text-[10px] font-bold flex items-center justify-center gap-1 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-500 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition"
                           >
                             Renegociar
                           </button>
@@ -899,7 +899,7 @@ export default function EmprestimoDetalhes() {
                             e.stopPropagation();
                             estornar(p);
                           }}
-                          className="mt-3 w-full h-[24px] rounded-full bg-red-50 border border-red-300 text-red-500 text-[11px] font-medium hover:bg-red-100 transition"
+                          className="mt-3 w-full h-[24px] rounded-full bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 text-red-500 dark:text-red-400 text-[11px] font-medium hover:bg-red-100 dark:hover:bg-red-500/20 transition"
                         >
                           ↶ Estornar
                         </button>
@@ -923,15 +923,15 @@ export default function EmprestimoDetalhes() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl p-5"
+            className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-5"
           >
             {/* Cabeçalho */}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
                   Enviar contrato
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Para {cliente?.nomeCompleto ?? "—"}
                 </p>
               </div>
@@ -939,7 +939,7 @@ export default function EmprestimoDetalhes() {
                 type="button"
                 onClick={fecharModalEnvio}
                 aria-label="Fechar"
-                className="shrink-0 rounded-full p-1.5 ring-1 ring-slate-200 text-slate-500 hover:bg-slate-100 transition"
+                className="shrink-0 rounded-full p-1.5 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -947,7 +947,7 @@ export default function EmprestimoDetalhes() {
 
             {/* Seletor de modelo (abas) */}
             <div className="mt-5">
-              <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+              <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                 Modelo
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -961,7 +961,7 @@ export default function EmprestimoDetalhes() {
                       className={`h-[38px] rounded-full text-xs font-bold flex items-center justify-center gap-2 transition ${
                         ativo
                           ? "bg-[#00B968] text-white shadow"
-                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                       }`}
                     >
                       <FileSignature className="w-4 h-4" />
@@ -975,7 +975,7 @@ export default function EmprestimoDetalhes() {
             {/* Pré-visualização + link "Editar modelos" */}
             <div className="mt-5">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                   Pré-visualização
                 </p>
                 <button
@@ -991,10 +991,10 @@ export default function EmprestimoDetalhes() {
                 value={textoMensagem}
                 onChange={(e) => setTextoMensagem(e.target.value)}
                 rows={10}
-                className="mt-2 w-full min-h-[200px] rounded-xl border border-slate-200 bg-slate-50 p-3 text-[13px] text-slate-800 font-mono whitespace-pre-wrap outline-none focus:ring-2 focus:ring-[#00B968]/30 focus:border-[#00B968]"
+                className="mt-2 w-full min-h-[200px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-[13px] text-slate-800 dark:text-slate-100 font-mono whitespace-pre-wrap outline-none focus:ring-2 focus:ring-[#00B968]/30 focus:border-[#00B968]"
                 placeholder="A mensagem será gerada a partir do modelo selecionado."
               />
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 Você pode editar o texto antes de enviar.
               </p>
             </div>
@@ -1004,7 +1004,7 @@ export default function EmprestimoDetalhes() {
               <button
                 type="button"
                 onClick={copiarMensagem}
-                className="h-[44px] rounded-xl bg-white border border-slate-200 text-slate-800 text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition"
+                className="h-[44px] rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
               >
                 {copiado ? (
                   <Check className="w-4 h-4 text-[#00B968]" />
