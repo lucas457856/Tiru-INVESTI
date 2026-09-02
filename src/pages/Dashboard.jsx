@@ -3,6 +3,8 @@
 // Reaproveita ao máximo o que já existe no projeto:
 //   - useAuth → usuário Firebase Auth (uid, displayName)
 //   - Firestore collection `usuarios/{uid}/contratos` (onSnapshot em tempo real)
+//   - Subcoleção `usuarios/{uid}/contratos/{cid}/pagamentos` — fonte de
+//     verdade do que foi efetivamente recebido (mantida por processarPagamento)
 //   - contractService.parcelasDoContrato() — cronograma real com overrides e
 //     abatimentos aplicados (não recalculamos nada aqui).
 //   - paymentCalculations.calculateDebtRemaining() — saldo principal
@@ -26,7 +28,7 @@ import {
   CircleCheck,
   X,
 } from "lucide-react";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, getDocs, onSnapshot, query } from "firebase/firestore";
 import { db } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
 import { useAuth } from "../context/useAuth";
@@ -35,6 +37,7 @@ import {
 } from "../services/contractService";
 import {
   calculateDebtRemaining,
+  calcularStatusContrato,
 } from "../services/paymentCalculations";
 import {
   formatarMoeda,
@@ -52,8 +55,14 @@ function hojeISO() {
 
 const DATA_HOJE = hojeISO();
 
-// Limite de contratos ativos mostrados na Home (não limita a busca).
+// Limite de contratos mostrados na Home (não limita a busca).
 const LIMITE_CONTRATOS_HOME = 5;
+
+// Status real do contrato a partir da PRÓXIMA PARCELA NÃO PAGA
+// (reaproveita `calcularStatusContrato` — fonte única de verdade).
+function statusContrato(c, hoje) {
+  return calcularStatusContrato(c, hoje);
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -98,36 +107,109 @@ export default function Dashboard() {
   }, [usuario]);
 
   // ---- Cálculos derivados (todos a partir dos dados reais)
-  // Contratos ATIVOS = não quitados
+  // Contratos ATIVOS = não quitados (usado para "A receber" e "Parcelas hoje")
   const contratosAtivos = useMemo(
     () => contratos.filter((c) => !c.quitado),
     [contratos]
   );
 
-  // Total emprestado (soma de valorEmprestado dos contratos ativos)
-  const totalEmprestado = useMemo(
-    () => contratosAtivos.reduce((s, c) => s + (Number(c.valorEmprestado) || 0), 0),
-    [contratosAtivos]
-  );
+  // ---- Carrega TODOS os pagamentos do usuário (fontes REAIS).
+  // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.
+  // É a fonte de verdade do que foi efetivamente recebido — `c.valorRecebido`
+  // é um campo agregado mantido por processarPagamento, mas o histórico
+  // imutável de pagamentos está na subcoleção.
+  // Itera por contrato (mesmo padrão de Relatorios.jsx e Parcelas.jsx).
+  const [pagamentosPorContrato, setPagamentosPorContrato] = useState({});
+  useEffect(() => {
+    if (!usuario || contratos.length === 0) {
+      setPagamentosPorContrato({});
+      return undefined;
+    }
+    let cancelado = false;
+    async function carregar() {
+      const acc = {};
+      await Promise.all(
+        contratos.map(async (c) => {
+          try {
+            const snap = await getDocs(
+              collection(db, "usuarios", usuario.uid, "contratos", c.id, "pagamentos")
+            );
+            acc[c.id] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          } catch (err) {
+            acc[c.id] = [];
+          }
+        })
+      );
+      if (!cancelado) setPagamentosPorContrato(acc);
+    }
+    carregar();
+    return () => {
+      cancelado = true;
+    };
+  }, [usuario, contratos]);
 
-  // Total recebido (soma de valorRecebido de TODOS os contratos, inclusive quitados)
-  const totalRecebido = useMemo(
-    () => contratos.reduce((s, c) => s + (Number(c.valorRecebido) || 0), 0),
+  // Total emprestado = soma do valorEmprestado de TODOS os contratos
+  // (inclui quitados — o capital foi emprestado e continua contando como
+  // saída do caixa, mesmo após quitação). Imutável, definido na criação.
+  const totalEmprestado = useMemo(
+    () => contratos.reduce((s, c) => s + (Number(c.valorEmprestado) || 0), 0),
     [contratos]
   );
 
-  // Total a receber (soma de saldoPrincipal dos contratos ativos)
-  const totalAReceber = useMemo(
-    () =>
-      contratosAtivos.reduce((s, c) => s + calculateDebtRemaining(c), 0),
-    [contratosAtivos]
-  );
+  // Total recebido = soma do valorRecebido de TODOS os pagamentos
+  // efetivamente registrados (subcoleção `pagamentos`). Esta é a fonte
+  // primária — reflete o histórico imutável de recebimentos. Caso a
+  // subcoleção ainda não tenha sido carregada, usa `c.valorRecebido`
+  // (campo agregado mantido por processarPagamento) como fallback.
+  const totalRecebido = useMemo(() => {
+    const temPagamentos = Object.keys(pagamentosPorContrato).length > 0;
+    if (temPagamentos) {
+      let soma = 0;
+      for (const cid of Object.keys(pagamentosPorContrato)) {
+        const arr = pagamentosPorContrato[cid] || [];
+        for (const p of arr) soma += Number(p.valorRecebido) || 0;
+      }
+      return soma;
+    }
+    return contratos.reduce((s, c) => s + (Number(c.valorRecebido) || 0), 0);
+  }, [contratos, pagamentosPorContrato]);
 
-  // Parcelas que vencem HOJE — derivamos de parcelasDoContrato (a função oficial
-  // do sistema, que já aplica overrides e abatimentos) e filtramos por data.
-  // Mantemos um mapa parcela -> contrato (e cliente) para exibir no card.
-  const { parcelasHoje, totalVencidasAtrasadas } = useMemo(() => {
+  // Total a receber = soma do VALOR DAS PARCELAS AINDA NÃO PAGAS dos
+  // contratos ATIVOS (não-quitados). Conceito: quanto dinheiro ainda
+  // entrará no caixa, considerando principal + juros das parcelas futuras.
+  // NÃO é "saldo de capital" (apenas principal) — é o valor TOTAL futuro.
+  //
+  // Cálculo: para cada contrato ativo, geramos as parcelas via
+  // `parcelasDoContrato` (fonte canônica, com overrides e abatimentos
+  // aplicados) e somamos o `valor` daquelas com status !== "Paga".
+  // Este valor é INDEPENDENTE do "Parcelas vencendo hoje" — aquele filtra
+  // apenas parcelas com vencimento HOJE; este soma TODAS as parcelas
+  // em aberto (passadas, hoje e futuras).
+  const totalAReceber = useMemo(() => {
+    let total = 0;
+    for (const c of contratosAtivos) {
+      let ps;
+      try {
+        ps = parcelasDoContrato(c, new Date());
+      } catch (err) {
+        console.warn("parcelasDoContrato falhou para", c.id, err);
+        continue;
+      }
+      for (const p of ps) {
+        if (p.status === "Paga") continue;
+        total += Number(p.valor) || 0;
+      }
+    }
+    return total;
+  }, [contratosAtivos]);
+
+  // Parcelas que vencem HOJE — derivamos de parcelasDoContrato (a função
+  // oficial do sistema, que já aplica overrides e abatimentos) e filtramos
+  // por data. Considera APENAS contratos ativos (parcelas ainda em aberto).
+  // "Total a receber hoje" = soma do `valor` das parcelas que vencem hoje.
+  const { parcelasHoje, totalHoje, totalAtrasadas } = useMemo(() => {
     const lista = [];
+    let somaHoje = 0;
     let atrasadas = 0;
     for (const c of contratosAtivos) {
       const ps = parcelasDoContrato(c, new Date());
@@ -143,43 +225,56 @@ export default function Dashboard() {
         if (!vStr) continue;
         if (vStr < DATA_HOJE) atrasadas += 1;
         if (vStr === DATA_HOJE) {
+          const valor = Number(p.valor) || 0;
           lista.push({
             parcelaNumero: p.numero,
-            valor: Number(p.valor) || 0,
+            valor,
             contratoId: c.id,
             contratoNome: c.nome ?? c.clienteNome ?? "Contrato",
             clienteId: c.clienteId,
             vencimento: vStr,
           });
+          somaHoje += valor;
         }
       }
     }
-    return { parcelasHoje: lista, totalVencidasAtrasadas: atrasadas };
+    return { parcelasHoje: lista, totalHoje: somaHoje, totalAtrasadas: atrasadas };
   }, [contratosAtivos]);
 
-  // Contratos para a seção "Contratos ativos" — ordenados por criadoEm desc
-  // quando disponível, e limitados a LIMITE_CONTRATOS_HOME.
+  // Contratos para a seção "Contratos ativos" da Home.
+  // REGRA: usa os mesmos contratos da página Contratos (Emprestimos.jsx) —
+  // nenhum campo, nenhuma coleção, nenhum cálculo paralelo. Inclui
+  // contratos ATIVOS e QUITADOS para que a Home reflita fielmente o
+  // que o usuário cadastrou e a tela de referência mostra.
+  // Ordenação: criadoEm desc (mais novo primeiro), igual à página Contratos.
+  // Limite: 5 cards para não esticar a Home.
   const contratosExibidos = useMemo(() => {
-    const ordenados = [...contratosAtivos].sort((a, b) => {
+    const ordenados = [...contratos].sort((a, b) => {
       const ta = a.criadoEm?.toMillis?.() ?? new Date(a.criadoEm ?? 0).getTime() ?? 0;
       const tb = b.criadoEm?.toMillis?.() ?? new Date(b.criadoEm ?? 0).getTime() ?? 0;
       return tb - ta;
     });
     return ordenados.slice(0, LIMITE_CONTRATOS_HOME);
-  }, [contratosAtivos]);
+  }, [contratos]);
 
-  // Status dinâmico do card "Tudo em dia"
-  // Se existem parcelas atrasadas, exibe a quantidade. Senão, "Tudo em dia".
+  // Status dinâmico do card "Tudo em dia" / "Existem atrasados".
+  // REGRA: olha para as PARCELAS REAIS dos contratos ativos
+  // (parcelasDoContrato). Se existir pelo menos uma parcela com
+  // vencimento < HOJE e status !== "Paga", o status geral é
+  // "X parcela(s) atrasada(s)" com variante "atraso" (badge vermelho).
+  // Caso contrário:
+  //   - Sem contratos ativos: "Tudo em dia".
+  //   - Com contratos em aberto sem parcelas atrasadas: "Tudo em dia".
   const statusGeral = useMemo(() => {
-    if (contratosAtivos.length === 0) return { texto: "Tudo em dia", variante: "ok" };
-    if (totalVencidasAtrasadas > 0) {
+    if (totalAtrasadas > 0) {
       return {
-        texto: `${totalVencidasAtrasadas} ${totalVencidasAtrasadas === 1 ? "parcela atrasada" : "parcelas atrasadas"}`,
+        texto: `${totalAtrasadas} ${totalAtrasadas === 1 ? "parcela atrasada" : "parcelas atrasadas"}`,
         variante: "atraso",
+        parcelasAtrasadas: totalAtrasadas,
       };
     }
-    return { texto: "Tudo em dia", variante: "ok" };
-  }, [contratosAtivos.length, totalVencidasAtrasadas]);
+    return { texto: "Tudo em dia", variante: "ok", parcelasAtrasadas: 0 };
+  }, [totalAtrasadas]);
 
   // ---- Helpers
   const nomeUsuario = useMemo(() => {
@@ -191,14 +286,6 @@ export default function Dashboard() {
 
   function valor(v) {
     return ocultarValores ? "••••••" : formatarMoeda(v);
-  }
-
-  // Iniciais do cliente para o avatar (fallback quando não há foto)
-  function iniciais(nome) {
-    if (!nome) return "?";
-    const partes = String(nome).trim().split(/\s+/);
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
   }
 
   // Ativação de notificações — usa Notification API (sem push, sem FCM).
@@ -323,20 +410,21 @@ export default function Dashboard() {
             {carregando ? "..." : valor(totalEmprestado)}
           </p>
 
-          <span
-            className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-              statusGeral.variante === "atraso"
-                ? "bg-red-50 dark:bg-red-500/15 text-red-500"
-                : "bg-jurex/15 text-jurex"
-            }`}
-          >
-            {statusGeral.variante === "atraso" ? (
+          {statusGeral.variante === "atraso" ? (
+            <Link
+              to="/parcelas?filtro=atrasadas"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-red-50 dark:bg-red-500/15 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/25 transition"
+              aria-label="Ver parcelas atrasadas"
+            >
               <Bell className="w-3.5 h-3.5" />
-            ) : (
+              {statusGeral.texto}
+            </Link>
+          ) : (
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-jurex/15 text-jurex">
               <CircleCheck className="w-3.5 h-3.5" />
-            )}
-            {statusGeral.texto}
-          </span>
+              {statusGeral.texto}
+            </span>
+          )}
 
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 relative">
             <div className="rounded-xl border border-emerald-200/70 dark:border-emerald-500/30 bg-white/70 dark:bg-slate-800/60 p-4">
@@ -420,14 +508,10 @@ export default function Dashboard() {
             ) : (
               <>
                 <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  {parcelasHoje.length}{" "}
-                  {parcelasHoje.length === 1 ? "parcela vence" : "parcelas vencem"} hoje
+                  {parcelasHoje.length} {parcelasHoje.length === 1 ? "parcela" : "parcela(s)"} · {valor(totalHoje)}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {parcelasHoje
-                    .slice(0, 3)
-                    .map((p) => `${p.contratoNome} · ${formatarMoeda(p.valor)}`)
-                    .join("  ·  ")}
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Total a receber hoje
                 </p>
               </>
             )}
@@ -502,44 +586,79 @@ export default function Dashboard() {
           ) : (
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {contratosExibidos.map((c) => {
+                // Mesmas regras da página Contratos (Emprestimos.jsx):
+                //  - statusContrato(): "Em dia" | "Atrasado" | "Quitado"
+                //  - pagas: numeroParcelas quando quitado, senão min(parcelasPagas, total)
+                //  - saldoPrincipal via calculateDebtRemaining() (já abatido)
+                //  - próximo vencimento: c.dataProximo (mantido por processarPagamento)
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                const st = statusContrato(c, hoje);
                 const total = Number(c.numeroParcelas) || 0;
-                const pagas = Math.min(Number(c.parcelasPagas) || 0, total);
+                const pagas = c.quitado ? total : Math.min(Number(c.parcelasPagas) || 0, total);
                 const progresso = total > 0 ? (pagas / total) * 100 : 0;
-                const nome = c.nome ?? c.clienteNome ?? "Cliente";
+                const saldoPrincipal = c.quitado ? 0 : calculateDebtRemaining(c);
+                const nome = (c.nome ?? "Contrato").toUpperCase();
                 return (
                   <Link
                     key={c.id}
                     to={`/emprestimos/${c.id}`}
                     className="block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-jurex/40 hover:shadow-md transition"
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="shrink-0 w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-sm font-extrabold text-slate-700 dark:text-slate-200">
-                        {iniciais(nome)}
-                      </span>
+                    {/* Nome + badge de status (igual à página Contratos) */}
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold uppercase text-slate-900 dark:text-white">
                           {nome}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {formatarMoeda(c.valorEmprestado)} · {total}x
+                        <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                          {numeroCurto(c.id)}
+                          {c.juros ? ` · ${c.juros}% a.m.` : ""}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-md p-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-jurex">
-                        <FileText className="w-3.5 h-3.5" />
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          st === "Atrasado"
+                            ? "bg-red-50 dark:bg-red-500/10 text-red-500"
+                            : st === "Quitado"
+                              ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                              : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
+                        }`}
+                      >
+                        {st}
                       </span>
                     </div>
 
-                    <div className="mt-3 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    {/* Valor original + saldo atual */}
+                    <div className="mt-3">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Original: {formatarMoeda(c.valorEmprestado)}
+                      </p>
+                      <p className="text-lg font-extrabold tabular-nums text-jurex">
+                        Saldo: {formatarMoeda(saldoPrincipal)}
+                      </p>
+                    </div>
+
+                    {/* Progresso do pagamento */}
+                    <div className="mt-2.5 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-jurex transition-all"
                         style={{ width: `${progresso}%` }}
                       />
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+
+                    {/* Rodapé: parcelas pagas + próximo vencimento */}
+                    <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                       <span>
                         {pagas} de {total} {total === 1 ? "parcela paga" : "parcelas pagas"}
                       </span>
-                      <span>{numeroCurto(c.id)}</span>
+                      <span>
+                        {st === "Quitado"
+                          ? "Quitado"
+                          : c.dataProximo
+                            ? `Próx: ${formatarData(c.dataProximo)}`
+                            : "Sem vencimento"}
+                      </span>
                     </div>
                   </Link>
                 );

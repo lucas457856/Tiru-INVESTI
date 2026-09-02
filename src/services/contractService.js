@@ -67,18 +67,11 @@ export async function buscarContrato(usuario, id) {
   return { contrato, cliente };
 }
 
-// Status real do contrato — reaproveita a lógica de Emprestimos.jsx
-// Recalcula quitado a partir de saldoPrincipal, não confiando no flag persistido
-// (que pode estar stale em contratos migrados da regra antiga).
-export function statusContrato(c, hoje = new Date()) {
-  const total = Number(c?.numeroParcelas) || 0;
-  const parcelasPagas = Number(c?.parcelasPagas) || 0;
-  const saldoReal = Number(c?.saldoPrincipal) ?? calculateDebtRemaining(c);
-  const realmenteQuitado = parcelasPagas >= total && saldoReal <= 0;
-  if (realmenteQuitado) return "Quitado";
-  if (c.dataProximo && parseDataLocal(c.dataProximo) < hoje) return "Atrasado";
-  return "Em dia";
-}
+// Status real do contrato — usa a regra canônica definida em
+// `paymentCalculations.calcularStatusContrato` (próxima parcela não paga
+// vs data atual). Fonte única de verdade para "Em dia" / "Atrasado" /
+// "Quitado" em toda a aplicação.
+export { calcularStatusContrato as statusContrato } from "./paymentCalculations";
 
 // Parcelas calculadas a partir dos campos reais do contrato, incluindo abatimentos.
 // Passa o campo `abatimentos` (array no contrato) para que calcularParcelas

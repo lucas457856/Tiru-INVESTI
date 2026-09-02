@@ -314,6 +314,80 @@ export function getNextOpenInstallment(contrato, hoje = new Date()) {
 }
 
 /**
+ * Determina o status do contrato a partir da PRÓXIMA PARCELA NÃO PAGA.
+ * Fonte única de verdade para status ("Em dia" | "Atrasado" | "Quitado").
+ *
+ * REGRAS:
+ *   1. Quitado: todas as parcelas foram pagas (pagas >= totalParcelas).
+ *      Independe de data. Um contrato nunca é "Quitado" apenas por
+ *      estar atrasado — atraso significa "ainda há valor a receber".
+ *   2. Atrasado: existe parcela pendente cuja data de vencimento é
+ *      ANTERIOR a hoje (vencimento < hoje). Vencimento NO DIA de hoje
+ *      ainda é considerado "Em dia" (regra `vencimento >= hoje`).
+ *   3. Em dia: existe parcela pendente, mas a próxima vence hoje ou
+ *      no futuro.
+ *   4. Caso sem parcelas pendentes (lista vazia), considera "Quitado".
+ *
+ * Implementação:
+ *   - Usa `getNextOpenInstallment` para encontrar a próxima parcela
+ *     não paga (canônica: aplica overrides de renegociação e
+ *     deslocamentos de juros_apenas).
+ *   - Compara a data de vencimento dessa parcela com `hoje`
+ *     (zerada em meia-noite local), usando `parseDataLocal` para
+ *     evitar drift de timezone em strings "YYYY-MM-DD".
+ *
+ * @param {object} contrato - documento do contrato
+ * @param {Date} hoje - data base (opcional, default = new Date())
+ * @returns {"Quitado"|"Atrasado"|"Em dia"}
+ */
+export function calcularStatusContrato(contrato, hoje = new Date()) {
+  if (!contrato) return "Em dia";
+
+  // Quitado: checa pelo campo persistido E recalcula do saldo real.
+  // Recálculo cobre contratos migrados com flag stale.
+  const totalParcelas = Number(contrato.numeroParcelas) || 0;
+  const parcelasPagas = Number(contrato.parcelasPagas) || 0;
+  const saldoReal = calculateDebtRemaining(contrato);
+  const realmenteQuitado = parcelasPagas >= totalParcelas && saldoReal <= 0;
+  if (realmenteQuitado) return "Quitado";
+
+  // Próxima parcela não paga (com vencimento refletindo overrides)
+  const proxima = getNextOpenInstallment(contrato, hoje);
+  if (!proxima) return "Quitado";
+
+  // Compara vencimento (YYYY-MM-DD ou Date) com hoje (meia-noite local)
+  const hojeLocal = new Date(hoje);
+  hojeLocal.setHours(0, 0, 0, 0);
+  const venc = parseVencimentoLocal(proxima.vencimento);
+  if (!venc) return "Em dia";
+  if (venc < hojeLocal) return "Atrasado";
+  return "Em dia";
+}
+
+// Helper de parse LOCAL para "YYYY-MM-DD" / Date (mesma semântica de
+// parseDataLocal em contractService.js, sem importar Firestore aqui).
+function parseVencimentoLocal(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const d = new Date(value);
+    d.setHours(0, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      d.setHours(0, 0, 0, 0);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(value);
+    d.setHours(0, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/**
  * Pagamento parcial: juros + parte do principal (abatimento)
  * IMPORTANTE: juros é calculado sobre o VALOR ORIGINAL do contrato,
  * nunca sobre o saldo reduzido por abatimento.

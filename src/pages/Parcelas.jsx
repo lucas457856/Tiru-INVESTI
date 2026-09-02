@@ -20,7 +20,7 @@
 //   já usado em EmprestimoDetalhes.jsx e ContratoSucesso.jsx.
 // - Navegação para detalhes: rota já existente `/emprestimos/:id`.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Bell,
   MessageCircle,
@@ -274,13 +274,25 @@ const FILTROS = [
 export default function Parcelas() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Estados de UI / dados
   const [contratos, setContratos] = useState([]);
   const [clientes, setClientes] = useState({}); // mapa clienteId -> cliente
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
-  const [filtro, setFiltro] = useState("hoje");
+  // Filtro inicial pode vir via query string (ex: /parcelas?filtro=atrasadas),
+  // permitindo links diretos como o indicador de atraso do Dashboard.
+  // Aceita apenas IDs válidos do array FILTROS — caso contrário cai em "hoje".
+  const filtroInicial = useMemo(() => {
+    const daUrl = searchParams.get("filtro");
+    if (daUrl && FILTROS.some((f) => f.id === daUrl)) return daUrl;
+    return "hoje";
+    // searchParams é estável por referência durante a montagem; reler em
+    // mudanças exigiria sync URL↔state (fora do escopo deste fix).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [filtro, setFiltro] = useState(filtroInicial);
   // "Por data" usa INTERVALO (dataInicial + dataFinal) conforme a referência
   // visual ("Selecione a data inicial e depois a data final."). Se dataFinal
   // estiver vazia, filtra apenas pela dataInicial.

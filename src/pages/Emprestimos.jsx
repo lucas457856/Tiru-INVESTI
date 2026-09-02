@@ -13,7 +13,7 @@ import AppLayout from "../components/AppLayout";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
 import { numeroCurto } from "../utils/formatadores";
-import { calculateDebtRemaining } from "../services/paymentCalculations";
+import { calculateDebtRemaining, calcularStatusContrato } from "../services/paymentCalculations";
 
 const STATUS = ["Todos", "Em dia", "Atrasados", "Quitados"];
 
@@ -30,11 +30,10 @@ function formatarData(iso) {
   return isNaN(d) ? "-" : d.toLocaleDateString("pt-BR");
 }
 
-// Status real do contrato a partir dos dados salvos
+// Status real do contrato a partir da PRÓXIMA PARCELA NÃO PAGA
+// (fonte única de verdade — reaproveita `calcularStatusContrato`).
 function statusContrato(c, hoje) {
-  if (c.quitado) return "Quitado";
-  if (c.dataProximo && new Date(c.dataProximo) < hoje) return "Atrasado";
-  return "Em dia";
+  return calcularStatusContrato(c, hoje);
 }
 
 export default function Emprestimos() {
