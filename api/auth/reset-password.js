@@ -4,21 +4,25 @@
 //   1. Recebe { email } do cliente (apenas o e-mail, NUNCA credenciais).
 //   2. Valida método, body e formato do e-mail.
 //   3. Usa Firebase Admin (generatePasswordResetLink) para gerar o link
-//      com oobCode. O link aponta para https://tiru-investi.vercel.app/nova-senha
-//      e tem validade de 1 hora (padrão Firebase).
-//   4. Envia o e-mail HTML personalizado via Resend.
-//   5. Retorna 200 sem expor o link, o e-mail, ou qualquer credencial.
+//      oficial do Firebase (com oobCode válido por 1h).
+//   4. EXTRAI o `oobCode` desse link e monta a URL final
+//      https://tiru-investi.vercel.app/nova-senha?oobCode=...
+//      O token continua sendo o do Firebase (validade, regras e
+//      confirmação idênticas); só trocamos a porta de entrada para o
+//      app do usuário, evitando o redirect pela página
+//      `__/auth/action` do firebaseapp.com (que falha em adblockers,
+//      webviews de e-mail mobile, etc).
+//   5. Envia o e-mail HTML personalizado via Resend, apontando para
+//      a URL final.
+//   6. Retorna 200 sem expor o link, o oobCode, o e-mail ou qualquer
+//      credencial.
 //
 // Segurança:
 //   - Variáveis sensíveis (FIREBASE_PRIVATE_KEY, RESEND_API_KEY, etc.)
 //     vêm de process.env e NUNCA são logadas nem retornadas no body.
-//   - O link gerado NUNCA aparece em logs. Só o `email` do destinatário
-//     (já público) e o `messageId` do Resend (ID opaco).
-//   - Em ambiente dev (localhost), o link aponta para o domínio canônico
-//     de produção para que o usuário possa clicar do e-mail real.
+//   - O `oobCode` NUNCA aparece em logs (nem inteiro, nem parcial).
 //   - `auth/user-not-found` retorna 200 com `ok: true` para não vazar
-//     quais e-mails existem cadastrados (mesma postura do Firebase
-//     Client SDK sendPasswordResetEmail).
+//     quais e-mails existem cadastrados.
 
 import { getAuth } from "firebase-admin/auth";
 import { Resend } from "resend";
@@ -87,7 +91,17 @@ export default async function handler(req, res) {
   }
   const authAdmin = getAuth(admin);
 
-  // 4) Gera o link de redefinição (NÃO logamos o link, por segurança)
+  // 4) Gera o link oficial do Firebase (apenas para obter o oobCode
+  // válido). O Admin retorna um link para
+  // `https://<projectId>.firebaseapp.com/__/auth/action?mode=
+  // resetPassword&oobCode=XXX&continueUrl=...`. NÃO vamos usar esse
+  // link diretamente no botão do e-mail, porque ele força o usuário a
+  // passar pela página `__/auth/action` do firebaseapp.com — o que
+  // falha em adblockers e em vários clientes de e-mail mobile. Em vez
+  // disso, extraímos o `oobCode` e montamos a URL final que aponta
+  // direto para o nosso app. O token é o mesmo (validade 1h, mesma
+  // regra de expiração do Firebase), então `confirmPasswordReset` na
+  // página /nova-senha continua aceitando normalmente.
   let resetLink;
   try {
     resetLink = await authAdmin.generatePasswordResetLink(email, {
@@ -113,8 +127,42 @@ export default async function handler(req, res) {
     });
   }
 
-  // 5) Monta e envia o e-mail
-  const { html, text } = renderEmailRedefinicaoSenha({ email, link: resetLink });
+  // 5) Extrai o oobCode do link do Firebase e monta a URL final.
+  // NÃO logamos nem o link bruto nem o oobCode.
+  let oobCode;
+  try {
+    oobCode = new URL(resetLink).searchParams.get("oobCode");
+  } catch {
+    console.error("Não foi possível parsear o link de redefinição do Firebase.");
+    return res.status(500).json({
+      ok: false,
+      erro: "Não foi possível gerar o link de redefinição. Tente novamente em alguns minutos.",
+    });
+  }
+  if (!oobCode) {
+    console.error("Link do Firebase não contém oobCode.");
+    return res.status(500).json({
+      ok: false,
+      erro: "Não foi possível gerar o link de redefinição. Tente novamente em alguns minutos.",
+    });
+  }
+  // Validação defensiva: oobCode do Firebase é uma string base64url
+  // com tamanho típico entre 60 e 200 caracteres. Se vier algo fora
+  // disso, recusamos em vez de repassar para o front.
+  if (!/^[A-Za-z0-9_-]{20,512}$/.test(oobCode)) {
+    console.error("oobCode em formato inesperado.");
+    return res.status(500).json({
+      ok: false,
+      erro: "Não foi possível gerar o link de redefinição. Tente novamente em alguns minutos.",
+    });
+  }
+
+  // URL final que vai para o botão do e-mail.
+  // O `oobCode` é codificado para ser seguro em URL.
+  const linkFinal = `${PRODUCAO_ORIGEM}/nova-senha?oobCode=${encodeURIComponent(oobCode)}`;
+
+  // 6) Monta e envia o e-mail com a URL final do Jurex.
+  const { html, text } = renderEmailRedefinicaoSenha({ email, link: linkFinal });
 
   try {
     const resend = new Resend(resendApiKey);
