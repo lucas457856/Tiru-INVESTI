@@ -1,5 +1,5 @@
 const INPUT_CLASSE =
-  "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
+  "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
 
 export { INPUT_CLASSE };
 

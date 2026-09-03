@@ -23,7 +23,7 @@ export default function TurnstileMock({ onVerified }) {
         <span className="flex items-center gap-2.5">
           <span
             className={`w-6 h-6 rounded-full flex items-center justify-center transition ${
-              ok ? "bg-jurex" : "border-2 border-slate-300 bg-white"
+              ok ? "bg-Cred Facil" : "border-2 border-slate-300 bg-white"
             }`}
           >
             {ok && <Check className="w-4 h-4 text-white stroke-[3]" />}

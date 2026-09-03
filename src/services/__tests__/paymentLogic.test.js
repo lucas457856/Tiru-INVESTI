@@ -1,4 +1,4 @@
-// Tests for the financial logic of the Jurex contract system.
+// Tests for the financial logic of the Cred Facil contract system.
 // Verifica: abatimento (principal reduction) vs pagamento de parcela (installment payment)
 //
 // REGRA DEFINITIVA (MODELO "SALDO ATUAL"):

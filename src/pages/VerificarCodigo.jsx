@@ -62,14 +62,14 @@ export default function VerificarCodigo() {
       <button
         type="button"
         onClick={() => navigate("/login")}
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-jurex hover:text-jurex-dark transition"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-Cred Facil hover:text-Cred Facil-dark transition"
       >
         <ArrowLeft className="w-4 h-4" />
         Voltar para o login
       </button>
 
       <div className="mt-8 text-center">
-        <MailCheck className="w-14 h-14 text-jurex mx-auto" />
+        <MailCheck className="w-14 h-14 text-Cred Facil mx-auto" />
         <h1 className="mt-4 text-lg font-bold text-slate-800">
           Verifique seu e-mail
         </h1>
@@ -97,8 +97,8 @@ export default function VerificarCodigo() {
             onKeyDown={(e) => handleKeyDown(i, e)}
             className={`w-11 h-13 rounded-xl border text-center text-lg font-bold text-slate-800 outline-none transition ${
               digito
-                ? "border-jurex bg-emerald-50/60"
-                : "border-slate-200 bg-white focus:border-jurex focus:ring-2 focus:ring-jurex/20"
+                ? "border-Cred Facil bg-emerald-50/60"
+                : "border-slate-200 bg-white focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
             }`}
           />
         ))}
@@ -114,14 +114,14 @@ export default function VerificarCodigo() {
           <button
             type="button"
             onClick={reenviar}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-jurex hover:text-jurex-dark transition"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-Cred Facil hover:text-Cred Facil-dark transition"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Reenviar código
           </button>
         )}
         {reenviado && (
-          <p className="mt-1.5 text-xs text-jurex">Código reenviado!</p>
+          <p className="mt-1.5 text-xs text-Cred Facil">Código reenviado!</p>
         )}
       </div>
 
@@ -130,14 +130,14 @@ export default function VerificarCodigo() {
         type="button"
         disabled={!completo}
         onClick={() => navigate("/dashboard")}
-        className="mt-8 w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+        className="mt-8 w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
       >
         Confirmar
       </button>
 
       <p className="mt-4 text-center text-xs text-slate-400">
         Já confirmou?{" "}
-        <Link to="/login" className="font-semibold text-jurex">
+        <Link to="/login" className="font-semibold text-Cred Facil">
           Entrar
         </Link>
       </p>

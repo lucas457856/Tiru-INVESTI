@@ -100,7 +100,7 @@ export default function Dashboard() {
   // Detecta suporte à Notification API (sem push — só permissão local do
   // browser) e re-detecta a permissão quando o usuário RETORNA à aba.
   // Caso ele tenha liberado as notificações nas configurações do navegador
-  // após o modal de orientação estar aberto, o Jurex detecta automaticamente
+  // após o modal de orientação estar aberto, o Cred Facil detecta automaticamente
   // ao receber `visibilitychange` (aba voltou a ficar visível) ou `focus`
   // (janela recebeu foco) — sem precisar de F5.
   useEffect(() => {
@@ -475,7 +475,7 @@ export default function Dashboard() {
               {statusGeral.texto}
             </Link>
           ) : (
-            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-jurex/15 text-jurex">
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-Cred Facil/15 text-Cred Facil">
               <CircleCheck className="w-3.5 h-3.5" />
               {statusGeral.texto}
             </span>
@@ -483,7 +483,7 @@ export default function Dashboard() {
 
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 relative">
             <div className="rounded-xl border border-emerald-200/70 dark:border-emerald-500/30 bg-white/70 dark:bg-slate-800/60 p-4">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-jurex uppercase">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-Cred Facil uppercase">
                 <TrendingUp className="w-4 h-4" />
                 Recebido
               </span>
@@ -538,7 +538,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={ativarNotificacoes}
-              className="text-sm font-bold transition shrink-0 text-jurex hover:text-jurex-dark"
+              className="text-sm font-bold transition shrink-0 text-Cred Facil hover:text-Cred Facil-dark"
             >
               Ativar
             </button>
@@ -548,7 +548,7 @@ export default function Dashboard() {
         {/* Parcelas de hoje */}
         <Link
           to="/parcelas"
-          className="mt-3 flex items-center gap-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:border-jurex/40 transition"
+          className="mt-3 flex items-center gap-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:border-Cred Facil/40 transition"
         >
           <span className="shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 p-2.5">
             <CalendarDays className="w-5 h-5 text-slate-600 dark:text-slate-300" />
@@ -592,8 +592,8 @@ export default function Dashboard() {
                 to={to}
                 className="group flex flex-col items-center gap-2"
               >
-                <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm group-hover:border-jurex/40 group-hover:text-jurex transition">
-                  <Icone className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-300 group-hover:text-jurex transition" />
+                <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm group-hover:border-Cred Facil/40 group-hover:text-Cred Facil transition">
+                  <Icone className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-300 group-hover:text-Cred Facil transition" />
                 </span>
                 <span className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300">
                   {label}
@@ -611,7 +611,7 @@ export default function Dashboard() {
             </h2>
             <Link
               to="/emprestimos"
-              className="text-sm font-semibold text-jurex hover:text-jurex-dark transition"
+              className="text-sm font-semibold text-Cred Facil hover:text-Cred Facil-dark transition"
             >
               Ver todos
             </Link>
@@ -629,7 +629,7 @@ export default function Dashboard() {
           ) : contratosExibidos.length === 0 ? (
             <div className="mt-4 flex flex-col items-center text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-10 px-6">
               <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-3">
-                <FileText className="w-6 h-6 text-jurex" />
+                <FileText className="w-6 h-6 text-Cred Facil" />
               </span>
               <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
                 Nenhum contrato ativo
@@ -640,7 +640,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => navigate("/contratos/novo")}
-                className="mt-4 h-9 px-4 rounded-xl bg-jurex text-white text-xs font-bold hover:bg-jurex-dark transition"
+                className="mt-4 h-9 px-4 rounded-xl bg-Cred Facil text-white text-xs font-bold hover:bg-Cred Facil-dark transition"
               >
                 Criar contrato
               </button>
@@ -669,7 +669,7 @@ export default function Dashboard() {
                   <Link
                     key={c.id}
                     to={`/emprestimos/${c.id}`}
-                    className="block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:border-jurex/40 hover:shadow-md transition"
+                    className="block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:border-Cred Facil/40 hover:shadow-md transition"
                   >
                     {/* Linha topo: avatar + nome/valor + badge de status.
                         Em mobile (sm:hidden) só o avatar + nome + valor;
@@ -690,7 +690,7 @@ export default function Dashboard() {
                                 ? "bg-red-50 dark:bg-red-500/10 text-red-500"
                                 : st === "Quitado"
                                   ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                                  : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
+                                  : "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil"
                             }`}
                           >
                             {st}
@@ -707,7 +707,7 @@ export default function Dashboard() {
                         em desktop pode quebrar em duas (Original / Saldo). */}
                     <div className="mt-3 sm:mt-4">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Saldo: <span className="text-base sm:text-lg font-extrabold tabular-nums text-jurex">{formatarMoeda(saldoPrincipal)}</span>
+                        Saldo: <span className="text-base sm:text-lg font-extrabold tabular-nums text-Cred Facil">{formatarMoeda(saldoPrincipal)}</span>
                         <span className="hidden sm:inline">
                           {" "}
                           <span className="text-slate-400">·</span>{" "}
@@ -721,7 +721,7 @@ export default function Dashboard() {
                     {/* Progresso do pagamento */}
                     <div className="mt-2.5 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-jurex transition-all"
+                        className="h-full rounded-full bg-Cred Facil transition-all"
                         style={{ width: `${progresso}%` }}
                       />
                     </div>
@@ -845,7 +845,7 @@ export default function Dashboard() {
                 &quot;Bloquear&quot; para &quot;Permitir&quot;.
               </li>
               <li>
-                Volte para esta aba — o Jurex detecta a nova permissão
+                Volte para esta aba — o Cred Facil detecta a nova permissão
                 automaticamente, sem precisar recarregar a página.
               </li>
             </ol>
@@ -861,7 +861,7 @@ export default function Dashboard() {
                       Notificações{" "}
                     </strong>
                     deste site e mude para <em>Permitir</em>. Volte aqui em
-                    seguida — o Jurex detecta a mudança automaticamente.
+                    seguida — o Cred Facil detecta a mudança automaticamente.
                   </p>
                 );
               }
@@ -883,7 +883,7 @@ export default function Dashboard() {
                     // uma instrução inline orientando o cadeado/câmera.
                     if (!ref) {
                       setMensagemOrientacao(
-                        "Não foi possível abrir as configurações automaticamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Jurex detecta a mudança automaticamente quando você voltar a esta aba.",
+                        "Não foi possível abrir as configurações automaticamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Cred Facil detecta a mudança automaticamente quando você voltar a esta aba.",
                       );
                       return;
                     }
@@ -893,7 +893,7 @@ export default function Dashboard() {
                         try {
                           if (ref.closed) {
                             setMensagemOrientacao(
-                              "Não foi possível abrir as configurações diretamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Jurex detecta a mudança automaticamente quando você voltar a esta aba.",
+                              "Não foi possível abrir as configurações diretamente. Use o cadeado/câmera ao lado da barra de endereço para liberar as notificações deste site. O Cred Facil detecta a mudança automaticamente quando você voltar a esta aba.",
                             );
                           }
                         } catch {

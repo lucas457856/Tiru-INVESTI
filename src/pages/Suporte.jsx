@@ -48,7 +48,7 @@ export default function Suporte() {
           {/* Card principal de boas-vindas (verde mint) */}
           <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 shadow-sm px-6 py-10 sm:px-10 sm:py-12 mb-4 sm:mb-5">
             <div className="flex flex-col items-center text-center">
-              <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-jurex flex items-center justify-center shadow-md">
+              <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-Cred Facil flex items-center justify-center shadow-md">
                 <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 text-white" strokeWidth={2.25} />
               </span>
               <h2 className="mt-5 sm:mt-6 text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
@@ -65,9 +65,9 @@ export default function Suporte() {
             {/* E-mail */}
             <a
               href={`mailto:${EMAIL_CONTATO}`}
-              className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-jurex/30 transition group"
+              className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-Cred Facil/30 transition group"
             >
-              <span className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-jurex">
+              <span className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-Cred Facil">
                 <Mail className="w-5 h-5" strokeWidth={2.25} />
               </span>
               <div className="min-w-0 flex-1">
@@ -85,9 +85,9 @@ export default function Suporte() {
               href={`https://wa.me/${WHATSAPP_NUMERO}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-jurex/30 transition group"
+              className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-Cred Facil/30 transition group"
             >
-              <span className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-jurex">
+              <span className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-Cred Facil">
                 <Phone className="w-5 h-5" strokeWidth={2.25} />
               </span>
               <div className="min-w-0 flex-1">

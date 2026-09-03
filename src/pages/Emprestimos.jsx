@@ -104,13 +104,13 @@ export default function Emprestimos() {
               placeholder="Buscar por cliente ou valor"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
+              className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
             />
           </div>
           <button
             type="button"
             onClick={() => navigate("/contratos/novo")}
-            className="h-12 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
+            className="h-12 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
           >
             <Plus className="w-4.5 h-4.5" />
             Novo contrato
@@ -127,7 +127,7 @@ export default function Emprestimos() {
               className={`h-9 px-4 rounded-full text-xs font-bold transition ${
                 status === s
                   ? "bg-emerald-500 text-white shadow"
-                  : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-jurex/40"
+                  : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-Cred Facil/40"
               }`}
             >
               {s}
@@ -139,7 +139,7 @@ export default function Emprestimos() {
         {contratos.length === 0 ? (
           <section className="mt-14 mb-24 flex flex-col items-center text-center">
             <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
-              <FileText className="w-7 h-7 text-jurex" />
+              <FileText className="w-7 h-7 text-Cred Facil" />
             </span>
             <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
               Nenhum contrato cadastrado
@@ -150,7 +150,7 @@ export default function Emprestimos() {
             <button
               type="button"
               onClick={() => navigate("/contratos/novo")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Criar primeiro contrato
             </button>
@@ -181,7 +181,7 @@ export default function Emprestimos() {
                 <article
                   key={c.id}
                   onClick={() => navigate(`/emprestimos/${c.id}`)}
-                  className="cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-jurex/40 hover:shadow-md transition"
+                  className="cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-Cred Facil/40 hover:shadow-md transition"
                 >
                   {/* Nome + badge de status */}
                   <div className="flex items-start justify-between gap-3">
@@ -200,7 +200,7 @@ export default function Emprestimos() {
                           ? "bg-red-50 dark:bg-red-500/10 text-red-500"
                           : st === "Quitado"
                             ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                            : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
+                            : "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil"
                       }`}
                     >
                       {st}
@@ -213,7 +213,7 @@ export default function Emprestimos() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         Original: {formatarMoeda(c.valorEmprestado)}
                       </p>
-                      <p className="text-lg font-extrabold tabular-nums text-jurex">
+                      <p className="text-lg font-extrabold tabular-nums text-Cred Facil">
                         Saldo: {formatarMoeda(saldoPrincipal)}
                       </p>
                     </div>
@@ -223,7 +223,7 @@ export default function Emprestimos() {
                   {/* Progresso do pagamento */}
                   <div className="mt-2.5 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-jurex transition-all"
+                      className="h-full rounded-full bg-Cred Facil transition-all"
                       style={{ width: `${progresso}%` }}
                     />
                   </div>
@@ -253,7 +253,7 @@ export default function Emprestimos() {
             type="button"
             aria-label="Novo contrato"
             onClick={() => navigate("/contratos/novo")}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-jurex to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-jurex/40 hover:brightness-105 active:scale-95 transition"
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-Cred Facil to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-Cred Facil/40 hover:brightness-105 active:scale-95 transition"
           >
             <Plus className="w-6 h-6" />
           </button>

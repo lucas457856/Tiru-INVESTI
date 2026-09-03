@@ -528,9 +528,9 @@ export default function Relatorios() {
         {/* Cards de resumo */}
         <section className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <CardResumo label="Emprestado" valor={totais.emprestado} icone={Wallet} corFundo="bg-slate-100 dark:bg-slate-800" corIcone="text-emerald-600" />
-          <CardResumo label="Recebido" valor={totais.recebido} icone={TrendingUp} corFundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-jurex" />
+          <CardResumo label="Recebido" valor={totais.recebido} icone={TrendingUp} corFundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-Cred Facil" />
           <CardResumo label="Pendente" valor={totais.pendente} icone={TrendingDown} corFundo="bg-amber-50 dark:bg-amber-500/10" corIcone="text-amber-500" />
-          <CardResumo label="Lucro" valor={totais.lucro} icone={Activity} corFundo="bg-rose-50 dark:bg-rose-500/10" corIcone={totais.lucro < 0 ? "text-rose-500" : "text-jurex"} sinalNegativo />
+          <CardResumo label="Lucro" valor={totais.lucro} icone={Activity} corFundo="bg-rose-50 dark:bg-rose-500/10" corIcone={totais.lucro < 0 ? "text-rose-500" : "text-Cred Facil"} sinalNegativo />
         </section>
 
         {/* A receber */}
@@ -548,7 +548,7 @@ export default function Relatorios() {
                 className={`h-9 px-4 rounded-full text-xs font-bold transition ${
                   periodo === p
                     ? "bg-emerald-500 text-white shadow"
-                    : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-jurex/40"
+                    : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-Cred Facil/40"
                 }`}
               >
                 {p}
@@ -600,10 +600,10 @@ export default function Relatorios() {
 
           {/* Mini cards do período */}
           <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <MiniCard label="Total a receber" valor={formatarMoeda(totaisAReceber.total)} icone={Wallet} fundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-jurex" />
+            <MiniCard label="Total a receber" valor={formatarMoeda(totaisAReceber.total)} icone={Wallet} fundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-Cred Facil" />
             <MiniCard label="Juros previstos" valor={formatarMoeda(totaisAReceber.juros)} icone={TrendingUp} fundo="bg-amber-50 dark:bg-amber-500/10" corIcone="text-amber-500" />
             <MiniCard label="Vencido" valor={formatarMoeda(totaisAReceber.vencido)} icone={TriangleAlert} fundo="bg-rose-50 dark:bg-rose-500/10" corIcone="text-rose-500" />
-            <MiniCard label="Nº de parcelas" valor={String(totaisAReceber.count)} icone={ListChecks} fundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-jurex" />
+            <MiniCard label="Nº de parcelas" valor={String(totaisAReceber.count)} icone={ListChecks} fundo="bg-emerald-50 dark:bg-emerald-500/10" corIcone="text-Cred Facil" />
           </div>
 
           {parcelasAReceber.length === 0 && (
@@ -680,7 +680,7 @@ export default function Relatorios() {
                       <p className="font-bold text-slate-700 dark:text-slate-200 capitalize">
                         {serieGraficos[hoverMes].label}
                       </p>
-                      <p className="text-jurex font-semibold">
+                      <p className="text-Cred Facil font-semibold">
                         Entrada : {formatarMoeda(serieGraficos[hoverMes].entrada)}
                       </p>
                       <p className="text-rose-500 font-semibold">
@@ -692,7 +692,7 @@ export default function Relatorios() {
                   {serieGraficos.map((p, i) => (
                     <div key={i} className="relative z-[1] flex items-end gap-1 h-40">
                       <div
-                        className="w-3.5 rounded-t bg-jurex/80"
+                        className="w-3.5 rounded-t bg-Cred Facil/80"
                         style={{ height: `${Math.max(2, (p.entrada / maxEscala) * 100)}%` }}
                       />
                       <div
@@ -710,7 +710,7 @@ export default function Relatorios() {
               </div>
             </div>
             <div className="mt-3 flex items-center justify-center gap-4 text-[10px] text-slate-500">
-              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-jurex" /> Entrada</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-Cred Facil" /> Entrada</span>
               <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> Saída</span>
             </div>
           </article>
@@ -752,7 +752,7 @@ export default function Relatorios() {
                     <p className="font-bold text-slate-700 dark:text-slate-200 capitalize">
                       {serieGraficos[hoverMesLinha].label}
                     </p>
-                    <p className="text-jurex font-semibold">
+                    <p className="text-Cred Facil font-semibold">
                       Recebido : {formatarMoeda(serieGraficos[hoverMesLinha].recebido)}
                     </p>
                   </div>

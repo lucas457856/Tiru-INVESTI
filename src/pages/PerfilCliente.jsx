@@ -34,7 +34,7 @@ import {
 const CORES_SCORE = {
   Baixo: "bg-red-50 dark:bg-red-500/10 text-red-500",
   Médio: "bg-amber-50 dark:bg-amber-500/10 text-amber-500",
-  Alto: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex",
+  Alto: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil",
 };
 
 // Normaliza um item da lista de documentos (string antiga ou objeto novo)
@@ -184,7 +184,7 @@ export default function PerfilCliente() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
           <p className="text-sm font-semibold">Carregando cliente...</p>
         </div>
       </AppLayout>
@@ -208,7 +208,7 @@ export default function PerfilCliente() {
             <button
               type="button"
               onClick={() => navigate("/clientes")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para clientes
             </button>
@@ -236,7 +236,7 @@ export default function PerfilCliente() {
             <button
               type="button"
               onClick={() => navigate("/clientes")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para clientes
             </button>
@@ -291,7 +291,7 @@ export default function PerfilCliente() {
         <section className="mt-5 rounded-3xl border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50 via-emerald-50/60 to-emerald-100/70 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 px-5 sm:px-8 py-8">
           {/* Identidade */}
           <div className="flex flex-col items-center text-center">
-            <span className="w-24 h-24 rounded-3xl overflow-hidden bg-gradient-to-r from-jurex to-emerald-500 shadow-lg shadow-jurex/25 flex items-center justify-center">
+            <span className="w-24 h-24 rounded-3xl overflow-hidden bg-gradient-to-r from-Cred Facil to-emerald-500 shadow-lg shadow-Cred Facil/25 flex items-center justify-center">
               {cliente.fotoUrl ? (
                 <img
                   src={cliente.fotoUrl}
@@ -336,7 +336,7 @@ export default function PerfilCliente() {
               <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                 Recebido
               </p>
-              <p className="mt-1 text-lg font-extrabold text-jurex tabular-nums">
+              <p className="mt-1 text-lg font-extrabold text-Cred Facil tabular-nums">
                 {formatarMoeda(totais.recebido)}
               </p>
             </div>
@@ -351,7 +351,7 @@ export default function PerfilCliente() {
               className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5"
             >
               <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-                <Icone className="w-5 h-5 text-jurex" />
+                <Icone className="w-5 h-5 text-Cred Facil" />
               </span>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
@@ -370,9 +370,9 @@ export default function PerfilCliente() {
           <button
             type="button"
             onClick={() => navigate(`/clientes/${cliente.id}/editar`)}
-            className="h-12 rounded-2xl border border-jurex/60 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
+            className="h-12 rounded-2xl border border-Cred Facil/60 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
           >
-            <Pencil className="w-4.5 h-4.5 text-jurex" />
+            <Pencil className="w-4.5 h-4.5 text-Cred Facil" />
             Editar
           </button>
           <button
@@ -406,11 +406,11 @@ export default function PerfilCliente() {
                   <article
                     key={c.id}
                     onClick={() => navigate(`/emprestimos/${c.id}`)}
-                    className="cursor-pointer flex items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-jurex/40 hover:shadow-md transition"
+                    className="cursor-pointer flex items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-Cred Facil/40 hover:shadow-md transition"
                   >
                     <div className="flex min-w-0 items-center gap-4">
                       <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-                        <FileText className="w-5 h-5 text-jurex" />
+                        <FileText className="w-5 h-5 text-Cred Facil" />
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -426,7 +426,7 @@ export default function PerfilCliente() {
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
                         c.quitado
                           ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                          : "bg-emerald-50 dark:bg-emerald-500/10 text-jurex"
+                          : "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil"
                       }`}
                     >
                       {c.quitado ? "Quitado" : "Ativo"}
@@ -458,7 +458,7 @@ export default function PerfilCliente() {
                     key={`${docItem.nome}-${i}`}
                     type="button"
                     onClick={() => setDocAberto(docItem)}
-                    className="w-full text-left flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-jurex/40 transition cursor-pointer"
+                    className="w-full text-left flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-Cred Facil/40 transition cursor-pointer"
                   >
                     <DocumentoItem docItem={docItem} />
                   </button>
@@ -521,7 +521,7 @@ function DocumentoItem({ docItem }) {
   return (
     <>
       <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-        <File className="w-5 h-5 text-jurex" />
+        <File className="w-5 h-5 text-Cred Facil" />
       </span>
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">

@@ -25,7 +25,7 @@ export default function CentralAjuda() {
 
         {/* Banner de suporte */}
         <section className="mt-6 mb-24 rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-b from-emerald-50/80 to-white dark:from-slate-900 dark:to-slate-950 px-6 py-12 flex flex-col items-center text-center">
-          <span className="rounded-2xl bg-jurex p-4 shadow-lg shadow-jurex/30">
+          <span className="rounded-2xl bg-Cred Facil p-4 shadow-lg shadow-Cred Facil/30">
             <Headset className="w-7 h-7 text-white" />
           </span>
           <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
@@ -33,7 +33,7 @@ export default function CentralAjuda() {
           </h2>
           <p className="mt-1.5 max-w-md text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
             Nossa equipe está pronta para ajudar com qualquer dúvida sobre o uso
-            do Jurex — contratos, cobranças, pagamentos e mais.
+            do Cred Facil — contratos, cobranças, pagamentos e mais.
           </p>
         </section>
       </div>

@@ -4,7 +4,7 @@
 // de forma SÍNCRONA dentro de um user gesture handler (click, keypress).
 // Se houver qualquer await antes da chamada, o Chrome quebra a "transient
 // activation" e exibe um aviso no DevTools / overlay em vez do popup nativo
-// ("www.jurexbrasil.com quer — Mostrar notificações — Permitir / Bloquear").
+// ("www.Cred Facilbrasil.com quer — Mostrar notificações — Permitir / Bloquear").
 //
 // Por isso esta função:
 //   1. Faz as checagens de guarda SÍNCRONAS (sem await).
@@ -99,7 +99,7 @@ export function solicitarPermissaoNotificacoes() {
  * DEDUPLICAÇÃO:
  * - O parâmetro `opts.tag` é usado pelo Chrome para SUBSTITUIR um toast
  *   anterior em vez de empilhar. Convenção usada no projeto:
- *     `jurex:<tipo>:<contratoId>:<parcelaNumero>`
+ *     `Cred Facil:<tipo>:<contratoId>:<parcelaNumero>`
  *   Dois eventos idênticos na mesma janela do browser viram 1 toast.
  *   Se `tag` não for informada, uma é gerada a partir de `contratoId` /
  *   `parcelaNumero` / `tipo` / `Date.now()` (fallback).
@@ -120,7 +120,7 @@ export function mostrarNotificacaoNativa(titulo, body, opts = {}) {
     if (!notifSuportada()) return;
     if (Notification.permission !== "granted") return;
 
-    // Logo padrão do Jurex (public/logo.png) — mesmo asset usado no Sidebar.
+    // Logo padrão do Cred Facil (public/logo.png) — mesmo asset usado no Sidebar.
     // Sobrescrevível via opts.icon se algum evento precisar de ícone próprio.
     const icon = opts.icon || "/logo.png";
 
@@ -129,8 +129,8 @@ export function mostrarNotificacaoNativa(titulo, body, opts = {}) {
     const tag =
       opts.tag ||
       (opts.contratoId
-        ? `jurex:${opts.tipo || "evt"}:${opts.contratoId}:${opts.parcelaNumero ?? "-"}`
-        : `jurex:${opts.tipo || "evt"}:${Date.now()}`);
+        ? `Cred Facil:${opts.tipo || "evt"}:${opts.contratoId}:${opts.parcelaNumero ?? "-"}`
+        : `Cred Facil:${opts.tipo || "evt"}:${Date.now()}`);
 
     // Escolha do caminho. Sem await — fire-and-forget.
     //

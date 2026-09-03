@@ -25,7 +25,7 @@ import {
 } from "../utils/notifications";
 
 const INPUT_CLASSE =
-  "w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 dark:text-slate-100 dark:bg-slate-900 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
+  "w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 dark:text-slate-100 dark:bg-slate-900 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
 
 export default function Perfil() {
   const navigate = useNavigate();

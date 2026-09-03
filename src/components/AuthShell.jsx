@@ -1,4 +1,4 @@
-import logo from "../assets/jurex-logo.png";
+import logo from "../assets/Cred Facil-logo.png";
 
 export default function AuthShell({ children }) {
   return (

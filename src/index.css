@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-jurex: #17b26a;
-  --color-jurex-dark: #0e9f5a;
+  --color-Cred Facil: #17b26a;
+  --color-Cred Facil-dark: #0e9f5a;
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 

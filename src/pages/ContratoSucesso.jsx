@@ -15,7 +15,7 @@ import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
 import { formatarMoeda, formatarTelefone, numeroCurto as numeroContrato } from "../utils/formatadores";
 import { gerarPdfContrato } from "../utils/pdfContrato";
-import logoJurex from "../assets/jurex-logo.png";
+import logoCred Facil from "../assets/Cred Facil-logo.png";
 
 export default function ContratoSucesso() {
   const { id } = useParams();
@@ -78,7 +78,7 @@ export default function ContratoSucesso() {
     if (!contrato || gerandoPdf) return;
     setGerandoPdf(true);
     try {
-      gerarPdfContrato({ contrato, cliente, logoDataUrl: logoJurex });
+      gerarPdfContrato({ contrato, cliente, logoDataUrl: logoCred Facil });
     } finally {
       setGerandoPdf(false);
     }
@@ -110,7 +110,7 @@ export default function ContratoSucesso() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
           <p className="text-sm font-semibold">Carregando contrato...</p>
         </div>
       </AppLayout>
@@ -133,7 +133,7 @@ export default function ContratoSucesso() {
             <button
               type="button"
               onClick={() => navigate("/emprestimos")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para contratos
             </button>
@@ -167,7 +167,7 @@ export default function ContratoSucesso() {
         {/* Confirmação */}
         <section className="mt-10 flex flex-col items-center text-center">
           <span className="rounded-full bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
-            <span className="rounded-full bg-jurex p-3 flex items-center justify-center shadow-lg shadow-jurex/30">
+            <span className="rounded-full bg-Cred Facil p-3 flex items-center justify-center shadow-lg shadow-Cred Facil/30">
               <Check className="w-7 h-7 text-white stroke-[3]" />
             </span>
           </span>
@@ -187,7 +187,7 @@ export default function ContratoSucesso() {
               </p>
               <p
                 className={`mt-0.5 text-sm font-extrabold tabular-nums ${
-                  destaque ? "text-jurex" : "text-slate-900 dark:text-white"
+                  destaque ? "text-Cred Facil" : "text-slate-900 dark:text-white"
                 }`}
               >
                 {valor}
@@ -206,7 +206,7 @@ export default function ContratoSucesso() {
             type="button"
             onClick={gerarPdf}
             disabled={gerandoPdf}
-            className="w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+            className="w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
           >
             {gerandoPdf ? (
               <LoaderCircle className="w-4.5 h-4.5 animate-spin" />
@@ -220,7 +220,7 @@ export default function ContratoSucesso() {
             onClick={enviarWhatsapp}
             className="w-full h-13 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
           >
-            <Send className="w-4.5 h-4.5 text-jurex" />
+            <Send className="w-4.5 h-4.5 text-Cred Facil" />
             Enviar contrato via WhatsApp
           </button>
         </div>
@@ -228,7 +228,7 @@ export default function ContratoSucesso() {
         <button
           type="button"
           onClick={() => navigate(`/emprestimos/${contrato.id}`)}
-          className="mt-8 w-full text-center text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-jurex transition"
+          className="mt-8 w-full text-center text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-Cred Facil transition"
         >
           Voltar ao contrato
         </button>

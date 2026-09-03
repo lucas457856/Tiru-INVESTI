@@ -159,7 +159,7 @@ export default function EditarCliente() {
   }
 
   const classeCampo =
-    "mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
+    "mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
   const classeLabel =
     "block text-[10px] font-bold tracking-widest text-slate-500 uppercase";
 
@@ -167,7 +167,7 @@ export default function EditarCliente() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
           <p className="text-sm font-semibold">Carregando cliente...</p>
         </div>
       </AppLayout>
@@ -188,7 +188,7 @@ export default function EditarCliente() {
             <button
               type="button"
               onClick={() => navigate("/clientes")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para clientes
             </button>
@@ -239,7 +239,7 @@ export default function EditarCliente() {
           <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
             <p className={classeLabel}>Foto do cliente</p>
             <div className="mt-3 flex items-center gap-4">
-              <span className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 overflow-hidden flex items-center justify-center">
+              <span className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 overflow-hidden flex items-center justify-center">
                 {foto ? (
                   <img src={foto} alt="Foto do cliente" className="w-full h-full object-cover" />
                 ) : (
@@ -389,7 +389,7 @@ export default function EditarCliente() {
 
           {/* Sucesso */}
           {sucesso && (
-            <p className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-jurex">
+            <p className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-Cred Facil">
               Alterações salvas com sucesso!
             </p>
           )}
@@ -398,7 +398,7 @@ export default function EditarCliente() {
           <button
             type="submit"
             disabled={salvando}
-            className="w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+            className="w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
           >
             {salvando ? "Salvando..." : "Salvar alterações"}
           </button>

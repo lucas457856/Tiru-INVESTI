@@ -46,7 +46,7 @@ export function emailValido(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 
-// URL de produção do Jurex (canônico).
+// URL de produção do Cred Facil (canônico).
 // Domínio REAL de produção: https://tiru-investi.vercel.app/
 // Em dev (localhost), usamos a origin atual para o link do e-mail apontar
 // para o app local. Em produção, usamos o domínio real.
@@ -76,7 +76,7 @@ function origemReset() {
 //    customizado de produção precisa ser adicionado manualmente.
 //
 // 2) Authentication > Templates > Password reset
-//    - Customize o template do e-mail com a marca Jurex (logo verde,
+//    - Customize o template do e-mail com a marca Cred Facil (logo verde,
 //      "GESTÃO FINANCEIRA", card centralizado, etc.). O HTML do template
 //      é gerenciado pelo console e injetado em `actionCodeSettings.url`.
 //    - O botão/link do e-mail aponta para `continueUrl` passado abaixo.
@@ -123,7 +123,7 @@ export async function entrar({ email, senha }) {
 // Envia o e-mail de recuperação de senha para o endereço informado.
 // Valida o e-mail localmente antes de chamar o Firebase, e usa
 // `actionCodeSettings` para que o link do e-mail aponte para a página
-// /nova-senha do Jurex com o `oobCode` na URL.
+// /nova-senha do Cred Facil com o `oobCode` na URL.
 export async function esqueciSenha(email) {
   try {
     const e = (email || "").trim();
@@ -210,7 +210,7 @@ export async function sair() {
 // console Firebase). A diferença:
 //   - /esqueci-senha (público): `sendPasswordResetEmail` direto, layout
 //     padrão Firebase, sem customização visual.
-//   - /Perfil > "Trocar senha" (logado): e-mail HTML da Jurex, link
+//   - /Perfil > "Trocar senha" (logado): e-mail HTML da Cred Facil, link
 //     aponta para /nova-senha, sem expor o oobCode no console do user.
 export async function solicitarRedefinicaoSenha(email) {
   const e = (email || "").trim();

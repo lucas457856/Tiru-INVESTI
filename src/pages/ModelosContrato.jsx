@@ -113,7 +113,7 @@ export default function ModelosContrato() {
         <button
           type="button"
           onClick={modelos.length === 0 ? criarPadroesIniciais : criarNovo}
-          className="mt-6 w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition"
+          className="mt-6 w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition"
         >
           <Plus className="w-5 h-5" />
           Criar novo modelo
@@ -128,7 +128,7 @@ export default function ModelosContrato() {
             >
               <div className="flex items-start gap-3">
                 <span className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-                  <FileText className="w-5 h-5 text-jurex" />
+                  <FileText className="w-5 h-5 text-Cred Facil" />
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
@@ -147,7 +147,7 @@ export default function ModelosContrato() {
                   onClick={() =>
                     navigate(`/configuracoes/modelos-contrato/${id}/editar`)
                   }
-                  className="h-11 rounded-xl border border-jurex/60 text-sm font-bold text-jurex flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
+                  className="h-11 rounded-xl border border-Cred Facil/60 text-sm font-bold text-Cred Facil flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
                 >
                   <Pencil className="w-4 h-4" />
                   Editar

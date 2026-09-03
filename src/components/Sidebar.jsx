@@ -40,7 +40,7 @@ const subConfig = [
       { to: "/configuracoes/backup", label: "Backup de dados" },
       { to: "/configuracoes/ajuda", label: "Central de ajuda" },
       { to: "/configuracoes/privacidade", label: "Privacidade" },
-      { to: "/configuracoes/sobre", label: "Sobre o Jurex" },
+      { to: "/configuracoes/sobre", label: "Sobre o Cred Facil" },
     ],
   },
 ];
@@ -48,7 +48,7 @@ const subConfig = [
 const classeItem = ({ isActive }) =>
   `flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
     isActive
-      ? "bg-emerald-50 text-jurex dark:bg-emerald-500/10"
+      ? "bg-emerald-50 text-Cred Facil dark:bg-emerald-500/10"
       : "text-slate-600 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
   }`;
 

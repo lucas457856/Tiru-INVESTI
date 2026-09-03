@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export default function AuthTabs({ ativa }) {
   const base =
     "py-2.5 rounded-xl text-sm font-semibold text-center transition-all";
-  const on = "bg-jurex text-white shadow-md shadow-jurex/30";
+  const on = "bg-Cred Facil text-white shadow-md shadow-Cred Facil/30";
   const off = "text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white";
 
   return (

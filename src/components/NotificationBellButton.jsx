@@ -37,7 +37,7 @@ export default function NotificationBellButton({ naoLidas }) {
           {naoLidas > 99 ? "99+" : naoLidas}
         </span>
       ) : (
-        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-jurex" />
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-Cred Facil" />
       )}
     </button>
   );

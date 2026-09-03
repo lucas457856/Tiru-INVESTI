@@ -14,9 +14,9 @@
 //      cache O(1) compartilhado entre TODOS os hooks/componentes da aba.
 //      Limpa em F5 (a própria JS heap é recriada).
 //
-//   2. `localStorage` (chave `jurex:notif:<tipo>:<contratoId>:<parcelaNumero>:<vencimentoISO>`):
+//   2. `localStorage` (chave `Cred Facil:notif:<tipo>:<contratoId>:<parcelaNumero>:<vencimentoISO>`):
 //      persiste entre F5, logout/login, fechamento/reabertura de aba.
-//      Padrão `jurex-*` consistente com `ThemeProvider.jsx:1-32`.
+//      Padrão `Cred Facil-*` consistente com `ThemeProvider.jsx:1-32`.
 //
 //   3. `tag` do Chrome (passado em `mostrarNotificacaoNativa({ tag })`):
 //      dedup no nível do browser — segundo toast com mesma tag substitui o
@@ -35,7 +35,7 @@
 // bem dentro do limite de 5-10 MB dos browsers. Não vamos poluir a
 // implementação com limpeza periódica.
 
-const PREFIXO = "jurex:notif";
+const PREFIXO = "Cred Facil:notif";
 
 /**
  * Constrói a chave estável que identifica um evento de notificação.

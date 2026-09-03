@@ -13,7 +13,7 @@ import "./services/migrationPreviewService"; // Expõe window.previewMigrationDr
 //
 // REGRAS:
 //   1. Só registra se a API existir (não-SSR / browsers modernos).
-//   2. `?v=jurex-sw-v1` força o navegador a invalidar caches antigos quando
+//   2. `?v=Cred Facil-sw-v1` força o navegador a invalidar caches antigos quando
 //      o SW_VERSION é alterado em `public/sw.js` (resolve o problema de
 //      "service worker antigo continua executando código anterior").
 //   3. `updateViaCache: "none"` impede que o HTTP cache sirva um sw.js
@@ -23,7 +23,7 @@ import "./services/migrationPreviewService"; // Expõe window.previewMigrationDr
 if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js?v=jurex-sw-v1", { updateViaCache: "none" })
+      .register("/sw.js?v=Cred Facil-sw-v1", { updateViaCache: "none" })
       .catch((err) => {
         // Não bloqueia o app se o registro falhar (HTTP, browser policy).
         console.warn("[sw] registro falhou (ignorado):", err);

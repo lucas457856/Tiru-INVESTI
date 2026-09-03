@@ -129,7 +129,7 @@ export default function Notificacoes() {
             type="button"
             onClick={handleMarcarTodas}
             disabled={naoLidas === 0}
-            className="text-sm font-bold text-jurex hover:text-jurex-dark disabled:text-slate-400 disabled:cursor-not-allowed transition"
+            className="text-sm font-bold text-Cred Facil hover:text-Cred Facil-dark disabled:text-slate-400 disabled:cursor-not-allowed transition"
           >
             Marcar todas
           </button>
@@ -177,7 +177,7 @@ function NotificacaoCard({ n, onClick }) {
         naoLida
           ? "bg-emerald-50/60 dark:bg-emerald-500/5 border-emerald-200/70 dark:border-emerald-500/20"
           : "bg-white dark:bg-slate-900"
-      } hover:border-jurex/40 hover:shadow-md`}
+      } hover:border-Cred Facil/40 hover:shadow-md`}
     >
       <div className="flex items-start gap-3 p-4">
         <span

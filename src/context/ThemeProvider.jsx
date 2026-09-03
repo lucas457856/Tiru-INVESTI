@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ThemeContext } from "./ThemeContext";
 
-const CHAVE = "jurex-tema";
+const CHAVE = "Cred Facil-tema";
 
 function temaInicial() {
   const salvo = localStorage.getItem(CHAVE);

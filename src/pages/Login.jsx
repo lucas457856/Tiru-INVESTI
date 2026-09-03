@@ -7,7 +7,7 @@ import TurnstileMock from "../components/TurnstileMock";
 import { entrar } from "../services/authService";
 
 const INPUT_CLASSE =
-  "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
+  "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -75,12 +75,12 @@ export default function Login() {
               onChange={(e) => setLembrar(e.target.checked)}
               className="peer sr-only"
             />
-            <span className="w-4.5 h-4.5 rounded-full border border-slate-300 dark:border-slate-600 peer-checked:border-jurex peer-checked:bg-jurex relative after:absolute after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-2 after:h-2 after:rounded-full after:bg-transparent peer-checked:after:bg-white" />
+            <span className="w-4.5 h-4.5 rounded-full border border-slate-300 dark:border-slate-600 peer-checked:border-Cred Facil peer-checked:bg-Cred Facil relative after:absolute after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-2 after:h-2 after:rounded-full after:bg-transparent peer-checked:after:bg-white" />
             <span className="text-xs text-slate-600 dark:text-slate-300">Lembrar acesso</span>
           </label>
           <Link
             to="/esqueci-senha"
-            className="text-xs font-semibold text-jurex hover:text-jurex-dark transition"
+            className="text-xs font-semibold text-Cred Facil hover:text-Cred Facil-dark transition"
           >
             Esqueci minha senha
           </Link>
@@ -101,7 +101,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={!turnstileOk || enviando}
-          className="w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+          className="w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
         >
           Entrar
           {enviando ? (

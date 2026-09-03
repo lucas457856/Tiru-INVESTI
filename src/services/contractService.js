@@ -714,7 +714,7 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
     tipo: "pagamento_recebido",
     contratoId: contrato.id,
     parcelaNumero: parcela?.numero,
-    tag: `jurex:pagamento_recebido:${contrato.id}:${parcela?.numero ?? "-"}`,
+    tag: `Cred Facil:pagamento_recebido:${contrato.id}:${parcela?.numero ?? "-"}`,
   });
 
   return { parcelasPagas, valorRecebido, quitado, dataProximo, saldoRestante, saldoPrincipal: saldoPrincipalAtual };
