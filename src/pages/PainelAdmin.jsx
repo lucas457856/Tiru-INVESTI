@@ -77,7 +77,7 @@ export default function PainelAdmin() {
   const { usuario } = useAuth();
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState("");
+  const [erro, setErro] = useState(null);
   const [aba, setAba] = useState("dono");
   // Versão incremental: cada vez que "atualizar" muda, refaz o fetch.
   const [tick, setTick] = useState(0);
@@ -88,10 +88,11 @@ export default function PainelAdmin() {
       if (cancelado) return;
       setLoading(false);
       if (!resp || !resp.ok) {
-        setErro(resp?.erro || "Não foi possível carregar o painel.");
+        setErro(resp || { ok: false, erro: "Não foi possível carregar o painel." });
         return;
       }
       setDados(resp);
+      setErro(null);
     });
     return () => {
       cancelado = true;
@@ -99,7 +100,7 @@ export default function PainelAdmin() {
   }, [tick]);
 
   function carregar() {
-    setErro("");
+    setErro(null);
     setLoading(true);
     setTick((t) => t + 1);
   }
@@ -167,8 +168,29 @@ export default function PainelAdmin() {
 
         {/* Erro */}
         {erro && (
-          <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">
-            {erro}
+          <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300 space-y-2">
+            <p className="font-bold flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Não foi possível carregar o painel
+            </p>
+            <p>{erro.erro || "Erro desconhecido."}</p>
+            {(erro.status || erro.contentType || erro.trecho) && (
+              <div className="text-[11px] font-mono bg-red-100/60 dark:bg-red-950/40 rounded-lg p-2 space-y-1">
+                {erro.status && <p>Status HTTP: {erro.status}</p>}
+                {erro.contentType && <p>Content-Type: {erro.contentType}</p>}
+                {erro.trecho && (
+                  <p className="break-all">
+                    Trecho: <span className="opacity-80">{erro.trecho}</span>
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-[11px] opacity-80">
+              Se o status for 500 e a mensagem citar <span className="font-mono">ADMIN_UID</span>,
+              adicione a variável de ambiente <span className="font-mono">ADMIN_UID</span> com o
+              valor <span className="font-mono">hzfrWIuTXYgeasOTPD7pmKNxt1P2</span> no painel da
+              Vercel (Production, Preview e Development) e faça um novo deploy.
+            </p>
           </div>
         )}
 

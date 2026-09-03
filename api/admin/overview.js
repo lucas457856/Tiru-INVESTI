@@ -23,8 +23,10 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 
-function bad(res, status, erro) {
-  return res.status(status).json({ ok: false, erro });
+function bad(res, status, erro, extra = {}) {
+  // Log estruturado para o painel da Vercel. NÃO loga secrets.
+  console.error(`[admin/overview] ${status} ${erro}`, extra);
+  return res.status(status).json({ ok: false, erro, ...extra });
 }
 
 function extrairBearer(req) {
@@ -54,40 +56,58 @@ export default async function handler(req, res) {
   // 1) ADMIN_UID (env var)
   const adminUid = process.env.ADMIN_UID;
   if (!adminUid) {
-    console.error("ADMIN_UID não configurado no servidor.");
-    return bad(res, 500, "Configuração do servidor ausente.");
+    console.error(
+      "[admin/overview] ADMIN_UID não configurado. Defina no painel da Vercel (Production, Preview e Development) com o valor: hzfrWIuTXYgeasOTPD7pmKNxt1P2",
+    );
+    return bad(res, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.", {
+      variavel: "ADMIN_UID",
+    });
   }
 
   // 2) Token do chamador
   const idToken = extrairBearer(req);
-  if (!idToken) return bad(res, 401, "Autenticação obrigatória.");
+  if (!idToken) {
+    return bad(res, 401, "Autenticação obrigatória. Envie o Firebase ID Token no header Authorization: Bearer <token>.");
+  }
 
+  // 3) Inicializa Firebase Admin
   let admin;
   try {
     admin = getFirebaseAdmin();
   } catch (err) {
-    console.error("Falha ao inicializar Firebase Admin:", err?.message);
-    return bad(res, 500, "Serviço indisponível.");
+    console.error("[admin/overview] Falha ao inicializar Firebase Admin:", err?.code, err?.message);
+    const missing = [];
+    if (!process.env.FIREBASE_PROJECT_ID) missing.push("FIREBASE_PROJECT_ID");
+    if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push("FIREBASE_CLIENT_EMAIL");
+    if (!process.env.FIREBASE_PRIVATE_KEY) missing.push("FIREBASE_PRIVATE_KEY");
+    return bad(
+      res,
+      500,
+      missing.length
+        ? `Firebase Admin não configurado no servidor. Faltam: ${missing.join(", ")}.`
+        : "Não foi possível inicializar o Firebase Admin.",
+      { variavel: missing[0] || null },
+    );
   }
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
-  // 3) Verifica identidade
+  // 4) Verifica identidade
   let chamadorUid;
   try {
     const decoded = await authAdmin.verifyIdToken(idToken, true);
     chamadorUid = decoded.uid;
   } catch (err) {
-    console.error("verifyIdToken falhou:", err?.code || err?.message);
-    return bad(res, 401, "Sessão inválida.");
+    console.error("[admin/overview] verifyIdToken falhou:", err?.code, err?.message);
+    return bad(res, 401, "Sessão inválida. Faça login novamente.");
   }
 
-  // 4) BLOQUEIO PRINCIPAL: só ADMIN_UID
+  // 5) BLOQUEIO PRINCIPAL: só ADMIN_UID
   if (chamadorUid !== adminUid) {
-    return bad(res, 403, "Acesso restrito ao administrador.");
+    return bad(res, 403, "Acesso restrito ao administrador do sistema.");
   }
 
-  // 5) Agrega dados
+  // 6) Agrega dados
   try {
     // Lista todos os perfis em /usuarios
     const usuariosSnap = await dbAdmin.collection("usuarios").get();
@@ -151,7 +171,7 @@ export default async function handler(req, res) {
       geradoEm: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("Agregação admin falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível agregar os dados.");
+    console.error("[admin/overview] Agregação falhou:", err?.code, err?.message);
+    return bad(res, 500, "Não foi possível agregar os dados do Firestore.");
   }
 }
