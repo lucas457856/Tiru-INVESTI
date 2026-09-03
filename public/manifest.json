@@ -1,6 +1,6 @@
 {
-  "name": "Jurex — Controle de Empréstimos",
-  "short_name": "Jurex",
+  "name": "Cred-Facil — Controle de Empréstimos",
+  "short_name": "Cred-Facil",
   "description": "Controle total dos seus empréstimos e parcelas.",
   "start_url": "/dashboard",
   "scope": "/",

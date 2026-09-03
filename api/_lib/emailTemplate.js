@@ -131,7 +131,7 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
         <tr>
           <td align="center" style="padding:20px 16px 0 16px;">
             <div style="font-size:12px;color:#94a3b8;line-height:1.6;">
-              Jurex — Controle total dos seus empréstimos.<br />
+              Cred-Facil — Controle total dos seus empréstimos.<br />
               <a href="https://tiru-investi.vercel.app" style="color:#94a3b8;text-decoration:underline;">tiru-investi.vercel.app</a>
             </div>
             <div style="font-size:11px;color:#475569;margin-top:8px;">

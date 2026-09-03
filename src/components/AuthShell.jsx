@@ -6,7 +6,7 @@ export default function AuthShell({ children }) {
       {/* Logo + slogan */}
       <img
         src={logo}
-        alt="Jurex"
+        alt="Cred-Facil"
         className="w-24 h-24 rounded-2xl shadow-lg shadow-emerald-900/20 object-cover"
       />
       <p className="mt-5 text-sm text-slate-500 dark:text-slate-400">
