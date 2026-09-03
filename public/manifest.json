@@ -1,0 +1,19 @@
+{
+  "name": "Jurex — Controle de Empréstimos",
+  "short_name": "Jurex",
+  "description": "Controle total dos seus empréstimos e parcelas.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

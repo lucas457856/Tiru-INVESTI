@@ -14,8 +14,22 @@
 // Garante que o popup nativo do Chrome aparece
 // ("www.jurexbrasil.com quer — Mostrar notificações — Permitir / Bloquear")
 // e evita re-solicitações desnecessárias quando o usuário já concedeu
-// ou bloqueou. Sem Firestore, sem service worker, sem FCM — só a
-// Notification Web API local do browser.
+// ou bloqueou.
+//
+// CAMINHOS DE EXIBIÇÃO (`mostrarNotificacaoNativa`):
+//   - DESKTOP (Chrome/Edge/Firefox no PC, aba em foreground):
+//     `new Notification(titulo, { body, icon, tag })` — funciona nativamente.
+//
+//   - ANDROID/CHROME (celular):
+//     `new Notification(...)` falha silenciosamente quando a aba está em
+//     background, porque a Notification Web API depende de `document`
+//     visível. A solução canônica é usar `ServiceWorkerRegistration.show
+//     Notification()`, que entrega a notificação ao sistema operacional
+//     mesmo com o app em background.
+//
+//   A função abaixo tenta o caminho SW primeiro; se o SW não estiver
+//   controlando a página ainda (primeira carga, aba em foreground),
+//   cai para `new Notification`. NUNCA dispara os dois caminhos.
 
 /**
  * Detecta se a Notification API está disponível no ambiente atual.
@@ -71,8 +85,16 @@ export function solicitarPermissaoNotificacoes() {
  *   real (criação de contrato, pagamento confirmado, etc.). Isso garante
  *   1 documento Firestore ↔ 1 toast nativo, sem duplicação em re-emissões
  *   do snapshot.
- * - Só funciona com a aplicação em execução. NÃO finge push com site
- *   fechado (sem Service Worker / FCM neste escopo).
+ *
+ * ESCOLHA DE CAMINHO (sem duplicação):
+ *   - Se existir um Service Worker ativo controlando a página
+ *     (`navigator.serviceWorker.controller`), usa `registration.showNotification`.
+ *     Este é o caminho CORRETO no Android/Chrome (e também funciona no
+ *     desktop). A notificação é entregue ao sistema operacional,
+ *     aparecendo na central mesmo com a aba em background.
+ *   - Caso contrário, usa `new Notification(...)` legado (caminho desktop
+ *     clássico, suficiente quando a aba está em primeiro plano).
+ *   - NUNCA dispara os dois caminhos.
  *
  * DEDUPLICAÇÃO:
  * - O parâmetro `opts.tag` é usado pelo Chrome para SUBSTITUIR um toast
@@ -110,7 +132,55 @@ export function mostrarNotificacaoNativa(titulo, body, opts = {}) {
         ? `jurex:${opts.tipo || "evt"}:${opts.contratoId}:${opts.parcelaNumero ?? "-"}`
         : `jurex:${opts.tipo || "evt"}:${Date.now()}`);
 
-    // Fire-and-forget. Não aguardar `notification.close` nem eventos da notif.
+    // Escolha do caminho. Sem await — fire-and-forget.
+    //
+    // Preferência: SW se estiver controlando a página. Caso contrário,
+    // cai no caminho legado. O `registration.showNotification` é PROMISE-
+    // based; tratamos o resultado para que uma falha silenciosa não
+    // duplique nem derrube o fluxo.
+    const temSW = !!(
+      typeof navigator !== "undefined" &&
+      navigator.serviceWorker &&
+      navigator.serviceWorker.controller
+    );
+
+    if (temSW && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          if (!reg || !reg.showNotification) {
+            // SW registrado mas API indisponível — fallback.
+            new Notification(titulo, { body, icon, tag });
+            return;
+          }
+          return reg.showNotification(titulo, {
+            body,
+            icon,
+            tag,
+            // badge: usa o mesmo logo (Android mostra em alguns launchers).
+            badge: icon,
+            // sem renotify: a tag dedup já cobre; renotify=true vibraria/soaria
+            // a cada pagamento, o que é pior para o usuário.
+            renotify: false,
+            // requireInteraction false: a notificação some sozinha após ~5s
+            // no Android (UX padrão de confirmação de pagamento).
+            requireInteraction: false,
+          });
+        })
+        .catch(() => {
+          // Se o `showNotification` falhar (permissão revogada, SW caiu),
+          // tenta o caminho legado como último recurso.
+          try {
+            new Notification(titulo, { body, icon, tag });
+          } catch (innerErr) {
+            // ignore — best-effort
+            console.warn("mostrarNotificacaoNativa fallback falhou:", innerErr);
+          }
+        });
+      return;
+    }
+
+    // Caminho legado (desktop clássico, ou Android na primeira carga
+    // antes do SW assumir controle).
     new Notification(titulo, { body, icon, tag });
   } catch (err) {
     // Best-effort: log e segue. Não propaga para o chamador.
