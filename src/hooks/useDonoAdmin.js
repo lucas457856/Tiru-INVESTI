@@ -25,16 +25,20 @@ import { db } from "../services/firebase";
 import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "./useEffectiveUid";
 
+// Defaults que valem para donos SEM configuração administrativa no
+// Firestore. Decisão do administrador: novos donos começam com
+// limites 5/5/5 e SEM permissão de criar funcionários — o admin
+// ativa manualmente quando liberar.
 const PERMISSOES_PADRAO = {
   criarContratos: true,
   criarClientes: true,
-  criarFuncionarios: true,
+  criarFuncionarios: false,
 };
 
 const LIMITES_PADRAO = {
-  contratos: 0,
-  clientes: 0,
-  funcionarios: 0,
+  contratos: 5,
+  clientes: 5,
+  funcionarios: 5,
 };
 
 function defaults() {
@@ -46,18 +50,34 @@ function defaults() {
   };
 }
 
+// Lê uma permissão do Firestore respeitando o default — equivalente
+// ao helper em `api/admin/overview.js`. Mantemos a duplicação porque
+// o cliente não tem como importar o módulo serverless diretamente.
+function lerPermissao(valor, padrao) {
+  if (valor === true || valor === false) return valor;
+  return padrao;
+}
+
 function aplicarDados(d) {
   return {
     status: d?.status === "bloqueado" ? "bloqueado" : "ativo",
     permissoes: {
-      criarContratos: d?.permissoes?.criarContratos !== false,
-      criarClientes: d?.permissoes?.criarClientes !== false,
-      criarFuncionarios: d?.permissoes?.criarFuncionarios !== false,
+      criarContratos: lerPermissao(d?.permissoes?.criarContratos, PERMISSOES_PADRAO.criarContratos),
+      criarClientes: lerPermissao(d?.permissoes?.criarClientes, PERMISSOES_PADRAO.criarClientes),
+      criarFuncionarios: lerPermissao(d?.permissoes?.criarFuncionarios, PERMISSOES_PADRAO.criarFuncionarios),
     },
     limites: {
-      contratos: Number(d?.limites?.contratos) || 0,
-      clientes: Number(d?.limites?.clientes) || 0,
-      funcionarios: Number(d?.limites?.funcionarios) || 0,
+      // `??` (não `||`) para preservar limite = 0 quando o campo
+      // está presente mas é zero (caso válido: 0 = sem limite).
+      contratos: d?.limites?.contratos != null && Number.isFinite(Number(d.limites.contratos))
+        ? Number(d.limites.contratos)
+        : LIMITES_PADRAO.contratos,
+      clientes: d?.limites?.clientes != null && Number.isFinite(Number(d.limites.clientes))
+        ? Number(d.limites.clientes)
+        : LIMITES_PADRAO.clientes,
+      funcionarios: d?.limites?.funcionarios != null && Number.isFinite(Number(d.limites.funcionarios))
+        ? Number(d.limites.funcionarios)
+        : LIMITES_PADRAO.funcionarios,
     },
     carregou: true,
   };

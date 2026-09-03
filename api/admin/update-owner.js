@@ -146,7 +146,7 @@ export default async function handler(req, res) {
   let admin;
   try {
     admin = getFirebaseAdmin();
-  } catch (err) {
+  } catch {
     const missing = [];
     if (!process.env.FIREBASE_PROJECT_ID) missing.push("FIREBASE_PROJECT_ID");
     if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push("FIREBASE_CLIENT_EMAIL");

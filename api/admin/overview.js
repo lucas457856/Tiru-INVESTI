@@ -23,11 +23,17 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 
-// Defaults permissivos aplicados quando o doc do dono não tem os
-// campos administrativos. Compatibilidade total com donos antigos:
-// nenhum usuário existente é bloqueado retroativamente.
-const LIMITES_PADRAO = { contratos: 0, clientes: 0, funcionarios: 0 };
-const PERMISSOES_PADRAO = { criarContratos: true, criarClientes: true, criarFuncionarios: true };
+// Defaults aplicados quando o doc do dono não tem os campos
+// administrativos. Novas contas começam com limites de 5/5/5 e com
+// a permissão de criar funcionários DESLIGADA — o admin ativa
+// manualmente quando quiser liberar.
+//
+// ATENÇÃO: alterar estes valores NÃO afeta donos antigos. Quem já
+// tem `limites`/`permissoes`/`status` no Firestore continua com
+// os valores que lá estão. Os defaults só são aplicados quando o
+// campo está AUSENTE no doc.
+const LIMITES_PADRAO = { contratos: 5, clientes: 5, funcionarios: 5 };
+const PERMISSOES_PADRAO = { criarContratos: true, criarClientes: true, criarFuncionarios: false };
 const STATUS_PADRAO = "ativo";
 
 function bad(res, status, erro, extra = {}) {
@@ -66,6 +72,15 @@ async function contarClientesPorDono(dbAdmin, donoUid) {
   }
 }
 
+// Lê uma permissão do Firestore respeitando o default:
+//   - `true` ou `false`  → usa o valor persistido.
+//   - `undefined` (ausente) ou outro tipo → usa o default.
+// Coerção explícita: garante que o retorno seja sempre boolean.
+function lerPermissao(valor, padrao) {
+  if (valor === true || valor === false) return valor;
+  return padrao;
+}
+
 // Normaliza os campos administrativos aplicando defaults permissivos
 // quando ausentes. Garante que o front sempre recebe o objeto completo.
 function normalizarAdmin(data) {
@@ -73,14 +88,26 @@ function normalizarAdmin(data) {
     ? data.status
     : STATUS_PADRAO;
   const limites = {
-    contratos: Number(data?.limites?.contratos) || LIMITES_PADRAO.contratos,
-    clientes: Number(data?.limites?.clientes) || LIMITES_PADRAO.clientes,
-    funcionarios: Number(data?.limites?.funcionarios) || LIMITES_PADRAO.funcionarios,
+    // `!= null` + `Number.isFinite` (não `||`) para preservar 0
+    // quando o limite está presente mas vale 0 (zero é válido:
+    // significa "sem limite").
+    contratos:
+      data?.limites?.contratos != null && Number.isFinite(Number(data.limites.contratos))
+        ? Number(data.limites.contratos)
+        : LIMITES_PADRAO.contratos,
+    clientes:
+      data?.limites?.clientes != null && Number.isFinite(Number(data.limites.clientes))
+        ? Number(data.limites.clientes)
+        : LIMITES_PADRAO.clientes,
+    funcionarios:
+      data?.limites?.funcionarios != null && Number.isFinite(Number(data.limites.funcionarios))
+        ? Number(data.limites.funcionarios)
+        : LIMITES_PADRAO.funcionarios,
   };
   const permissoes = {
-    criarContratos: data?.permissoes?.criarContratos !== false,
-    criarClientes: data?.permissoes?.criarClientes !== false,
-    criarFuncionarios: data?.permissoes?.criarFuncionarios !== false,
+    criarContratos: lerPermissao(data?.permissoes?.criarContratos, PERMISSOES_PADRAO.criarContratos),
+    criarClientes: lerPermissao(data?.permissoes?.criarClientes, PERMISSOES_PADRAO.criarClientes),
+    criarFuncionarios: lerPermissao(data?.permissoes?.criarFuncionarios, PERMISSOES_PADRAO.criarFuncionarios),
   };
   return { status, limites, permissoes };
 }

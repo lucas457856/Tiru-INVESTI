@@ -39,11 +39,11 @@ function estadoInicialDeDono(dono) {
   if (!dono) {
     return {
       status: "ativo",
-      limites: { contratos: 0, clientes: 0, funcionarios: 0 },
+      limites: { contratos: 5, clientes: 5, funcionarios: 5 },
       permissoes: {
         criarContratos: true,
         criarClientes: true,
-        criarFuncionarios: true,
+        criarFuncionarios: false,
       },
     };
   }
