@@ -32,6 +32,8 @@ import Suporte from "../pages/Suporte";
 import BackupDados from "../pages/BackupDados";
 import Funcionarios from "../pages/Funcionarios";
 import DebugAuth from "../pages/DebugAuth";
+import PainelAdmin from "../pages/PainelAdmin";
+import RotaAdmin from "../components/RotaAdmin";
 import CentralAjuda from "../pages/CentralAjuda";
 import Privacidade from "../pages/Privacidade";
 import SobreJurex from "../pages/SobreJurex";
@@ -101,6 +103,10 @@ export default function AppRoutes() {
 
           {/* Tela de bloqueio para funcionário inativo */}
           <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />
+
+          {/* ADMIN — só a conta ADMIN_UID entra (RotaAdmin verifica
+              tanto no client quanto no endpoint server-side). */}
+          <Route path="/admin" element={<RotaAdmin><PainelAdmin /></RotaAdmin>} />
 
         </Routes>
         </BrowserRouter>

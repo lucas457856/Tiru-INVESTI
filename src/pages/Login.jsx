@@ -5,6 +5,8 @@ import AuthShell from "../components/AuthShell";
 import AuthTabs from "../components/AuthTabs";
 import TurnstileMock from "../components/TurnstileMock";
 import { entrar } from "../services/authService";
+import { auth } from "../services/firebase";
+import { isAdminUid } from "../config/adminConfig";
 
 const INPUT_CLASSE =
   "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
@@ -25,7 +27,11 @@ export default function Login() {
     const res = await entrar({ email, senha });
     setEnviando(false);
     if (res.ok) {
-      navigate("/dashboard");
+      // Se for a conta administrativa principal, vai para o Painel
+      // Administrativo em vez do dashboard normal. A checagem é por
+      // UID (não por e-mail) — está em `src/config/adminConfig.js`.
+      const uid = auth.currentUser?.uid;
+      navigate(isAdminUid(uid) ? "/admin" : "/dashboard");
     } else {
       setErro(res.erro);
     }

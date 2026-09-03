@@ -9,8 +9,10 @@ import {
   Settings,
   LifeBuoy,
   ChevronDown,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../context/useAuth";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 
 // Itens principais do menu lateral.
 // "Notificações" é o segundo item para acesso rápido à página /notificacoes.
@@ -64,6 +66,7 @@ function iniciaisDoNome(nome) {
 export default function Sidebar() {
   const [aberto, setAberto] = useState(false);
   const { usuario } = useAuth();
+  const isAdmin = useIsAdmin();
 
   // Mesmo padrão do Dashboard: prioriza displayName, cai para o usuário
   // do email e por último "Usuário". Tudo em maiúsculas para o avatar.
@@ -112,6 +115,26 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Link ADMIN — só aparece para o ADMIN_UID. Defesa em
+            camadas: mesmo que alguém force a rota via URL,
+            <RotaAdmin> redireciona. */}
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            end
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${
+                isActive
+                  ? "bg-jurex text-white shadow"
+                  : "text-jurex hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+              }`
+            }
+          >
+            <Shield className="w-4.5 h-4.5" />
+            Painel Admin
+          </NavLink>
+        )}
 
         {/* Configurações (expansível) */}
         <div>
