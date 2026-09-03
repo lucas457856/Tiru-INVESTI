@@ -4,18 +4,55 @@ import {
   Search,
   Plus,
   UsersRound,
+  Lock,
 } from "lucide-react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useDonoAdmin } from "../hooks/useDonoAdmin";
 import { db } from "../services/firebase";
 
 export default function Clientes() {
   const navigate = useNavigate();
   const effectiveUid = useEffectiveUid();
+  // Limites, permissões e status do DONO (defaults permissivos 5/5/5
+  // aplicados automaticamente — ver useDonoAdmin). Usado para
+  // desabilitar o botão "Cadastrar cliente" quando o limite é
+  // atingido, exibir banner explicativo e impedir navegação para
+  // a tela de cadastro.
+  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
   const [clientes, setClientes] = useState([]);
   const [busca, setBusca] = useState("");
+
+  // Regra de bloqueio do front (UX). A defesa real é o endpoint
+  // server-side /api/admin/criar-cliente, que valida o limite no
+  // Admin SDK e o Firestore Rules nega create direto do client SDK.
+  // Aqui só desabilitamos o botão e impedimos a navegação para
+  // dar feedback imediato ao usuário.
+  //
+  // limite.clientes = 0 significa "sem limite" — não bloqueia.
+  // permissoes.criarClientes = false → bloqueia sempre.
+  // status = "bloqueado" → bloqueia sempre.
+  const limiteClientes = limites.clientes;
+  const limiteAtingido =
+    !loadingDono &&
+    statusDono !== "bloqueado" &&
+    permissoes.criarClientes !== false &&
+    limiteClientes > 0 &&
+    clientes.length >= limiteClientes;
+  const contaBloqueada = statusDono === "bloqueado";
+  const permissaoNegada =
+    !contaBloqueada && permissoes.criarClientes === false;
+  const cadastroBloqueado = contaBloqueada || permissaoNegada || limiteAtingido;
+
+  // Função única usada pelos botões "Cadastrar" e "Cadastrar primeiro
+  // cliente". Se o cadastro estiver bloqueado, mostra o motivo e
+  // NÃO navega para a tela de cadastro.
+  function tentarIrParaCadastro() {
+    if (cadastroBloqueado) return;
+    navigate("/clientes/novo");
+  }
 
   // Escuta somente os clientes do escopo efetivo (donorUid para
   // funcionários; proprio uid para o dono). Ordenação por createdAt
@@ -97,13 +134,52 @@ export default function Clientes() {
           </div>
           <button
             type="button"
-            onClick={() => navigate("/clientes/novo")}
-            className="h-12 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
+            onClick={tentarIrParaCadastro}
+            disabled={cadastroBloqueado}
+            title={
+              cadastroBloqueado
+                ? contaBloqueada
+                  ? "Conta bloqueada. Entre em contato com o administrador."
+                  : permissaoNegada
+                  ? "Seu plano não permite cadastrar clientes."
+                  : "Limite de clientes atingido. Entre em contato com o administrador para aumentar seu limite."
+                : "Cadastrar novo cliente"
+            }
+            className={`h-12 px-5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shrink-0 transition ${
+              cadastroBloqueado
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99]"
+            }`}
           >
-            <Plus className="w-4.5 h-4.5" />
+            {cadastroBloqueado ? (
+              <Lock className="w-4.5 h-4.5" />
+            ) : (
+              <Plus className="w-4.5 h-4.5" />
+            )}
             Cadastrar cliente
           </button>
         </div>
+
+        {/* Banner de bloqueio: limite/permissão/status */}
+        {cadastroBloqueado && !loadingDono && (
+          <div
+            role="alert"
+            className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+          >
+            <span className="shrink-0 mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
+              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            </span>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+              {contaBloqueada
+                ? "Conta bloqueada. Entre em contato com o administrador."
+                : permissaoNegada
+                ? "Seu plano não permite cadastrar clientes. Entre em contato com o administrador."
+                : `Limite de clientes atingido. Seu limite atual é de ${limiteClientes} ${
+                    limiteClientes === 1 ? "cliente" : "clientes"
+                  }. Entre em contato com o administrador para aumentar seu limite.`}
+            </p>
+          </div>
+        )}
 
         {/* Lista ou estado vazio */}
         {clientes.length === 0 ? (
@@ -119,11 +195,25 @@ export default function Clientes() {
             </p>
             <button
               type="button"
-              onClick={() => navigate("/clientes/novo")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              onClick={tentarIrParaCadastro}
+              disabled={cadastroBloqueado}
+              className={`mt-5 h-11 px-5 rounded-xl text-sm font-bold transition ${
+                cadastroBloqueado
+                  ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                  : "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98]"
+              }`}
             >
-              Cadastrar primeiro cliente
+              {cadastroBloqueado ? "Cadastro indisponível" : "Cadastrar primeiro cliente"}
             </button>
+            {cadastroBloqueado && !loadingDono && (
+              <p className="mt-3 max-w-xs text-xs text-amber-700 dark:text-amber-300">
+                {contaBloqueada
+                  ? "Conta bloqueada. Entre em contato com o administrador."
+                  : permissaoNegada
+                  ? "Seu plano não permite cadastrar clientes."
+                  : `Limite de clientes atingido (${limiteClientes}). Entre em contato com o administrador para aumentar.`}
+              </p>
+            )}
           </section>
         ) : filtrados.length === 0 ? (
           <section className="mt-14 mb-16 flex flex-col items-center text-center">

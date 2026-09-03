@@ -4,6 +4,7 @@ import {
   Search,
   Plus,
   FileText,
+  Lock,
 } from "lucide-react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
@@ -11,6 +12,7 @@ import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useDonoAdmin } from "../hooks/useDonoAdmin";
 import { db } from "../services/firebase";
 import { numeroCurto } from "../utils/formatadores";
 import { calculateDebtRemaining, calcularStatusContrato } from "../services/paymentCalculations";
@@ -39,10 +41,42 @@ function statusContrato(c, hoje) {
 export default function Emprestimos() {
   const navigate = useNavigate();
   const effectiveUid = useEffectiveUid();
+  // Limites, permissões e status do DONO (defaults permissivos
+  // aplicados automaticamente — ver useDonoAdmin). Usado para
+  // desabilitar o botão "Novo contrato" quando o limite é atingido,
+  // exibir banner explicativo e impedir navegação para a tela
+  // de cadastro. A defesa real é o endpoint server-side
+  // /api/admin/criar-contrato, que valida o limite no Admin SDK
+  // e o Firestore Rules nega create direto do client SDK.
+  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
 
   const [contratos, setContratos] = useState([]);
   const [status, setStatus] = useState("Todos");
   const [busca, setBusca] = useState("");
+
+  // Regra de bloqueio do front (UX). Espelha Clientes.jsx.
+  //   limite.contratos = 0 significa "sem limite" — não bloqueia.
+  //   permissoes.criarContratos = false → bloqueia sempre.
+  //   status = "bloqueado" → bloqueia sempre.
+  const limiteContratos = limites.contratos;
+  const limiteAtingido =
+    !loadingDono &&
+    statusDono !== "bloqueado" &&
+    permissoes.criarContratos !== false &&
+    limiteContratos > 0 &&
+    contratos.length >= limiteContratos;
+  const contaBloqueada = statusDono === "bloqueado";
+  const permissaoNegada =
+    !contaBloqueada && permissoes.criarContratos === false;
+  const cadastroBloqueado = contaBloqueada || permissaoNegada || limiteAtingido;
+
+  // Função única usada pelos botões "Novo contrato", "Criar
+  // primeiro contrato" e o FAB flutuante. Se a criação estiver
+  // bloqueada, NÃO navega para a tela de cadastro.
+  function tentarIrParaCadastro() {
+    if (cadastroBloqueado) return;
+    navigate("/contratos/novo");
+  }
 
   // Escuta os contratos do escopo efetivo em tempo real
   useEffect(() => {
@@ -121,13 +155,52 @@ export default function Emprestimos() {
           </div>
           <button
             type="button"
-            onClick={() => navigate("/contratos/novo")}
-            className="h-12 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
+            onClick={tentarIrParaCadastro}
+            disabled={cadastroBloqueado}
+            title={
+              cadastroBloqueado
+                ? contaBloqueada
+                  ? "Conta bloqueada. Entre em contato com o administrador."
+                  : permissaoNegada
+                  ? "Seu plano não permite criar contratos."
+                  : "Limite de contratos atingido. Entre em contato com o administrador para aumentar seu limite."
+                : "Criar novo contrato"
+            }
+            className={`h-12 px-5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shrink-0 transition ${
+              cadastroBloqueado
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99]"
+            }`}
           >
-            <Plus className="w-4.5 h-4.5" />
+            {cadastroBloqueado ? (
+              <Lock className="w-4.5 h-4.5" />
+            ) : (
+              <Plus className="w-4.5 h-4.5" />
+            )}
             Novo contrato
           </button>
         </div>
+
+        {/* Banner de bloqueio: limite/permissão/status */}
+        {cadastroBloqueado && !loadingDono && (
+          <div
+            role="alert"
+            className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+          >
+            <span className="shrink-0 mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
+              <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            </span>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+              {contaBloqueada
+                ? "Conta bloqueada. Entre em contato com o administrador."
+                : permissaoNegada
+                ? "A criação de contratos foi bloqueada pelo administrador. Entre em contato para liberar."
+                : `Limite de contratos atingido. Seu limite atual é de ${limiteContratos} ${
+                    limiteContratos === 1 ? "contrato" : "contratos"
+                  }. Entre em contato com o administrador para aumentar seu limite.`}
+            </p>
+          </div>
+        )}
 
         {/* Filtros de status */}
         <div className="mt-4 flex flex-wrap gap-2">
@@ -161,11 +234,25 @@ export default function Emprestimos() {
             </p>
             <button
               type="button"
-              onClick={() => navigate("/contratos/novo")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+              onClick={tentarIrParaCadastro}
+              disabled={cadastroBloqueado}
+              className={`mt-5 h-11 px-5 rounded-xl text-sm font-bold transition ${
+                cadastroBloqueado
+                  ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                  : "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98]"
+              }`}
             >
-              Criar primeiro contrato
+              {cadastroBloqueado ? "Criação indisponível" : "Criar primeiro contrato"}
             </button>
+            {cadastroBloqueado && !loadingDono && (
+              <p className="mt-3 max-w-xs text-xs text-amber-700 dark:text-amber-300">
+                {contaBloqueada
+                  ? "Conta bloqueada. Entre em contato com o administrador."
+                  : permissaoNegada
+                  ? "A criação de contratos foi bloqueada pelo administrador."
+                  : `Limite de contratos atingido (${limiteContratos}). Entre em contato com o administrador para aumentar.`}
+              </p>
+            )}
           </section>
         ) : filtrados.length === 0 ? (
           <section className="mt-14 mb-16 flex flex-col items-center text-center">
@@ -264,10 +351,28 @@ export default function Emprestimos() {
           <button
             type="button"
             aria-label="Novo contrato"
-            onClick={() => navigate("/contratos/novo")}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-jurex to-emerald-500 text-white flex items-center justify-center shadow-lg shadow-jurex/40 hover:brightness-105 active:scale-95 transition"
+            onClick={tentarIrParaCadastro}
+            disabled={cadastroBloqueado}
+            title={
+              cadastroBloqueado
+                ? contaBloqueada
+                  ? "Conta bloqueada"
+                  : permissaoNegada
+                  ? "Criação bloqueada pelo administrador"
+                  : "Limite de contratos atingido"
+                : "Novo contrato"
+            }
+            className={`fixed bottom-6 right-6 w-14 h-14 rounded-full text-white flex items-center justify-center transition ${
+              cadastroBloqueado
+                ? "bg-slate-300 dark:bg-slate-700 cursor-not-allowed"
+                : "bg-gradient-to-r from-jurex to-emerald-500 shadow-lg shadow-jurex/40 hover:brightness-105 active:scale-95"
+            }`}
           >
-            <Plus className="w-6 h-6" />
+            {cadastroBloqueado ? (
+              <Lock className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+            ) : (
+              <Plus className="w-6 h-6" />
+            )}
           </button>
         )}
       </div>

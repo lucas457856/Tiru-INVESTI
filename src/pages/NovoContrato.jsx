@@ -12,17 +12,19 @@ import {
   Check,
   Search,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
-import { db, auth } from "../services/firebase";
-import { collection, addDoc, doc, getCountFromServer, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { useDonoAdmin } from "../hooks/useDonoAdmin";
+import { db } from "../services/firebase";
+import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
-import { criarNotificacao } from "../services/notificationsService";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
+import { criarContrato as criarContratoApi } from "../services/adminService";
 import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
@@ -48,6 +50,20 @@ export default function NovoContrato() {
   // do contrato no Firestore. Ausência de `id` => modo criação.
   const { id: idEdicao } = useParams();
   const modoEdicao = Boolean(idEdicao);
+  // Limites, permissões e status do DONO (defaults permissivos
+  // aplicados automaticamente — ver useDonoAdmin). Usado para
+  // bloquear o submit quando o limite de contratos foi atingido
+  // ou quando a permissão `criarContratos` foi revogada.
+  // A defesa real continua no endpoint server-side
+  // /api/admin/criar-contrato, que valida o limite no Admin SDK
+  // e o Firestore Rules nega create direto do client SDK.
+  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  // Contagem atual de contratos do escopo efetivo. Mantida em
+  // tempo real pelo onSnapshot para detectar "limite atingido"
+  // entre o momento em que o usuário abriu a página e o
+  // instante do submit. No modo edição, a checagem do limite
+  // não se aplica (editar não cria novo documento).
+  const [qtdContratos, setQtdContratos] = useState(0);
 
   // Formulário
   const [valor, setValor] = useState("");
@@ -109,6 +125,38 @@ export default function NovoContrato() {
       setCarregandoClientes(false);
     }).catch(() => setCarregandoClientes(false));
   }, [effectiveUid]);
+
+  // Acompanha a contagem atual de contratos do escopo efetivo
+  // em tempo real. Quando não há effectiveUid, o estado
+  // permanece em 0 (default) e nenhum listener é aberto —
+  // sem setState dentro do effect. Usado para checar
+  // "limite de contratos atingido" no momento do submit.
+  useEffect(() => {
+    if (!effectiveUid) return undefined;
+    const q = query(
+      collection(db, "usuarios", effectiveUid, "contratos")
+    );
+    const unsub = onSnapshot(q, (snap) => setQtdContratos(snap.size));
+    return unsub;
+  }, [effectiveUid]);
+
+  // Regra de bloqueio (espelha Emprestimos.jsx). limite.contratos
+  // = 0 significa "sem limite" — não bloqueia. permissoes.
+  // criarContratos = false → bloqueia sempre. status =
+  // "bloqueado" → bloqueia sempre. No modo edição, a checagem
+  // não se aplica (não cria novo documento).
+  const limiteContratos = limites.contratos;
+  const contaBloqueada = statusDono === "bloqueado";
+  const permissaoNegada =
+    !contaBloqueada && permissoes.criarContratos === false;
+  const limiteAtingido =
+    !modoEdicao &&
+    !loadingDono &&
+    !contaBloqueada &&
+    !permissaoNegada &&
+    limiteContratos > 0 &&
+    qtdContratos >= limiteContratos;
+  const cadastroBloqueado = contaBloqueada || permissaoNegada || limiteAtingido;
 
   // Filtra clientes pela busca
   const clientesFiltrados = useMemo(() => {
@@ -361,12 +409,28 @@ export default function NovoContrato() {
     if (!usuario) return setErro("Usuário não autenticado.");
     if (!effectiveUid) return setErro("Sessão sem escopo de proprietário.");
 
-    // Identifica QUEM está criando o contrato: o dono (auth.currentUser.uid
-    // === effectiveUid) ou um funcionário (uid diferente). Esse valor é
-    // gravado em `createdBy` na criação e serve para o contador de
-    // "contratos utilizados" da página de Funcionários.
-    const criadorUid = auth.currentUser?.uid || usuario.uid;
-    const ehFuncionarioLogado = criadorUid !== effectiveUid;
+    // Bloqueio de UX antes de chamar o endpoint. Aplica-se
+    // SOMENTE ao modo de criação — em modo edição, o
+    // updateDoc apenas altera o documento existente e não
+    // cria novo, portanto o limite de quantidade não se aplica.
+    // A defesa real está no servidor (Admin SDK) e nas
+    // Firestore Rules, mas este early-return evita round-trip
+    // e dá feedback imediato ao usuário.
+    if (!modoEdicao && cadastroBloqueado) {
+      if (contaBloqueada) {
+        return setErro("Conta bloqueada. Entre em contato com o administrador.");
+      }
+      if (permissaoNegada) {
+        return setErro(
+          "A criação de contratos foi bloqueada pelo administrador. Entre em contato para liberar."
+        );
+      }
+      return setErro(
+        `Limite de contratos atingido. Seu limite atual é de ${limiteContratos} ${
+          limiteContratos === 1 ? "contrato" : "contratos"
+        }. Entre em contato com o administrador para aumentar seu limite.`
+      );
+    }
 
     try {
       setSalvando(true);
@@ -426,142 +490,51 @@ export default function NovoContrato() {
 
       // ====== MODO CRIAÇÃO ======
 
-      // Gate de funcionário: antes de criar, valida status e limite.
-      // O DONO (criadorUid === effectiveUid) nunca passa por aqui.
-      if (ehFuncionarioLogado) {
-        const funcQuery = query(
-          collection(db, "usuarios", effectiveUid, "funcionarios"),
-          where("authUid", "==", criadorUid),
-        );
-        const funcSnap = await getDocs(funcQuery);
-        const funcDoc = funcSnap.docs[0]?.data();
-        if (!funcDoc) {
-          setSalvando(false);
-          return setErro("Funcionário não encontrado. Contate o proprietário.");
-        }
-        if ((funcDoc.status || "ativo") === "inativo") {
-          setSalvando(false);
-          return setErro(
-            "Seu acesso foi desativado. Entre em contato com o administrador da conta.",
-          );
-        }
-        const limite = Number(funcDoc.limiteContratos) || 0;
-        if (limite > 0) {
-          const contQuery = query(
-            collection(db, "usuarios", effectiveUid, "contratos"),
-            where("createdBy", "==", criadorUid),
-          );
-          const contSnap = await getDocs(contQuery);
-          if (contSnap.size >= limite) {
-            setSalvando(false);
-            return setErro(
-              "Limite de contratos atingido. Procure o administrador.",
-            );
-          }
-        }
-      }
-
-      // Gate administrativo: status, permissão e limite de contratos
-      // definidos pelo Painel Administrativo principal (ADMIN_UID).
-      // Vale para DONO e FUNCIONÁRIO (effectiveUid = dono). Os campos
-      // são opcionais (defaults permissivos) para compatibilidade com
-      // donos antigos.
-      const donoRef = doc(db, "usuarios", effectiveUid);
-      const donoSnap = await getDoc(donoRef);
-      const dono = donoSnap.exists() ? donoSnap.data() : {};
-      if (dono.status === "bloqueado") {
-        setSalvando(false);
-        return setErro(
-          "Conta bloqueada pelo administrador. Não é possível criar contratos.",
-        );
-      }
-      if (dono.permissoes?.criarContratos === false) {
-        setSalvando(false);
-        return setErro(
-          "A criação de contratos foi bloqueada pelo administrador.",
-        );
-      }
-      const limiteContratos = Number(dono.limites?.contratos) || 0;
-      if (limiteContratos > 0) {
-        const contSnap = await getCountFromServer(
-          collection(db, "usuarios", effectiveUid, "contratos"),
-        );
-        const cont = contSnap.data().count || 0;
-        if (cont >= limiteContratos) {
-          setSalvando(false);
-          return setErro(
-            `Limite de contratos atingido (${cont}/${limiteContratos}). Entre em contato com o administrador.`,
-          );
-        }
-      }
-
-      const docRef = await addDoc(collection(db, "usuarios", effectiveUid, "contratos"), {
-        // Vínculo com o cliente selecionado
+      // A criação do contrato é feita via endpoint server-side
+      // (/api/admin/criar-contrato), que usa Admin SDK e valida
+      // token, status, permissoes, LIMITE DE CONTRATOS do dono
+      // (com getCountFromServer no Firestore) e LIMITE INDIVIDUAL
+      // do funcionário (quando aplicável) antes de gravar. Isso
+      // garante que mesmo um addDoc direto do client SDK seja
+      // bloqueado (as Firestore Rules negam create em
+      // /usuarios/{uid}/contratos para o client SDK — apenas
+      // Admin SDK cria).
+      const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
+      const resp = await criarContratoApi({
         clienteId: clienteSel.id,
-        clienteNome: clienteSel.nomeCompleto,
-        // Dados financeiros
-        nome: clienteSel.nomeCompleto,
         valorEmprestado: valorNumero,
-        valorParcela: resumo.valorParcela,
-        totalReceber: resumo.totalReceber,
-        valorRecebido: 0,
-        jurosRecebidos: 0,              // juros acumulados recebidos
-        saldoPrincipal: valorNumero,    // R$ original menos abatimentos
-        tipoEmprestimo,
-        juros: tipoEmprestimo === "Com Juros" ? jurosNumero : 0,
-        // tipoJuros só é persistido quando há juros. "parcela" ou "total".
-        // Quando "Sem Juros", grava null para deixar explícito que não se aplica.
-        tipoJuros: tipoEmprestimo === "Com Juros" ? tipoJuros : null,
-        // Quem criou o contrato: o UID autenticado. Para o dono é o
-        // próprio effectiveUid; para o funcionário é o authUid dele.
-        // Contratos antigos sem `createdBy` continuam funcionando
-        // normalmente (sistema legado).
-        createdBy: criadorUid,
         numeroParcelas: parcelasNumero,
-        // Juros em atraso
-        cobrarJurosAtraso: jurosAtraso ? true : false,
-        modoJurosAtraso: jurosAtraso ? modoJurosAtraso : null,
-        jurosAtrasoValor: jurosAtraso ? (parseFloat(jurosAtrasoValor.replace(",", ".")) || 0) : 0,
-        // Condições
+        juros: tipoEmprestimo === "Com Juros" ? jurosNumero : 0,
+        tipoJuros: tipoEmprestimo === "Com Juros" ? tipoJuros : null,
+        tipoEmprestimo,
         frequencia,
         dataPrimeiraParcela: dataPrimeira,
+        valorParcela: resumo.valorParcela,
+        totalReceber: resumo.totalReceber,
+        jurosAtraso: {
+          cobrar: !!jurosAtraso,
+          modo: jurosAtraso ? modoJurosAtraso : null,
+          valor: jurosAtraso ? (parseFloat(jurosAtrasoValor.replace(",", ".")) || 0) : 0,
+        },
         observacao: temObservacao ? observacao.trim() : "",
-        // Status
-        quitado: false,
-        parcelasPagas: 0,
-        dataProximo: dataPrimeira,
-        abatimentos: [],        // array de { parcelaNumero, valor, data, observacao }
-        abatimentoTotal: 0,     // soma de todos os abatimentos (índice)
-        criadoEm: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
-      // Notificação do app: aparece no sino e na página /notificacoes.
-      // Best-effort: se falhar (offline, permissão), não bloqueia o fluxo.
-      //
-      // Toast nativo: disparado APENAS se o doc Firestore foi criado
-      // (success branch via .then). Garante 1 doc ↔ 1 notificação nativa,
-      // sem duplicar se a Firestore write falhar.
-      const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
-      // Notificação vai para o caminho do PROPRIETÁRIO (não do auth uid).
-      // A coleção `usuarios/{ownerUid}/notificacoes` é compartilhada entre
-      // dono e funcionários do mesmo dono (regra do Firestore), e o sino
-      // do app sempre lê da conta do proprietário. Para DONO, ambos são
-      // iguais; para FUNCIONÁRIO, é o `ownerUid` vinculado.
-      criarNotificacao(effectiveUid, {
-        tipo: "contrato_criado",
-        titulo: "Novo contrato criado",
-        descricao: descricaoContrato,
-        contratoId: docRef.id,
-        valor: valorNumero,
-      })
-        .then(() => {
-          mostrarNotificacaoNativa("Novo contrato criado", descricaoContrato, {
-            tipo: "contrato_criado",
-            contratoId: docRef.id,
-          });
-        })
-        .catch((err) => console.error("criarNotificacao(contrato_criado):", err));
-      navigate(`/contratos/${docRef.id}/sucesso`);
+      if (!resp || !resp.ok) {
+        setSalvando(false);
+        setErro(resp?.erro || "Não foi possível criar o contrato. Tente novamente.");
+        return;
+      }
+
+      // Notificação nativa (a do app já foi gravada pelo endpoint).
+      // Best-effort: se falhar, não bloqueia o fluxo.
+      try {
+        mostrarNotificacaoNativa("Novo contrato criado", descricaoContrato, {
+          tipo: "contrato_criado",
+          contratoId: resp.id,
+        });
+      } catch (err) {
+        console.error("mostrarNotificacaoNativa:", err);
+      }
+      navigate(`/contratos/${resp.id}/sucesso`);
     } catch (err) {
       console.error("Erro ao salvar contrato:", err);
       setErro(
@@ -719,6 +692,29 @@ export default function NovoContrato() {
               ausentes (evita gravar lixo). */}
           {(!modoEdicao || estadoEdicao === "pronto") && (
           <form onSubmit={criarContrato} className="mt-6 lg:mt-7 space-y-6 pb-24">
+            {/* Banner de bloqueio (limite/permissão/status).
+                Só é exibido no modo criação — no modo edição não
+                se aplica (updateDoc não cria novo documento). */}
+            {!modoEdicao && cadastroBloqueado && !loadingDono && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+              >
+                <span className="shrink-0 mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
+                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                </span>
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+                  {contaBloqueada
+                    ? "Conta bloqueada. Entre em contato com o administrador."
+                    : permissaoNegada
+                    ? "A criação de contratos foi bloqueada pelo administrador. Entre em contato para liberar."
+                    : `Limite de contratos atingido. Seu limite atual é de ${limiteContratos} ${
+                        limiteContratos === 1 ? "contrato" : "contratos"
+                      }. Entre em contato com o administrador para aumentar seu limite.`}
+                </p>
+              </div>
+            )}
+
             {/* Cliente (dropdown customizado) */}
             <div ref={wrapperClienteRef} className="relative">
               <label className={classeLabel}>Cliente</label>
@@ -1084,22 +1080,33 @@ export default function NovoContrato() {
                   !clienteSel ||
                   valorNumero <= 0 ||
                   parcelasNumero <= 0 ||
-                  (tipoEmprestimo === "Com Juros" && jurosNumero <= 0)
+                  (tipoEmprestimo === "Com Juros" && jurosNumero <= 0) ||
+                  (!modoEdicao && cadastroBloqueado)
                 }
-                className={`w-full h-12 rounded-[10px] bg-jurex hover:bg-jurex-dark text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-sm shadow-jurex/30 transition ${
+                className={`w-full h-12 rounded-[10px] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-sm shadow-jurex/30 transition ${
                   salvando ||
                   !clienteSel ||
                   valorNumero <= 0 ||
                   parcelasNumero <= 0 ||
-                  (tipoEmprestimo === "Com Juros" && jurosNumero <= 0)
-                    ? "opacity-60 pointer-events-none"
-                    : ""
+                  (tipoEmprestimo === "Com Juros" && jurosNumero <= 0) ||
+                  (!modoEdicao && cadastroBloqueado)
+                    ? "bg-slate-300 dark:bg-slate-700 cursor-not-allowed"
+                    : "bg-jurex hover:bg-jurex-dark"
                 }`}
               >
                 {salvando ? (
                   <>
                     <LoaderCircle className="w-5 h-5 animate-spin" />
                     Salvando...
+                  </>
+                ) : !modoEdicao && cadastroBloqueado ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    {contaBloqueada
+                      ? "Conta bloqueada"
+                      : permissaoNegada
+                      ? "Criação bloqueada"
+                      : "Limite de contratos atingido"}
                   </>
                 ) : modoEdicao ? (
                   "Salvar alterações"

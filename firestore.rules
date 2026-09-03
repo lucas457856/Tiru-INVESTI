@@ -83,18 +83,35 @@ service cloud.firestore {
       // ====== Subcoleções do dono ======
       // Para TUDO dentro do escopo do dono (exceto config/modelosContrato,
       // que são exclusivos do dono), tanto o DONO quanto seus FUNCIONÁRIOS
-      // têm acesso de leitura e escrita.
+      // têm acesso de leitura e escrita — EXCETO na criação dos
+      // recursos CRÍTICOS (clientes via top-level, contratos e
+      // funcionários), que SÓ podem ser criados via endpoint server-side
+      // (/api/admin/criar-cliente, /api/admin/criar-contrato,
+      // /api/auth/create-employee). Esses endpoints validam token,
+      // limites, permissões e status no Admin SDK antes de gravar.
+      //
+      // POR QUE A CRIAÇÃO É SERVER-SIDE:
+      //   O Firestore Rules não consegue contar documentos de uma
+      //   coleção/query de forma confiável e portável para validar
+      //   limites. A solução segura é mover o create para endpoints
+      //   com Admin SDK, que ignoram as Rules e executam a checagem
+      //   no servidor. Mantém `read`, `update` e `delete` no client
+      //   SDK para preservar a UX atual (listagem em tempo real,
+      //   edição e exclusão). Writes diretos do client em clientes
+      //   (top-level), contratos e funcionários são BLOQUEADOS aqui.
 
       // Funcionários (lista de funcionários do dono)
-      // - Dono: CRUD total
+      // - CREATE: BLOQUEADO via client SDK. Apenas o endpoint
+      //   server-side /api/auth/create-employee (Admin SDK) cria.
+      // - READ/UPDATE/DELETE: dono total (preserva UX).
       // - O próprio funcionário (authUid == resource.data.authUid): LÊ
       //   seu próprio doc para detectar mudança de status em tempo real.
-      //   Não pode editar (edição só via endpoint server-side).
-      // - Funcionário de OUTRO dono: bloqueado
       match /funcionarios/{funcionarioId} {
-        allow read, write: if ehDono(uid);
+        allow read, update, delete: if ehDono(uid);
         allow read: if request.auth != null
           && request.auth.uid == resource.data.authUid;
+        // create NÃO é permitido para ninguém via client SDK.
+        // Admin SDK (usado pelo endpoint) ignora as Rules.
       }
 
       // Configurações do dono: SOMENTE o dono
@@ -128,8 +145,12 @@ service cloud.firestore {
       }
 
       // Contratos: dono e funcionário do dono acessam
+      // - CREATE: BLOQUEADO via client SDK. Apenas o endpoint
+      //   server-side /api/admin/criar-contrato (Admin SDK) cria.
+      // - READ/UPDATE/DELETE: dono e funcionário (UX atual preservada).
       match /contratos/{contratoId} {
-        allow read, write: if ehDonoOuFuncionario(uid);
+        allow read, update, delete: if ehDonoOuFuncionario(uid);
+        // create NÃO é permitido para ninguém via client SDK.
 
         // Subcoleção de pagamentos (4º nível)
         match /pagamentos/{pagamentoId} {
@@ -156,27 +177,25 @@ service cloud.firestore {
         && resource.data.ownerId == meuPerfil().ownerUid
         && meuPerfil().role == 'funcionario';
 
-      // Create: o ownerId do novo doc deve ser o uid do dono OU o
-      // ownerUid do funcionário. Impede que um funcionário crie
-      // clientes para um owner diferente.
+      // CREATE: BLOQUEADO via client SDK. Apenas o endpoint server-side
+      // /api/admin/criar-cliente (Admin SDK) cria. Esse endpoint
+      // valida token, limites, permissões e status no servidor.
+      // O dono NÃO pode mais criar clientes chamando addDoc direto
+      // (mesmo burlando o JS) — a checagem real acontece no Admin SDK.
       //
-      // Também exige que `createdBy` (quando presente) seja igual ao
-      // próprio uid do criador. Isso impede que um funcionário crie
-      // um cliente fingindo que outro usuário foi o autor. Clientes
-      // antigos (sem `createdBy`) continuam sendo aceitos — o campo é
-      // opcional, somente validado quando enviado.
-      allow create: if request.auth != null
-        && (
-          request.resource.data.ownerId == request.auth.uid
-          || (
-            request.resource.data.ownerId == meuPerfil().ownerUid
-            && meuPerfil().role == 'funcionario'
-          )
-        )
-        && (
-          !('createdBy' in request.resource.data)
-          || request.resource.data.createdBy == request.auth.uid
-        );
+      // Mantemos a regra original comentada abaixo como referência:
+      //   allow create: if request.auth != null
+      //     && (
+      //       request.resource.data.ownerId == request.auth.uid
+      //       || (
+      //         request.resource.data.ownerId == meuPerfil().ownerUid
+      //         && meuPerfil().role == 'funcionario'
+      //       )
+      //     )
+      //     && (
+      //       !('createdBy' in request.resource.data)
+      //       || request.resource.data.createdBy == request.auth.uid
+      //     );
     }
   }
 }

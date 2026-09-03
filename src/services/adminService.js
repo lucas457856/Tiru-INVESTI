@@ -1,6 +1,7 @@
 // Wrappers de fetch para os endpoints administrativos.
 // O ID Token do usuário autenticado é enviado no header Authorization.
-// O backend (api/admin/*) valida que o uid é o ADMIN_UID.
+// O backend (api/admin/*) valida que o uid é o ADMIN_UID onde aplicável,
+// e valida status/permissoes/limites onde relevante.
 
 import { auth } from "./firebase";
 
@@ -101,5 +102,37 @@ export async function salvarDono(donoUid, { status, limites, permissoes } = {}) 
       "Content-Type": "application/json",
     },
     body,
+  });
+}
+
+// Cria um cliente para o DONO autenticado (ou para o DONO ao qual o
+// FUNCIONÁRIO autenticado está vinculado). Valida status, permissão
+// e limite de clientes no servidor (Admin SDK). Retorna
+// { ok, id, cliente }. Em caso de bloqueio, retorna { ok: false, erro }.
+export async function criarCliente(payload) {
+  const token = await getToken();
+  return requisitar("/api/admin/criar-cliente", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: payload || {},
+  });
+}
+
+// Cria um contrato para o DONO autenticado (ou para o DONO ao qual o
+// FUNCIONÁRIO autenticado está vinculado). Valida status, permissão
+// e limite de contratos no servidor (Admin SDK). Retorna
+// { ok, id, contrato }. Em caso de bloqueio, retorna { ok: false, erro }.
+export async function criarContrato(payload) {
+  const token = await getToken();
+  return requisitar("/api/admin/criar-contrato", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: payload || {},
   });
 }

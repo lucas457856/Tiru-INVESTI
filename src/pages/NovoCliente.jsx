@@ -1,33 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   House,
   Camera,
   Plus,
   LoaderCircle,
+  Lock,
 } from "lucide-react";
-import {
-  collection,
-  addDoc,
-  doc,
-  getCountFromServer,
-  getDoc,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { auth } from "../services/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
-import { db } from "../services/firebase";
+import { useDonoAdmin } from "../hooks/useDonoAdmin";
 import {
   validarFoto,
   enviarFoto,
   enviarDocumento,
 } from "../services/fotoService";
+import { criarCliente } from "../services/adminService";
 
 const SCORES = ["Baixo", "Médio", "Alto"];
 
@@ -53,12 +46,22 @@ export default function NovoCliente() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
+  // Limites, permissões e status do DONO (defaults permissivos
+  // aplicados automaticamente — ver useDonoAdmin). Usado para
+  // bloquear o submit quando o limite de clientes foi atingido.
+  // A defesa real continua no endpoint server-side
+  // /api/admin/criar-cliente, que valida o limite no Admin SDK e
+  // o Firestore Rules nega create direto do client SDK.
+  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  // Contagem atual de clientes do escopo efetivo (dono próprio ou
+  // dono do funcionário). Mantida em tempo real pelo onSnapshot.
+  // 0 = sem escopo / ainda não carregou.
+  const [qtdClientes, setQtdClientes] = useState(0);
 
   const [nome, setNome] = useState("");
   const [foto, setFoto] = useState(null); // preview (data URL) apenas visual
   const [fotoFile, setFotoFile] = useState(null); // arquivo real p/ upload
   const [enviandoFoto, setEnviandoFoto] = useState(false);
-  const [enviandoDocs, setEnviandoDocs] = useState(false);
   const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
@@ -68,6 +71,32 @@ export default function NovoCliente() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState(false);
+
+  // Acompanha a contagem atual de clientes para detectar
+  // "limite atingido" em tempo real (entre o momento em que o
+  // usuário abriu a página e o instante do submit). Quando não
+  // há effectiveUid, o estado permanece em 0 (default) e nenhum
+  // listener é aberto — sem setState dentro do effect.
+  useEffect(() => {
+    if (!effectiveUid) return undefined;
+    const q = query(collection(db, "clientes"), where("ownerId", "==", effectiveUid));
+    const unsub = onSnapshot(q, (snap) => setQtdClientes(snap.size));
+    return unsub;
+  }, [effectiveUid]);
+
+  // Regra de bloqueio (espelha Clientes.jsx). limite.clientes = 0
+  // significa "sem limite" — não bloqueia. permissoes.criarClientes
+  // = false → bloqueia sempre. status = "bloqueado" → bloqueia sempre.
+  const limiteClientes = limites.clientes;
+  const contaBloqueada = statusDono === "bloqueado";
+  const permissaoNegada = !contaBloqueada && permissoes.criarClientes === false;
+  const limiteAtingido =
+    !loadingDono &&
+    !contaBloqueada &&
+    !permissaoNegada &&
+    limiteClientes > 0 &&
+    qtdClientes >= limiteClientes;
+  const cadastroBloqueado = contaBloqueada || permissaoNegada || limiteAtingido;
 
   // Valida e mantém o arquivo selecionado no estado (upload só no salvar)
   function escolherFoto(e) {
@@ -106,75 +135,64 @@ export default function NovoCliente() {
     if (!telefone.trim()) return setErro("Informe o telefone do cliente.");
     if (!usuario) return setErro("Usuário não autenticado.");
     if (!effectiveUid) return setErro("Sessão sem escopo de proprietário.");
+
+    // Bloqueio de UX antes de chamar o endpoint. Se o limite já
+    // foi atingido, não faz o request — exibe a mensagem
+    // exata pedida e retorna. A defesa real está no servidor
+    // (Admin SDK) e nas Firestore Rules, mas este early-return
+    // evita round-trip e dá feedback imediato.
+    if (cadastroBloqueado) {
+      if (contaBloqueada) {
+        return setErro("Conta bloqueada. Entre em contato com o administrador.");
+      }
+      if (permissaoNegada) {
+        return setErro(
+          "Seu plano não permite cadastrar clientes. Entre em contato com o administrador."
+        );
+      }
+      return setErro(
+        `Limite de clientes atingido. Seu limite atual é de ${limiteClientes} ${
+          limiteClientes === 1 ? "cliente" : "clientes"
+        }. Entre em contato com o administrador para aumentar seu limite.`
+      );
+    }
     try {
       setSalvando(true);
 
-      // Gate administrativo: status, permissão e limite de clientes
-      // definidos pelo Painel Administrativo principal (ADMIN_UID).
-      // Os campos são opcionais (defaults permissivos) para garantir
-      // compatibilidade com donos antigos que ainda não têm esses
-      // campos no doc /usuarios/{uid}. Bloqueia antes do addDoc
-      // para evitar criar o cliente e ter que excluir.
-      const donoRef = doc(db, "usuarios", effectiveUid);
-      const donoSnap = await getDoc(donoRef);
-      const dono = donoSnap.exists() ? donoSnap.data() : {};
-      if (dono.status === "bloqueado") {
-        setSalvando(false);
-        return setErro(
-          "Conta bloqueada pelo administrador. Não é possível cadastrar clientes.",
-        );
-      }
-      if (dono.permissoes?.criarClientes === false) {
-        setSalvando(false);
-        return setErro(
-          "A criação de clientes foi bloqueada pelo administrador.",
-        );
-      }
-      const limiteClientes = Number(dono.limites?.clientes) || 0;
-      if (limiteClientes > 0) {
-        const contSnap = await getCountFromServer(
-          query(collection(db, "clientes"), where("ownerId", "==", effectiveUid)),
-        );
-        const cont = contSnap.data().count || 0;
-        if (cont >= limiteClientes) {
-          setSalvando(false);
-          return setErro(
-            `Limite de clientes atingido (${cont}/${limiteClientes}). Entre em contato com o administrador.`,
-          );
-        }
-      }
-
-      // Coleção única "clientes" com ownerId do escopo efetivo
-      // (= uid do dono; para funcionário, é o ownerUid do dono).
-      // (modelo exigido pelas Security Rules publicadas)
-      const ref = await addDoc(collection(db, "clientes"), {
-        ownerId: effectiveUid, // UID automático — nunca digitado pelo usuário
-        // Quem cadastrou o cliente: dono ou funcionário. Usado pelo
-        // /api/auth/delete-employee para excluir SOMENTE os clientes
-        // daquele funcionário (sem isso, não há como distinguir
-        // clientes de diferentes funcionários do mesmo dono).
-        // Clientes antigos (sem createdBy) ficam órfãos do ponto de
-        // vista de exclusão: nunca são apagados pela rotina de
-        // exclusão de funcionário (preserva dados pré-existentes).
-        createdBy: auth.currentUser?.uid ?? usuario?.uid ?? null,
+      // A criação do cliente é feita via endpoint server-side
+      // (/api/admin/criar-cliente), que usa Admin SDK e valida
+      // token, status, permissoes e LIMITE DE CLIENTES (com
+      // getCountFromServer no Firestore) antes de gravar. Isso
+      // garante que mesmo um addDoc direto do client SDK seja
+      // bloqueado (as Firestore Rules negam create em /clientes
+      // para o client SDK — apenas Admin SDK cria).
+      const resp = await criarCliente({
         nomeCompleto: nome.trim(),
-        cpf: cpf.replace(/\D/g, "") || "",
+        cpf: cpf.replace(/\D/g, ""),
         telefone: telefone.replace(/\D/g, ""),
         email: email.trim(),
         endereco: endereco.trim(),
         scoreCredito: score,
-        fotoUrl: "", // preenchido abaixo se houver foto
+        fotoUrl: "",
         documentos: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
+      if (!resp || !resp.ok) {
+        setSalvando(false);
+        setErro(
+          resp?.erro ||
+            "Não foi possível salvar o cliente. Verifique o login e as regras do Firestore.",
+        );
+        return;
+      }
+
+      const clienteId = resp.id;
 
       // Foto: upload depois de ter o ID real do documento
       if (fotoFile) {
         try {
           setEnviandoFoto(true);
           const url = await enviarFoto(fotoFile);
-          await updateDoc(doc(db, "clientes", ref.id), {
+          await updateDoc(doc(db, "clientes", clienteId), {
             fotoUrl: url,
             updatedAt: serverTimestamp(),
           });
@@ -194,12 +212,11 @@ export default function NovoCliente() {
       if (documentos.length > 0) {
         const objetosEnviados = [];
         try {
-          setEnviandoDocs(true);
           for (const file of documentos) {
             const objeto = await enviarDocumento(file);
             objetosEnviados.push(objeto);
           }
-          await updateDoc(doc(db, "clientes", ref.id), {
+          await updateDoc(doc(db, "clientes", clienteId), {
             documentos: objetosEnviados, // doc novo: array ainda vazio
             updatedAt: serverTimestamp(),
           });
@@ -210,8 +227,6 @@ export default function NovoCliente() {
               "Não foi possível enviar os documentos. Tente novamente."
           );
           // cliente permanece salvo; documentos podem ser reenviados na edição
-        } finally {
-          setEnviandoDocs(false);
         }
       }
 
@@ -255,6 +270,27 @@ export default function NovoCliente() {
         </div>
 
         <form onSubmit={cadastrar} className="mt-6 space-y-5 mb-24">
+          {/* Banner de bloqueio (limite/permissão/status) */}
+          {cadastroBloqueado && !loadingDono && (
+            <div
+              role="alert"
+              className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+            >
+              <span className="shrink-0 mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
+                <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              </span>
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 leading-relaxed">
+                {contaBloqueada
+                  ? "Conta bloqueada. Entre em contato com o administrador."
+                  : permissaoNegada
+                  ? "Seu plano não permite cadastrar clientes. Entre em contato com o administrador."
+                  : `Limite de clientes atingido. Seu limite atual é de ${limiteClientes} ${
+                      limiteClientes === 1 ? "cliente" : "clientes"
+                    }. Entre em contato com o administrador para aumentar seu limite.`}
+              </p>
+            </div>
+          )}
+
           {/* Nome completo */}
           <section>
             <label htmlFor="novo-cliente-nome" className={classeLabel}>
@@ -444,10 +480,18 @@ export default function NovoCliente() {
           {/* Cadastrar cliente */}
           <button
             type="submit"
-            disabled={salvando}
-            className="w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+            disabled={salvando || cadastroBloqueado}
+            className={`w-full h-13 rounded-2xl text-base font-bold flex items-center justify-center transition ${
+              cadastroBloqueado && !salvando
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] disabled:opacity-60 disabled:pointer-events-none"
+            }`}
           >
-            {salvando ? "Salvando..." : "Cadastrar cliente"}
+            {salvando
+              ? "Salvando..."
+              : cadastroBloqueado
+              ? "Cadastro bloqueado"
+              : "Cadastrar cliente"}
           </button>
         </form>
       </div>
