@@ -33,6 +33,7 @@ import {
   totalAbatimentos,
   calculatePrincipalQuitado,
   calculatePenalty,
+  calculateInterest,
   calcularStatusContrato,
 } from "../services/paymentCalculations.js";
 
@@ -221,6 +222,28 @@ export async function construirPdfContrato({
   const jurosRecebidos = Number(contrato?.jurosRecebidos) || 0;
   const statusContrato = calcularStatusContrato(contrato, agora);
 
+  // Total a pagar exibido no PDF: regra SOMENTE principal + juros − pagos − abatimentos.
+  // NÃO considera multas (mesmo que existam parcelas vencidas com multa calculada
+  // no sistema). A multa continua visível em outras seções do PDF (coluna "Multa"
+  // da tabela de parcelas) e nas regras do sistema — só não entra neste total.
+  // Usa a função `calculateInterest` (reutilizada, sem hardcode de 20%) para
+  // aplicar a taxa de juros REAL do contrato (`contrato.juros` em % a.m.).
+  //
+  // - `valorRecebido` é o total já pago pelo cliente (inclui principal, juros
+  //   e multas cobradas), portanto deduzir esse valor cobre todos os pagamentos.
+  // - `abatimentoTotal` é a soma de todos os `abatimentos` explícitos do
+  //   contrato (array `contrato.abatimentos`).
+  //
+  // Exemplos:
+  //   R$ 1.500 + 20% − 0 − 0 = R$ 1.800,00
+  //   R$ 2.000 + 10% − 0 − 0 = R$ 2.200,00
+  const jurosDoContrato = Number(contrato?.juros) || 0;
+  const jurosTotais = calculateInterest(valorOriginal, jurosDoContrato);
+  const totalAPagar = Math.max(
+    0,
+    Math.round((valorOriginal + jurosTotais - totalRecebido - abatimentoTotal) * 100) / 100,
+  );
+
   // Contadores reais de parcelas (calculados a partir do cronograma canônico)
   const contadores = parcelas.reduce(
     (acc, p) => {
@@ -238,7 +261,7 @@ export async function construirPdfContrato({
   linhaCampo("Valor original:", formatarMoeda(valorOriginal));
   linhaCampo("Principal quitado:", formatarMoeda(principalQuitado));
   linhaCampo("Abatimentos:", `-${formatarMoeda(abatimentoTotal)}`);
-  linhaCampo("Saldo atual:", formatarMoeda(saldoAtual));
+  linhaCampo("Total a pagar:", formatarMoeda(totalAPagar));
   linhaCampo("Juros recebidos:", formatarMoeda(jurosRecebidos));
   linhaCampo("Total recebido:", formatarMoeda(totalRecebido));
   linhaCampo(
