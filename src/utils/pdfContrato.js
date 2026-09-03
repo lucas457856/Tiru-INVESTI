@@ -15,8 +15,8 @@
 //                         abatimento explícito (juros_parte_divida).
 //   - Multa por atraso  : `calculatePenalty(contrato, parcela, agora)` — mesma
 //                         função usada em ReceberPagamento.
-//   - Resumo financeiro : `calculateDebtRemaining`, `totalAbatimentos`,
-//                         `calculatePrincipalQuitado` (paymentCalculations).
+//   - Resumo financeiro : `totalAbatimentos`, `calculatePrincipalQuitado`,
+//                         `calculateInterest` (paymentCalculations).
 //   - Status do contrato: `calcularStatusContrato(contrato, agora)` — mesma
 //                         função usada em EmprestimoDetalhes/Emprestimos.
 
@@ -29,7 +29,6 @@ import {
 } from "./formatadores.js";
 import { parcelasDoContrato } from "../services/contractService.js";
 import {
-  calculateDebtRemaining,
   totalAbatimentos,
   calculatePrincipalQuitado,
   calculatePenalty,
@@ -216,7 +215,6 @@ export async function construirPdfContrato({
   tituloSecao("RESUMO FINANCEIRO");
   const valorOriginal = Number(contrato?.valorEmprestado) || 0;
   const abatimentoTotal = totalAbatimentos(contrato?.abatimentos);
-  const saldoAtual = calculateDebtRemaining(contrato);
   const principalQuitado = calculatePrincipalQuitado(contrato);
   const totalRecebido = Number(contrato?.valorRecebido) || 0;
   const jurosRecebidos = Number(contrato?.jurosRecebidos) || 0;
@@ -272,15 +270,20 @@ export async function construirPdfContrato({
 
   // ---- Seção 4: Cronograma de parcelas
   tituloSecao("PARCELAS");
-  // Larguras e posições da tabela
+  // Larguras e posições da tabela.
+  // Coluna "Total com multa" foi adicionada entre "Recebido" e "Status"
+  // (informativa: valorOriginalParcela + jurosOriginais + multa calculada).
+  // As larguras foram redistribuídas proporcionalmente para acomodar a nova
+  // coluna sem estourar a largura útil (~182mm).
   const startX = M;
   const colNum = startX;
-  const colVenc = startX + 12;
-  const colValor = startX + 36;
-  const colJuros = startX + 58;
-  const colMulta = startX + 78;
-  const colRecebido = startX + 96;
-  const colStatus = startX + 124;
+  const colVenc = startX + 10;
+  const colValor = startX + 32;
+  const colJuros = startX + 52;
+  const colMulta = startX + 70;
+  const colRecebido = startX + 86;
+  const colTotalComMulta = startX + 110;
+  const colStatus = startX + 138;
 
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(7.5);
@@ -291,6 +294,7 @@ export async function construirPdfContrato({
   pdf.text("Juros", colJuros, y);
   pdf.text("Multa", colMulta, y);
   pdf.text("Recebido", colRecebido, y);
+  pdf.text("Total com multa", colTotalComMulta, y);
   pdf.text("Status", colStatus, y);
   y += 4;
   pdf.setDrawColor(...LINHA);
@@ -306,10 +310,21 @@ export async function construirPdfContrato({
     pdf.setDrawColor(...cor.fundo);
     pdf.rect(colStatus + 15, y - 3, 4, 4, "F");
 
+    // Reutiliza os MESMOS valores exibidos nas colunas "Valor original",
+    // "Juros" e "Multa" — sem regra nova de cálculo. Se a parcela não
+    // possui juros (jurosOriginais ausente) ou multa (parcela em dia /
+    // quitarJurosAtraso desligado), os campos caem para 0 automaticamente.
     const jurosParc = Number(p.jurosOriginais) || 0;
     const multaParc = calculatePenalty(contrato, p, agora);
     const valorOriginalParc =
       Number(p.valorOriginalParcela) || Number(p.valor) || 0;
+    // "Total com multa" — apenas informativo. Se a parcela não tem multa
+    // (multaParc === 0, ex.: em dia, paga, ou contrato sem juros em atraso),
+    // exibe R$ 0,00. Caso contrário, soma valor original + juros + multa.
+    const totalComMultaParc =
+      multaParc > 0
+        ? Math.round((valorOriginalParc + jurosParc + multaParc) * 100) / 100
+        : 0;
 
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);
@@ -320,6 +335,7 @@ export async function construirPdfContrato({
     pdf.text(formatarMoeda(jurosParc), colJuros, y);
     pdf.text(formatarMoeda(multaParc), colMulta, y);
     pdf.text(formatarMoeda(p.recebido || 0), colRecebido, y);
+    pdf.text(formatarMoeda(totalComMultaParc), colTotalComMulta, y);
     pdf.setTextColor(...cor.texto);
     pdf.text(p.status, colStatus + 20, y);
     y += 6;
