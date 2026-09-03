@@ -355,9 +355,20 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
         ? Number(parcela.valor)
         : calculateInstallmentValue(parcela.valorOriginalParcela || valorBaseParcela, jurosPorParcela + multa);
 
-      // Total a receber = parcela.valor (já inclui juros para renegociada)
-      // + multa de atraso (calculada em cima do valor original, como sempre)
-      const valorTotalParcela = Math.round((valorParcelaAtual + multa) * 100) / 100;
+      // Total a receber = parcela.valor (já inclui juros para renegociada).
+      // A multa só é somada aqui quando NÃO está embutida em parcela.valor.
+      // Para parcelas "Vencida" (geradas por `parcelasUtil.js:351`), o
+      // `parcela.valor` JÁ contém a multa — somar de novo causaria cobrança
+      // duplicada. Para "Pendente", a multa precisa ser adicionada.
+      //
+      // Esta é uma das correções do bug que impedia pagar parcelas vencidas:
+      // antes, somávamos a multa em qualquer caso, inflando o total a receber
+      // e fazendo `jurosRecebidos` ficar muito maior que os juros reais
+      // embutidos em parcela.valor (o que zerava `principalPago`).
+      const multaJaEmbutida = parcela.status === "Vencida" && Number(parcela.valor) > 0;
+      const valorTotalParcela = multaJaEmbutida
+        ? Math.round(valorParcelaAtual * 100) / 100
+        : Math.round((valorParcelaAtual + multa) * 100) / 100;
 
       totalRecebido = Number(valores.valorTotal) || valorTotalParcela;
 
@@ -370,10 +381,24 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
       //   Sem isso, o sistema somaria jurosPorParcela de novo em jurosRecebidos
       //   e zeraria o principal pago, gerando abatimento espúrio.
       // - Original: jurosPorParcela + multa.
+      // BUG FIX: o codigo antigo usava `jurosPorParcela` (juros TOTAL sobre
+      // valorEmprestado) como a fracao de juros desta parcela, mas
+      // `parcela.valor` (produzido por `parcelasUtil.js`) so embute o juros
+      // POR parcela. Usar `jurosPorParcela` inflava `jurosRecebidos` e zerava
+      // `principalPago`, de modo que `parcelasPagas` nunca incrementava
+      // (a parcela permanecia Pendente/Vencida mesmo apos o usuario
+      // confirmar o pagamento).
+      //
+      // Correcao: usar `parcela.jurosOriginais` (juros POR parcela) como a
+      // fracao de juros embutida em `parcela.valor`. Para "Vencida" a multa
+      // ja esta em `parcela.valor` (e descontada via `principalMaximo`).
+      const jurosDaParcela = Number(parcela.jurosOriginais) || 0;
       if (parcela.renegociada) {
-        jurosRecebidos = jurosPorParcela;
+        jurosRecebidos = jurosDaParcela;
+      } else if (multaJaEmbutida) {
+        jurosRecebidos = jurosDaParcela;
       } else {
-        jurosRecebidos = jurosPorParcela + multa;
+        jurosRecebidos = jurosDaParcela + multa;
       }
 
       // Parte de principal: o que sobra após pagar juros + multa
