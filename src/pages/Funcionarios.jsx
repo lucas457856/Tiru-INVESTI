@@ -19,6 +19,7 @@ import {
   Power,
   PowerOff,
   Search,
+  Trash2,
   UserPlus,
   UsersRound,
   ChevronLeft,
@@ -30,6 +31,7 @@ import HomeButton from "../components/HomeButton";
 import NotificationBellButton from "../components/NotificationBellButton";
 import FuncionarioModal from "../components/FuncionarioModal";
 import FuncionarioExcluirModal from "../components/FuncionarioExcluirModal";
+import FuncionarioExcluirDefinitivoModal from "../components/FuncionarioExcluirDefinitivoModal";
 import { useFuncionarios } from "../hooks/useFuncionarios";
 import { useAuth } from "../context/useAuth";
 
@@ -117,6 +119,7 @@ export default function Funcionarios() {
   const [modalCriar, setModalCriar] = useState(false);
   const [modalEditar, setModalEditar] = useState({ aberto: false, func: null });
   const [modalExcluir, setModalExcluir] = useState({ aberto: false, func: null });
+  const [modalExcluirDef, setModalExcluirDef] = useState({ aberto: false, func: null });
 
   // Filtragem
   const filtrados = useMemo(() => {
@@ -176,6 +179,9 @@ export default function Funcionarios() {
   }
   function abrirExcluir(func) {
     setModalExcluir({ aberto: true, func });
+  }
+  function abrirExcluirDef(func) {
+    setModalExcluirDef({ aberto: true, func });
   }
 
   return (
@@ -271,6 +277,7 @@ export default function Funcionarios() {
                       usado={contagemPorAuthUid[f.authUid] || 0}
                       aoEditar={() => abrirEditar(f)}
                       aoExcluir={() => abrirExcluir(f)}
+                      aoExcluirDef={() => abrirExcluirDef(f)}
                     />
                   ))}
                 </tbody>
@@ -286,6 +293,7 @@ export default function Funcionarios() {
                   usado={contagemPorAuthUid[f.authUid] || 0}
                   aoEditar={() => abrirEditar(f)}
                   aoExcluir={() => abrirExcluir(f)}
+                  aoExcluirDef={() => abrirExcluirDef(f)}
                 />
               ))}
             </div>
@@ -343,11 +351,18 @@ export default function Funcionarios() {
         aoFechar={() => setModalExcluir({ aberto: false, func: null })}
         aoSucesso={() => setModalExcluir({ aberto: false, func: null })}
       />
+
+      <FuncionarioExcluirDefinitivoModal
+        aberto={modalExcluirDef.aberto}
+        funcionario={modalExcluirDef.func}
+        aoFechar={() => setModalExcluirDef({ aberto: false, func: null })}
+        aoSucesso={() => setModalExcluirDef({ aberto: false, func: null })}
+      />
     </AppLayout>
   );
 }
 
-function LinhaTabela({ func, usado, aoEditar, aoExcluir }) {
+function LinhaTabela({ func, usado, aoEditar, aoExcluir, aoExcluirDef }) {
   const ativo = func.status === "ativo";
   return (
     <tr className="border-t border-slate-100 dark:border-slate-800">
@@ -407,13 +422,21 @@ function LinhaTabela({ func, usado, aoEditar, aoExcluir }) {
               <Power className="w-4 h-4" />
             </button>
           )}
+          <button
+            type="button"
+            onClick={aoExcluirDef}
+            title="Excluir definitivamente"
+            className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </td>
     </tr>
   );
 }
 
-function CardFuncionario({ func, usado, aoEditar, aoExcluir }) {
+function CardFuncionario({ func, usado, aoEditar, aoExcluir, aoExcluirDef }) {
   const ativo = func.status === "ativo";
   return (
     <article className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
@@ -465,6 +488,14 @@ function CardFuncionario({ func, usado, aoEditar, aoExcluir }) {
               <Power className="w-4 h-4" />
             </button>
           )}
+          <button
+            type="button"
+            onClick={aoExcluirDef}
+            title="Excluir definitivamente"
+            className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </article>

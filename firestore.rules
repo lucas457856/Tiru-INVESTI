@@ -145,6 +145,12 @@ service cloud.firestore {
       // Create: o ownerId do novo doc deve ser o uid do dono OU o
       // ownerUid do funcionário. Impede que um funcionário crie
       // clientes para um owner diferente.
+      //
+      // Também exige que `createdBy` (quando presente) seja igual ao
+      // próprio uid do criador. Isso impede que um funcionário crie
+      // um cliente fingindo que outro usuário foi o autor. Clientes
+      // antigos (sem `createdBy`) continuam sendo aceitos — o campo é
+      // opcional, somente validado quando enviado.
       allow create: if request.auth != null
         && (
           request.resource.data.ownerId == request.auth.uid
@@ -152,6 +158,10 @@ service cloud.firestore {
             request.resource.data.ownerId == meuPerfil().ownerUid
             && meuPerfil().role == 'funcionario'
           )
+        )
+        && (
+          !('createdBy' in request.resource.data)
+          || request.resource.data.createdBy == request.auth.uid
         );
     }
   }

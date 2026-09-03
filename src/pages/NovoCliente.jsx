@@ -13,6 +13,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import { auth } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
@@ -108,6 +109,14 @@ export default function NovoCliente() {
       // (modelo exigido pelas Security Rules publicadas)
       const ref = await addDoc(collection(db, "clientes"), {
         ownerId: effectiveUid, // UID automático — nunca digitado pelo usuário
+        // Quem cadastrou o cliente: dono ou funcionário. Usado pelo
+        // /api/auth/delete-employee para excluir SOMENTE os clientes
+        // daquele funcionário (sem isso, não há como distinguir
+        // clientes de diferentes funcionários do mesmo dono).
+        // Clientes antigos (sem createdBy) ficam órfãos do ponto de
+        // vista de exclusão: nunca são apagados pela rotina de
+        // exclusão de funcionário (preserva dados pré-existentes).
+        createdBy: auth.currentUser?.uid ?? usuario?.uid ?? null,
         nomeCompleto: nome.trim(),
         cpf: cpf.replace(/\D/g, "") || "",
         telefone: telefone.replace(/\D/g, ""),

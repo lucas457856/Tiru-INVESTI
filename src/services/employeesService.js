@@ -86,3 +86,17 @@ export function alternarStatusFuncionario(funcionarioId, acao) {
   }
   return atualizarFuncionario({ funcionarioId, action: acao });
 }
+
+// Exclui definitivamente um funcionário: remove a conta Auth, o doc
+// do funcionário, o perfil dele, e TODOS os clientes e contratos
+// que ele criou (filtrados por `createdBy == funcionarioAuthUid`).
+//
+// IMPORTANTE: clientes e contratos de OUTROS funcionários e do
+// DONO permanecem intactos. O endpoint é server-side (Admin SDK),
+// então o frontend não precisa de permissão adicional.
+export function excluirFuncionario({ funcionarioId, funcionarioAuthUid }) {
+  return postJSON("/api/auth/delete-employee", {
+    funcionarioId,
+    funcionarioAuthUid,
+  });
+}
