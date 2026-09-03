@@ -277,7 +277,7 @@ export default function Perfil() {
           <h2 className="text-xs font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
             Segurança
           </h2>
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100">
+          <div className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
             <button
               type="button"
               onClick={handleTrocarSenha}
@@ -285,10 +285,10 @@ export default function Perfil() {
               className="w-full flex items-center justify-between px-5 py-4 group disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <span className="flex items-center gap-3">
-                <span className="rounded-xl bg-emerald-50 p-2">
-                  <KeyRound className="w-4.5 h-4.5 text-emerald-600" />
+                <span className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-2">
+                  <KeyRound className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />
                 </span>
-                <span className="text-sm font-semibold text-slate-800">
+                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                   {enviandoSenha ? "Enviando e-mail…" : "Trocar senha"}
                 </span>
               </span>
