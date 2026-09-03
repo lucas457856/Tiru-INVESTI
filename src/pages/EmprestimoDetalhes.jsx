@@ -592,7 +592,7 @@ export default function EmprestimoDetalhes() {
                   type="button"
                   onClick={() => navigate("/dashboard")}
                   aria-label="Início"
-                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 border shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-[0_2px_4px_rgba(15,23,42,0.04)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
                 >
                   <Home className="w-[18px] h-[18px] text-slate-600 dark:text-slate-200" />
                 </button>

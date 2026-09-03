@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  House,
   Headset,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import HomeButton from "../components/HomeButton";
 
 export default function CentralAjuda() {
   const navigate = useNavigate();
@@ -23,9 +23,7 @@ export default function CentralAjuda() {
             >
               <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
             </button>
-            <span className="rounded-full bg-white dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 p-2">
-              <House className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
-            </span>
+            <HomeButton />
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">
               Central de ajuda
             </h1>

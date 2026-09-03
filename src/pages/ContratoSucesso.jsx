@@ -161,7 +161,7 @@ export default function ContratoSucesso() {
               type="button"
               onClick={() => navigate("/dashboard")}
               aria-label="Início"
-              className="rounded-full p-2 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 transition"
+              className="rounded-full p-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-[0_2px_4px_rgba(15,23,42,0.04)] hover:bg-slate-50 dark:hover:bg-slate-700 transition"
             >
               <House className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
             </button>

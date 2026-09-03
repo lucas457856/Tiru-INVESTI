@@ -104,7 +104,14 @@ export default function Perfil() {
               <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
             </button>
             <span className="rounded-full bg-slate-100 dark:bg-slate-800 p-2">
-              <Home className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
+              <button
+                type="button"
+                aria-label="Início"
+                onClick={() => navigate("/dashboard")}
+                className="block"
+              >
+                <Home className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
+              </button>
             </span>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Perfil</h1>
           </div>
