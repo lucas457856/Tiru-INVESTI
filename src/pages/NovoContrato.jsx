@@ -52,6 +52,15 @@ export default function NovoContrato() {
   const [parcelas, setParcelas] = useState("1");
   const [juros, setJuros] = useState("");
   const [tipoEmprestimo, setTipoEmprestimo] = useState("Com Juros");
+  // tipoJuros define COMO os juros são aplicados:
+  //   "parcela" → juros cobrado em CADA parcela (sem dividir por N)
+  //               Ex: 500/35%/2 → 250+175 = R$ 425,00; total R$ 850; lucro R$ 350.
+  //   "total"   → juros aplicado UMA ÚNICA VEZ sobre o valor emprestado,
+  //               dividido entre as parcelas.
+  //               Ex: 500/35%/2 → 250+87,50 = R$ 337,50; total R$ 675; lucro R$ 175.
+  // Default: "parcela" (preserva UX dos contratos novos). Contratos antigos
+  // sem `tipoJuros` no Firestore caem no fallback do helper de cálculo.
+  const [tipoJuros, setTipoJuros] = useState("parcela");
   const [frequencia, setFrequencia] = useState("Mensal");
   // Data da primeira parcela: preenche com a data de HOJE (local) ao abrir a tela.
   // Formato YYYY-MM-DD, compatível com <input type="date">.
@@ -172,6 +181,13 @@ export default function NovoContrato() {
         }
         // "Com Juros" se houver juros > 0, senão "Sem Juros"
         setTipoEmprestimo(Number(c.juros) > 0 ? "Com Juros" : "Sem Juros");
+        // tipoJuros só faz sentido quando há juros. Default = "parcela" para
+        // contratos novos. Contratos antigos sem o campo preservam o estado
+        // inicial ("parcela") na UI, mas o cálculo no Firestore respeita o
+        // fallback do helper.
+        if (c.tipoJuros === "total" || c.tipoJuros === "parcela") {
+          setTipoJuros(c.tipoJuros);
+        }
         if (c.frequencia) {
           setFrequencia(c.frequencia);
         }
@@ -254,31 +270,71 @@ export default function NovoContrato() {
   const jurosNumero = parseFloat(juros.replace(",", ".")) || 0;
   const parcelasNumero = parseInt(parcelas, 10) || 0;
 
-  // Resumo calculado dinamicamente
-  // REGRA DO SISTEMA (com juros):
-  //   juros       = valorEmprestado × (taxa / 100)        [APLICADO UMA ÚNICA VEZ]
-  //   totalReceber = valorEmprestado + juros
-  //   valorParcela = totalReceber / numeroParcelas
-  //   lucro       = totalReceber - valorEmprestado
+  // Resumo calculado dinamicamente.
+  // REGRAS DO SISTEMA (com juros):
+  //   - tipoJuros === "total" ("Sobre o total"):
+  //       juros       = valorEmprestado × (taxa / 100)        [UMA ÚNICA VEZ]
+  //       totalReceber = valorEmprestado + juros
+  //       valorParcela = totalReceber / numeroParcelas
+  //       lucro       = totalReceber - valorEmprestado
+  //       Ex: 500/35%/2 → 337,50 / 675,00 / 175,00.
+  //   - tipoJuros === "parcela" (default — "Por parcela"):
+  //       principalPorParcela = valorEmprestado / numeroParcelas
+  //       jurosPorParcela     = valorEmprestado × (taxa / 100)   [EM CADA PARCELA]
+  //       valorParcela        = principalPorParcela + jurosPorParcela
+  //       totalReceber        = valorParcela × numeroParcelas
+  //       lucro               = totalReceber - valorEmprestado
+  //       Ex: 500/35%/2 → 425,00 / 850,00 / 350,00.
   // A frequência (Semanal, Mensal, etc.) controla apenas DATAS, não o total.
   // Para "Sem Juros": valorParcela = valorEmprestado / numeroParcelas.
   const resumo = useMemo(() => {
     const totalParcelas = Math.max(parcelasNumero, 1);
-    const jurosTotal = tipoEmprestimo === "Com Juros"
-      ? Math.round(valorNumero * (jurosNumero / 100) * 100) / 100
-      : 0;
-    const totalReceber = Math.round((valorNumero + jurosTotal) * 100) / 100;
-    const valorParcela = totalParcelas > 0
-      ? Math.round((totalReceber / totalParcelas) * 100) / 100
-      : 0;
+
+    // "Sem Juros": parcela = principal ÷ N, sem juros.
+    if (tipoEmprestimo !== "Com Juros") {
+      const valorParcela = totalParcelas > 0
+        ? Math.round((valorNumero / totalParcelas) * 100) / 100
+        : 0;
+      return {
+        valorParcela,
+        totalReceber: valorNumero,
+        jurosTotal: 0,
+        lucro: 0,
+        valorOriginal: valorNumero,
+      };
+    }
+
+    // "Sobre o total": juros aplicado uma vez sobre o valor original,
+    // dividido entre as parcelas.
+    if (tipoJuros === "total") {
+      const jurosTotal = Math.round(valorNumero * (jurosNumero / 100) * 100) / 100;
+      const totalReceber = Math.round((valorNumero + jurosTotal) * 100) / 100;
+      const valorParcela = totalParcelas > 0
+        ? Math.round((totalReceber / totalParcelas) * 100) / 100
+        : 0;
+      return {
+        valorParcela,
+        totalReceber,
+        jurosTotal,
+        lucro: jurosTotal,
+        valorOriginal: valorNumero,
+      };
+    }
+
+    // "Por parcela" (default): juros cobrado em CADA parcela.
+    const principalPorParcela = valorNumero / totalParcelas;
+    const jurosPorParcelaValor = valorNumero * (jurosNumero / 100);
+    const valorParcela = Math.round((principalPorParcela + jurosPorParcelaValor) * 100) / 100;
+    const totalReceber = Math.round(valorParcela * totalParcelas * 100) / 100;
+    const lucro = Math.round((totalReceber - valorNumero) * 100) / 100;
     return {
       valorParcela,
       totalReceber,
-      jurosTotal,
-      lucro: jurosTotal,
+      jurosTotal: lucro,
+      lucro,
       valorOriginal: valorNumero,
     };
-  }, [valorNumero, jurosNumero, parcelasNumero, tipoEmprestimo]);
+  }, [valorNumero, jurosNumero, parcelasNumero, tipoEmprestimo, tipoJuros]);
 
   function formatarMoedaExibicao(v) {
     return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -328,6 +384,9 @@ export default function NovoContrato() {
           totalReceber: resumo.totalReceber,
           // juros: zera em modo "Sem Juros" para refletir a escolha do usuário
           juros: tipoEmprestimo === "Com Juros" ? jurosNumero : 0,
+          // tipoJuros só é persistido quando há juros. "parcela" ou "total".
+          // Quando "Sem Juros", grava null para deixar explícito que não se aplica.
+          tipoJuros: tipoEmprestimo === "Com Juros" ? tipoJuros : null,
           numeroParcelas: parcelasNumero,
           // Juros em atraso
           cobrarJurosAtraso: jurosAtraso ? true : false,
@@ -360,6 +419,9 @@ export default function NovoContrato() {
         saldoPrincipal: valorNumero,    // R$ original menos abatimentos
         tipoEmprestimo,
         juros: tipoEmprestimo === "Com Juros" ? jurosNumero : 0,
+        // tipoJuros só é persistido quando há juros. "parcela" ou "total".
+        // Quando "Sem Juros", grava null para deixar explícito que não se aplica.
+        tipoJuros: tipoEmprestimo === "Com Juros" ? tipoJuros : null,
         numeroParcelas: parcelasNumero,
         // Juros em atraso
         cobrarJurosAtraso: jurosAtraso ? true : false,
@@ -730,10 +792,43 @@ export default function NovoContrato() {
               </div>
             </div>
 
+            {/* Aplicação dos juros (só visível quando "Com Juros") */}
+            {tipoEmprestimo === "Com Juros" && (
+              <div>
+                <label className={classeLabel}>Aplicação dos juros</label>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTipoJuros("parcela")}
+                    className={
+                      tipoJuros === "parcela"
+                        ? classeBotaoSegmentoAtivo
+                        : classeBotaoSegmentoInativo
+                    }
+                  >
+                    Por parcela
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoJuros("total")}
+                    className={
+                      tipoJuros === "total"
+                        ? classeBotaoSegmentoAtivo
+                        : classeBotaoSegmentoInativo
+                    }
+                  >
+                    Sobre o total
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Juros % a.m. + Nº Parcelas (2 colunas) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={classeLabel}>Juros % a.m. (ao mês)</label>
+                <label className={classeLabel}>
+                  {tipoJuros === "total" ? "Juros % (total do contrato)" : "Juros % a.m. (ao mês)"}
+                </label>
                 <input
                   type="text"
                   placeholder="0"

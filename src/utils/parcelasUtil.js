@@ -60,7 +60,7 @@ export function totalAbatimentos(abatimentos) {
 // Fração de juros por parcela (em decimal sobre o principal base), ajustada
 // pela periodicidade do contrato.
 //
-// REGRA POR PERIODICIDADE:
+// REGRA POR PERIODICIDADE (contratos ANTIGOS — sem campo `tipoJuros`):
 // - Mensal: `juros` é taxa AO MÊS. Aplica-se diretamente sobre o principal
 //   base, SEM dividir por `numeroParcelas`. Ex: 500/35%/2x → 0,35 (35% a.m.),
 //   juros por parcela = 500 × 0,35 = 175. Valor = 250 + 175 = 425.
@@ -69,9 +69,33 @@ export function totalAbatimentos(abatimentos) {
 //   por parcela. Ex: 1700/35%/6x → 0,35/6 ≈ 0,0583, juros por parcela =
 //   1700 × 0,35 / 6 = 99,17. Valor = 283,33 + 99,17 = 382,50. Este é o
 //   comportamento já validado para contratos semanais.
+//
+// REGRA NOVA (contratos NOVOS — campo `tipoJuros` EXPLICITAMENTE definido):
+// - `tipoJuros === "parcela"`: juros cobrado em CADA parcela. A fração é
+//   `juros/100`, independente da frequência. Ex: 500/35%/2x → 0,35, juros
+//   por parcela = 500 × 0,35 = 175, valor da parcela = 250 + 175 = 425.
+// - `tipoJuros === "total"`: juros aplicado UMA ÚNICA VEZ sobre o valor
+//   emprestado, dividido entre as parcelas. A fração é `(juros/100) / N`.
+//   Ex: 500/35%/2x → 0,35/2 = 0,175, juros por parcela = 500 × 0,175 = 87,50,
+//   valor da parcela = 250 + 87,50 = 337,50. Total = 675, lucro = 175.
+//
+// Contratos sem `tipoJuros` preservam EXATAMENTE o comportamento histórico
+// (inclusive para Semanal/Diária/Quinzenal).
 export function jurosPorParcelaPorFrequencia(contrato) {
   const juros = Number(contrato?.juros) || 0;
   const total = Number(contrato?.numeroParcelas) || 0;
+
+  // Modo novo: campo `tipoJuros` explicitamente definido.
+  if (contrato?.tipoJuros === "parcela") {
+    // Juros cobrado em cada parcela (sem dividir por N).
+    return juros / 100;
+  }
+  if (contrato?.tipoJuros === "total") {
+    // Juros ÷ N — dividido entre as parcelas.
+    return total > 0 ? (juros / 100) / total : 0;
+  }
+
+  // Fallback (contratos antigos sem `tipoJuros`): comportamento original.
   if ((contrato?.frequencia || "") === "Mensal") {
     // 35% a.m. → 0,35 (sem dividir por N)
     return juros / 100;
