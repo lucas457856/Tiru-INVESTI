@@ -85,23 +85,10 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden md:flex w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col overflow-y-auto">
-      {/* Marca */}
+      {/* Usuário (no topo, sem o bloco da marca) */}
       <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/logo.png"
-            alt="Jurex"
-            className="w-9 h-9 rounded-lg object-cover"
-          />
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Jurex</p>
-            <p className="text-[10px] tracking-wide text-emerald-600 font-semibold uppercase">
-              Controle de empréstimos
-            </p>
-          </div>
-        </div>
         {primeiroNome && (
-          <div className="mt-3 flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
               {iniciais}
             </span>
