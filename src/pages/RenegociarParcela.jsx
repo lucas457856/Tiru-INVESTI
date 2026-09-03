@@ -152,7 +152,7 @@ export default function RenegociarParcela() {
     return () => {
       ativo = false;
     };
-  }, [usuario, contratoId, parcelaNum]);
+  }, [effectiveUid, contratoId, parcelaNum]);
 
   // Valores derivados da parcela
   const status = useMemo(() => {
@@ -210,7 +210,7 @@ export default function RenegociarParcela() {
 
     try {
       await renegociarParcela(
-        usuario,
+        { uid: effectiveUid },
         contrato,
         parcela.numero,
         valorReal,

@@ -13,7 +13,7 @@
 //   A sessão do DONO nunca é afetada.
 // - Senha NUNCA é persistida: vai direto do input para o POST.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Pencil,
   Power,
@@ -32,7 +32,6 @@ import FuncionarioModal from "../components/FuncionarioModal";
 import FuncionarioExcluirModal from "../components/FuncionarioExcluirModal";
 import { useFuncionarios } from "../hooks/useFuncionarios";
 import { useAuth } from "../context/useAuth";
-import { useEffectiveUid } from "../hooks/useEffectiveUid";
 
 const FILTROS = ["Todos", "Ativos", "Inativos"];
 const POR_PAGINA = 10;
@@ -106,16 +105,48 @@ function StatusBadge({ status }) {
 
 export default function Funcionarios() {
   const { role } = useAuth();
-  const ownerUid = useEffectiveUid();
   const { funcionarios, contagemPorAuthUid, loading } = useFuncionarios();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todos");
+  // `pagina` é resetada derivadamente quando busca/filtro mudam
+  // (padrão "derived state" — evita setState em effect).
   const [pagina, setPagina] = useState(1);
+  const [buscaFiltroAnterior, setBuscaFiltroAnterior] = useState({ busca, filtro });
 
   const [modalCriar, setModalCriar] = useState(false);
   const [modalEditar, setModalEditar] = useState({ aberto: false, func: null });
   const [modalExcluir, setModalExcluir] = useState({ aberto: false, func: null });
+
+  // Filtragem
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return funcionarios.filter((f) => {
+      if (filtro === "Ativos" && f.status !== "ativo") return false;
+      if (filtro === "Inativos" && f.status !== "inativo") return false;
+      if (!q) return true;
+      return (
+        (f.nome || "").toLowerCase().includes(q) ||
+        (f.email || "").toLowerCase().includes(q)
+      );
+    });
+  }, [funcionarios, busca, filtro]);
+
+  // Paginação
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+
+  // Reseta a página quando busca ou filtro mudam (sem setState em effect).
+  if (
+    buscaFiltroAnterior.busca !== busca ||
+    buscaFiltroAnterior.filtro !== filtro
+  ) {
+    setBuscaFiltroAnterior({ busca, filtro });
+    if (pagina !== 1) setPagina(1);
+  }
+
+  const paginaSegura = Math.min(Math.max(1, pagina), totalPaginas);
+  const inicio = (paginaSegura - 1) * POR_PAGINA;
+  const paginaItens = filtrados.slice(inicio, inicio + POR_PAGINA);
 
   // Funcionários não acessam esta página (Sidebar não expõe o link
   // para eles). Se chegar aqui por URL, mostra estado vazio neutro.
@@ -135,30 +166,6 @@ export default function Funcionarios() {
       </AppLayout>
     );
   }
-
-  // Filtragem
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return funcionarios.filter((f) => {
-      if (filtro === "Ativos" && f.status !== "ativo") return false;
-      if (filtro === "Inativos" && f.status !== "inativo") return false;
-      if (!q) return true;
-      return (
-        (f.nome || "").toLowerCase().includes(q) ||
-        (f.email || "").toLowerCase().includes(q)
-      );
-    });
-  }, [funcionarios, busca, filtro]);
-
-  // Paginação
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
-  const paginaSegura = Math.min(pagina, totalPaginas);
-  const inicio = (paginaSegura - 1) * POR_PAGINA;
-  const paginaItens = filtrados.slice(inicio, inicio + POR_PAGINA);
-
-  useEffect(() => {
-    setPagina(1);
-  }, [busca, filtro]);
 
   // Helpers de ação
   function abrirCriar() {
@@ -391,12 +398,14 @@ function LinhaTabela({ func, usado, aoEditar, aoExcluir }) {
               <PowerOff className="w-4 h-4" />
             </button>
           ) : (
-            <span
-              title="Inativo"
-              className="p-2 rounded-lg text-slate-300 dark:text-slate-600"
+            <button
+              type="button"
+              onClick={aoExcluir}
+              title="Ativar"
+              className="p-2 rounded-lg text-slate-500 hover:text-jurex hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
             >
               <Power className="w-4 h-4" />
-            </span>
+            </button>
           )}
         </div>
       </td>
@@ -437,13 +446,23 @@ function CardFuncionario({ func, usado, aoEditar, aoExcluir }) {
           >
             <Pencil className="w-4 h-4" />
           </button>
-          {ativo && (
+          {ativo ? (
             <button
               type="button"
               onClick={aoExcluir}
+              title="Inativar"
               className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
             >
               <PowerOff className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={aoExcluir}
+              title="Ativar"
+              className="p-2 rounded-lg text-slate-500 hover:text-jurex hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
+            >
+              <Power className="w-4 h-4" />
             </button>
           )}
         </div>

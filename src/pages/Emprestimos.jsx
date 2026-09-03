@@ -10,7 +10,6 @@ import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import NotificationBellButton from "../components/NotificationBellButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { numeroCurto } from "../utils/formatadores";
@@ -39,7 +38,6 @@ function statusContrato(c, hoje) {
 
 export default function Emprestimos() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   const [contratos, setContratos] = useState([]);
@@ -49,9 +47,21 @@ export default function Emprestimos() {
   // Escuta os contratos do escopo efetivo em tempo real
   useEffect(() => {
     if (!effectiveUid) return;
+    const path = `usuarios/${effectiveUid}/contratos`;
+    console.log("[CONTRATOS] query path:", path);
     const unsub = onSnapshot(
       query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "desc")),
-      (snap) => setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      (snap) => {
+        console.log("[CONTRATOS] snap recebido, docs:", snap.size);
+        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (err) => {
+        console.error("[CONTRATOS] erro:", {
+          code: err.code,
+          message: err.message,
+          effectiveUid,
+        });
+      }
     );
     return unsub;
   }, [effectiveUid]);

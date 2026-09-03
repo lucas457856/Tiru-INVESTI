@@ -155,7 +155,7 @@ export default function Dashboard() {
       }
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // ---- Cálculos derivados (todos a partir dos dados reais)
   // Contratos ATIVOS = não quitados (usado para "A receber" e "Parcelas hoje")
@@ -168,7 +168,7 @@ export default function Dashboard() {
   // (Firestore + nativa). Roda sempre que `contratosAtivos` muda (incluindo
   // re-emissões do onSnapshot). O dedup (Set em memória + localStorage)
   // garante 1 notificação por evento, mesmo com re-renders / F5 / navegação.
-  useNotificadorVencimentos(contratosAtivos, usuario?.uid);
+  useNotificadorVencimentos(contratosAtivos, effectiveUid);
 
   // ---- Carrega TODOS os pagamentos do usuário (fontes REAIS).
   // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.
@@ -178,7 +178,7 @@ export default function Dashboard() {
   // Itera por contrato (mesmo padrão de Relatorios.jsx e Parcelas.jsx).
   const [pagamentosPorContrato, setPagamentosPorContrato] = useState({});
   useEffect(() => {
-    if (!usuario || contratos.length === 0) {
+    if (!effectiveUid || contratos.length === 0) {
       setPagamentosPorContrato({});
       return undefined;
     }
@@ -203,7 +203,7 @@ export default function Dashboard() {
     return () => {
       cancelado = true;
     };
-  }, [usuario, contratos]);
+  }, [effectiveUid, contratos]);
 
   // Total emprestado = soma do valorEmprestado de TODOS os contratos
   // (inclui quitados — o capital foi emprestado e continua contando como

@@ -22,7 +22,6 @@ import {
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import {
@@ -62,7 +61,6 @@ function formatarTamanho(tamanho) {
 export default function PerfilCliente() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   const [cliente, setCliente] = useState(null);
@@ -110,7 +108,7 @@ export default function PerfilCliente() {
     return () => {
       ativo = false;
     };
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   // Escuta os contratos do escopo efetivo e filtra os vinculados a este cliente
   useEffect(() => {
@@ -130,7 +128,7 @@ export default function PerfilCliente() {
       (err) => console.error("Erro ao ouvir contratos:", err)
     );
     return unsub;
-  }, [usuario, cliente]);
+  }, [effectiveUid, cliente]);
 
   // Totais calculados a partir dos contratos vinculados (sem valores fixos)
   const totais = useMemo(() => {
@@ -166,7 +164,7 @@ export default function PerfilCliente() {
       setExcluindo(true);
       const ref = doc(db, "clientes", cliente.id);
       const snap = await getDoc(ref);
-      if (!snap.exists() || snap.data().ownerId !== usuario?.uid) {
+      if (!snap.exists() || snap.data().ownerId !== effectiveUid) {
         window.alert("Você não tem permissão para excluir este cliente.");
         return;
       }

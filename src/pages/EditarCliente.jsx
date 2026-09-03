@@ -9,7 +9,6 @@ import {
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { validarFoto, enviarFoto } from "../services/fotoService";
@@ -37,7 +36,6 @@ function formatarTelefoneInput(v) {
 export default function EditarCliente() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
@@ -89,7 +87,7 @@ export default function EditarCliente() {
     return () => {
       ativo = false;
     };
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   // Valida e guarda o arquivo novo; preview imediato enquanto envia no salvar
   function escolherFoto(e) {

@@ -112,7 +112,7 @@ export default function ReceberPagamento() {
       });
 
     return () => { ativo = false; };
-  }, [usuario, contratoId, parcelaNum]);
+  }, [effectiveUid, contratoId, parcelaNum]);
 
   // Cálculos derivados da parcela e contrato
   // REGRA FUNDAMENTAL:
@@ -358,7 +358,7 @@ export default function ReceberPagamento() {
 
     try {
       const result = await processarPagamento(
-        usuario,
+        { uid: effectiveUid },
         contrato,
         parcela,
         modalidade,

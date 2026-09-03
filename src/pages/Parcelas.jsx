@@ -38,7 +38,6 @@ import {
   getDoc,
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { parcelasDoContrato } from "../services/contractService";
@@ -272,7 +271,6 @@ const FILTROS = [
 
 export default function Parcelas() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
   const [searchParams] = useSearchParams();
 
@@ -343,14 +341,14 @@ export default function Parcelas() {
       }
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // ---- Carrega clientes REFERENCIADOS pelos contratos.
   // Estratégia em lote: coleta clienteId únicos e faz getDoc em paralelo
   // (sem listener — só leitura única por sessão). Se o contrato não tiver
   // clienteId, mantemos só o `clienteNome` denormalizado.
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const idsUnicos = Array.from(
       new Set(contratos.map((c) => c.clienteId).filter(Boolean))
     );
@@ -384,7 +382,7 @@ export default function Parcelas() {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contratos, usuario]);
+  }, [contratos, effectiveUid]);
 
   // ---- Constrói a lista mestra de parcelas
   // Cada item: { contratoId, parcela (original de parcelasDoContrato), cliente }

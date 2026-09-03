@@ -152,14 +152,25 @@ export default async function handler(req, res) {
   if (querMudarLimite) update.limiteContratos = limiteNumero;
   if (querMudarStatus) {
     update.status = novoStatus;
-    update.deletedAt = novoStatus === "inativo" ? FieldValue.serverTimestamp() : null;
+    // Inativar: marca deletedAt com timestamp.
+    // Reativar: REMOVE o campo deletedAt (FieldValue.delete). Nunca
+    // usamos `null` porque Firestore rejeita atribuir null a um campo
+    // já existente em `update()`.
+    if (novoStatus === "inativo") {
+      update.deletedAt = FieldValue.serverTimestamp();
+    } else {
+      update.deletedAt = FieldValue.delete();
+    }
   }
 
   try {
     await funcRef.update(update);
   } catch (err) {
-    console.error("updateDoc funcionário falhou:", err?.message);
-    return bad(res, 500, "Não foi possível atualizar o funcionário.");
+    // Repassa a mensagem real do Firestore (sem expor stack interno).
+    // Antes estava genérica e escondia o problema; agora conseguimos
+    // ver exatamente o motivo (permission-denied, not-found, etc.).
+    console.error("updateDoc funcionário falhou:", err?.code, err?.message);
+    return bad(res, 500, err?.message || "Não foi possível atualizar o funcionário.");
   }
 
   return res.status(200).json({ ok: true, funcionarioId });

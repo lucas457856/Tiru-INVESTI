@@ -87,7 +87,7 @@ export default function Perfil() {
         if (p.telefone) setTelefone(p.telefone);
       }
     });
-  }, [usuario]);
+  }, [usuario?.uid]);
 
   async function salvar(e) {
     e.preventDefault();

@@ -43,7 +43,7 @@ export default function useContract(usuario, id) {
       });
 
     return () => { ativo = false; };
-  }, [usuario, id]);
+  }, [usuario?.uid, id]);
 
   return { contrato, cliente, estado, erro };
 }

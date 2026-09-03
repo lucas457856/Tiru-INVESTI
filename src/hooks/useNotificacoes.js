@@ -8,7 +8,7 @@
 // consumidores via re-emissão do snapshot.
 
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "./useEffectiveUid";
 import {
   marcarComoLida as serviceMarcarComoLida,
   marcarTodasComoLidas as serviceMarcarTodasComoLidas,
@@ -16,8 +16,11 @@ import {
 } from "../services/notificationsService";
 
 export function useNotificacoes() {
-  const { usuario } = useAuth();
-  const uid = usuario?.uid || null;
+  // Notificações vivem em `usuarios/{ownerUid}/notificacoes` (regra do
+  // Firestore: dono e funcionário do dono acessam). Para DONO, é o
+  // próprio `usuario.uid`; para FUNCIONÁRIO, é o `ownerUid` vinculado.
+  // `useEffectiveUid` resolve isso de forma transparente.
+  const uid = useEffectiveUid();
 
   const [notificacoes, setNotificacoes] = useState([]);
   const [carregando, setCarregando] = useState(true);

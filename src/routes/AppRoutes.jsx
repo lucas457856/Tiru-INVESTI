@@ -11,6 +11,7 @@ import VerificarCodigo from "../pages/VerificarCodigo";
 import NovaSenha from "../pages/NovaSenha";
 import AcessoBloqueado from "../pages/AcessoBloqueado";
 import RotaProtegida from "../components/RotaProtegida";
+import RotaDono from "../components/RotaDono";
 
 import Dashboard from "../pages/Dashboard";
 import Calendario from "../pages/Calendario";
@@ -30,6 +31,7 @@ import HistoricoFinanceiro from "../pages/HistoricoFinanceiro";
 import Suporte from "../pages/Suporte";
 import BackupDados from "../pages/BackupDados";
 import Funcionarios from "../pages/Funcionarios";
+import DebugAuth from "../pages/DebugAuth";
 import CentralAjuda from "../pages/CentralAjuda";
 import Privacidade from "../pages/Privacidade";
 import SobreJurex from "../pages/SobreJurex";
@@ -46,13 +48,8 @@ function RotaPublica({ children }) {
   return usuario ? <Navigate to="/dashboard" replace /> : children;
 }
 
-// Protege as rotas do sistema
-function RotaPrivada({ children }) {
-  const { usuario, carregando } = useAuth();
-  if (carregando) return null;
-  return usuario ? children : <Navigate to="/login" replace />;
-}
-
+// Protege as rotas do sistema (RotaPrivada removido — não era usado;
+// toda proteção é feita via <RotaProtegida>.)
 export default function AppRoutes() {
   return (
     <ThemeProvider>
@@ -91,14 +88,15 @@ export default function AppRoutes() {
           <Route path="/relatorios" element={<RotaProtegida><Relatorios /></RotaProtegida>} />
           <Route path="/perfil" element={<RotaProtegida><Perfil /></RotaProtegida>} />
           <Route path="/notificacoes" element={<RotaProtegida><Notificacoes /></RotaProtegida>} />
-          <Route path="/configuracoes/modelos-cobranca" element={<RotaProtegida><ModelosCobranca /></RotaProtegida>} />
-          <Route path="/configuracoes/modelos-contrato" element={<RotaProtegida><ModelosContrato /></RotaProtegida>} />
-          <Route path="/configuracoes/modelos-contrato/:id/editar" element={<RotaProtegida><ModeloContratoEditor /></RotaProtegida>} />
-          <Route path="/configuracoes/backup" element={<RotaProtegida><BackupDados /></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-cobranca" element={<RotaProtegida><RotaDono><ModelosCobranca /></RotaDono></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-contrato" element={<RotaProtegida><RotaDono><ModelosContrato /></RotaDono></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-contrato/:id/editar" element={<RotaProtegida><RotaDono><ModeloContratoEditor /></RotaDono></RotaProtegida>} />
+          <Route path="/configuracoes/backup" element={<RotaProtegida><RotaDono><BackupDados /></RotaDono></RotaProtegida>} />
           <Route path="/configuracoes/ajuda" element={<RotaProtegida><CentralAjuda /></RotaProtegida>} />
           <Route path="/configuracoes/privacidade" element={<RotaProtegida><Privacidade /></RotaProtegida>} />
           <Route path="/configuracoes/sobre" element={<RotaProtegida><SobreJurex /></RotaProtegida>} />
-          <Route path="/configuracoes/funcionarios" element={<RotaProtegida><Funcionarios /></RotaProtegida>} />
+          <Route path="/configuracoes/funcionarios" element={<RotaProtegida><RotaDono><Funcionarios /></RotaDono></RotaProtegida>} />
+          <Route path="/debug-auth" element={<RotaProtegida><DebugAuth /></RotaProtegida>} />
           <Route path="/configuracoes" element={<RotaProtegida><Configuracoes /></RotaProtegida>} />
 
           {/* Tela de bloqueio para funcionário inativo */}

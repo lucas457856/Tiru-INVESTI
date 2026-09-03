@@ -1,0 +1,96 @@
+================================================================
+MATRIZ DE ACESSO: FUNCIONÁRIO vs DONO (após publicar rules)
+================================================================
+
+Para cada caminho, o resultado esperado após publicar
+`firestore.rules` e fazer login como funcionário F (com
+ownerUid = D).
+
+================================================================
+CAMINHOS DE DADOS (leitura/escrita)
+================================================================
+
+[✓] PERMITIDO PARA FUNCIONÁRIO:
+    - usuarios/{F} (perfil próprio) — read/update
+    - usuarios/{D}/funcionarios/{X} (próprio doc do func) — read
+    - usuarios/{D}/contratos — read/write
+    - usuarios/{D}/contratos/{cid}/pagamentos — read/write
+    - usuarios/{D}/contratos/{cid}/jurosRecebidos — read/write
+    - usuarios/{D}/notificacoes — read/write
+    - clientes where ownerId == D — read/write/create
+
+[✗] BLOQUEADO PARA FUNCIONÁRIO (apenas dono):
+    - usuarios/{D}/funcionarios (lista) — apenas DONO
+    - usuarios/{D}/funcionarios/{X} (qualquer outro) — apenas DONO
+    - usuarios/{D}/config/* — apenas DONO
+    - usuarios/{D}/modelosContrato/* — apenas DONO
+    - usuarios/{D}/modelosCobranca/* — apenas DONO
+    - usuarios/{D}/clientes (subcoleção legada) — apenas DONO
+
+================================================================
+ROTAS DA PÁGINA (frontend)
+================================================================
+
+[✓] ACESSÍVEL PARA FUNCIONÁRIO:
+    - /dashboard
+    - /emprestimos (lista de contratos do dono)
+    - /emprestimos/:id (detalhes do contrato)
+    - /emprestimos/:id/editar
+    - /contratos/novo
+    - /contratos/:id/sucesso
+    - /receber-pagamento/:contratoId
+    - /contratos/:contratoId/parcelas/:parcelaNumero/renegociar
+    - /clientes
+    - /clientes/novo
+    - /clientes/:id
+    - /clientes/:id/editar
+    - /parcelas
+    - /calendario
+    - /historico-financeiro
+    - /relatorios
+    - /notificacoes
+    - /perfil
+    - /suporte
+    - /configuracoes
+    - /configuracoes/ajuda
+    - /configuracoes/privacidade
+    - /configuracoes/sobre
+    - /debug-auth (temporário)
+
+[✗] REDIRECIONADO PARA /dashboard (RotaDono):
+    - /configuracoes/funcionarios
+    - /configuracoes/modelos-contrato
+    - /configuracoes/modelos-contrato/:id/editar
+    - /configuracoes/modelos-cobranca
+    - /configuracoes/backup
+
+================================================================
+CASO ESPECIAL
+================================================================
+
+Em /emprestimos/:id, o componente usa `listarModelosContrato`
+para carregar templates. Para o funcionário, isso vai dar
+permission-denied (correto, é só do dono). O componente
+tem `.catch(() => {})` silencioso que mantém o fallback
+(MODELOS_PADRAO). Logo, **não bloqueia** o uso.
+
+================================================================
+TESTE DE ISOLAMENTO
+================================================================
+
+Funcionário F1 (de D1 = DONO_A) tenta acessar dados de D2
+(DONO_B):
+
+    - /clientes where ownerId == D2
+      → permission-denied (meuPerfil().ownerUid = D1 ≠ D2)
+
+    - usuarios/D2/contratos
+      → permission-denied (ehFuncionarioDe(D2) = false)
+
+    - /clientes/{docDeD2}
+      → permission-denied (resource.data.ownerId = D2 ≠ D1,
+        e meuPerfil().ownerUid = D1 ≠ D2)
+
+================================================================
+FIM
+================================================================

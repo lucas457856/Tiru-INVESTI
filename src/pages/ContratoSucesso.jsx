@@ -11,7 +11,6 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { formatarMoeda, formatarTelefone, numeroCurto as numeroContrato } from "../utils/formatadores";
@@ -21,7 +20,6 @@ import logoJurex from "../assets/jurex-logo.png";
 export default function ContratoSucesso() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   const [contrato, setContrato] = useState(null);
@@ -61,7 +59,7 @@ export default function ContratoSucesso() {
     return () => {
       ativo = false;
     };
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   // Linhas do card com os dados reais do contrato
   const linhas = useMemo(() => {

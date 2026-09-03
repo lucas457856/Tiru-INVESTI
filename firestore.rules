@@ -5,20 +5,25 @@ service cloud.firestore {
 
     // ----- Helpers -----
 
-    // Lê o perfil do usuário autenticado em /usuarios/{uid}. Usado para
-    // detectar funcionários e seu `ownerUid`. Custa 1 leitura por
-    // avaliação — aceitável para o volume atual do projeto.
+    // Lê o perfil do usuário autenticado em /usuarios/{request.auth.uid}.
+    // Custa 1 leitura por avaliação (regras de listagem podem chamar isso
+    // por documento). Para o volume atual do projeto, é aceitável.
+    //
+    // NOTA: se a regra de /usuarios/{uid} não permitir que o próprio
+    // usuário leia o próprio perfil, ESTE helper sempre falhará, e todas
+    // as regras que dependem dele (clientes, contratos) também. A regra
+    // abaixo garante `allow read: if request.auth.uid == uid`.
     function meuPerfil() {
       return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
 
-    // O UID autenticado é o próprio dono do documento?
+    // O usuário autenticado é o próprio dono do documento cujo uid é `uid`?
     function ehDono(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // O UID autenticado é um funcionário vinculado a este ownerUid?
-    // Usa meuPerfil() para validar role/ownerUid — não há como o
+    // O usuário autenticado é um funcionário vinculado ao owner `ownerUid`?
+    // Lê o perfil via meuPerfil() e valida role/ownerUid — não há como o
     // cliente mentir no payload.
     function ehFuncionarioDe(ownerUid) {
       return request.auth != null
@@ -27,74 +32,104 @@ service cloud.firestore {
         && meuPerfil().role == 'funcionario';
     }
 
+    // O usuário autenticado é o DONO da conta (uid) OU um funcionário
+    // vinculado a esse uid? Usado para autorizar tudo dentro do escopo
+    // do dono: contratos, clientes, pagamentos, juros, funcionários,
+    // notificações. NÃO é usado para config/modelosContrato (esses
+    // são exclusivos do dono).
+    function ehDonoOuFuncionario(uid) {
+      return ehDono(uid) || ehFuncionarioDe(uid);
+    }
+
     // ----- /usuarios/{uid} (perfil raiz) -----
 
     match /usuarios/{uid} {
-      // Qualquer usuário autenticado pode ler o próprio perfil.
+      // Qualquer usuário autenticado pode ler o PRÓPRIO perfil. Esta é
+      // a permissão base para o helper `meuPerfil()` funcionar.
       allow read: if request.auth != null && request.auth.uid == uid;
 
-      // Criação: o próprio UID pode criar o próprio perfil. Perfis de
-      // dono NÃO carregam role/ownerUid. Perfis de funcionário são
-      // criados pelo endpoint server-side (Admin SDK, sem rules
-      // relevantes) — aqui aceitamos apenas a forma "dono" para
-      // impedir que um usuário finja ser dono ou vincule a outro owner.
+      // Criação: o próprio UID cria o próprio perfil. Perfis de DONO
+      // não carregam role/ownerUid. Perfis de FUNCIONÁRIO são criados
+      // pelo endpoint server-side (Admin SDK, que bypassa as rules).
+      // Manter `!('role' in ...)` aqui impede que um usuário finja ser
+      // dono via client SDK.
       allow create: if request.auth != null
         && request.auth.uid == uid
         && !('role' in request.resource.data)
         && !('ownerUid' in request.resource.data);
 
-      // Update: o próprio UID. Garante imutabilidade de role e
-      // ownerUid. Outros campos podem ser alterados livremente.
+      // Update: o próprio UID. Garante imutabilidade de role, ownerUid
+      // e funcionarioId. Outros campos podem ser alterados livremente.
       allow update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
-        && request.resource.data.ownerUid == resource.data.ownerUid;
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.funcionarioId == resource.data.funcionarioId;
 
-      // Subcoleção /funcionarios/{funcionarioId}
+      // ====== Subcoleções do dono ======
+      // Para TUDO dentro do escopo do dono (exceto config/modelosContrato,
+      // que são exclusivos do dono), tanto o DONO quanto seus FUNCIONÁRIOS
+      // têm acesso de leitura e escrita.
+
+      // Funcionários (lista de funcionários do dono)
       // - Dono: CRUD total
-      // - O próprio funcionário: lê seu próprio doc (pelo authUid),
-      //   mas não pode editar (qualquer edição é feita via endpoint
-      //   server-side pelo dono).
+      // - O próprio funcionário (authUid == resource.data.authUid): LÊ
+      //   seu próprio doc para detectar mudança de status em tempo real.
+      //   Não pode editar (edição só via endpoint server-side).
       // - Funcionário de OUTRO dono: bloqueado
       match /funcionarios/{funcionarioId} {
         allow read, write: if ehDono(uid);
         allow read: if request.auth != null
           && request.auth.uid == resource.data.authUid;
+      }
 
-        // Configurações do dono: SOMENTE o dono
-        match /config/{docId} {
-          allow read, write: if ehDono(uid);
+      // Configurações do dono: SOMENTE o dono
+      // (modelosCobranca, preferências, etc.)
+      match /config/{docId} {
+        allow read, write: if ehDono(uid);
+      }
+
+      // Modelos de contrato do dono: SOMENTE o dono
+      match /modelosContrato/{modeloId} {
+        allow read, write: if ehDono(uid);
+      }
+
+      // Modelos de cobrança: SOMENTE o dono
+      // (alias de config/modelosCobranca, mas listada por clareza)
+      match /modelosCobranca/{docId} {
+        allow read, write: if ehDono(uid);
+      }
+
+      // Notificações: dono e funcionário do dono acessam
+      match /notificacoes/{notifId} {
+        allow read, write: if ehDonoOuFuncionario(uid);
+      }
+
+      // Clientes (subcoleção legada, usada por BackupDados)
+      // - Dono: CRUD total
+      // - Funcionário: não tem acesso (a fonte canônica é a coleção
+      //   top-level `clientes` com `ownerId`)
+      match /clientes/{clienteId} {
+        allow read, write: if ehDono(uid);
+      }
+
+      // Contratos: dono e funcionário do dono acessam
+      match /contratos/{contratoId} {
+        allow read, write: if ehDonoOuFuncionario(uid);
+
+        // Subcoleção de pagamentos (4º nível)
+        match /pagamentos/{pagamentoId} {
+          allow read, write: if ehDonoOuFuncionario(uid);
         }
-        match /modelosContrato/{docId} {
-          allow read, write: if ehDono(uid);
-        }
-        match /modelosCobranca/{docId} {
-          allow read, write: if ehDono(uid);
-        }
 
-        // Notificações: dono e funcionário do dono acessam
-        match /notificacoes/{docId} {
-          allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
-        }
-
-        // Contratos: dono e funcionário do dono acessam
-        match /contratos/{contratoId} {
-          allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
-
-          // Subcoleção de pagamentos (3º nível)
-          match /pagamentos/{pagamentoId} {
-            allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
-          }
-
-          // Subcoleção de recebimentos de juros (3º nível)
-          match /jurosRecebidos/{jurosId} {
-            allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
-          }
+        // Subcoleção de recebimentos de juros (4º nível)
+        match /jurosRecebidos/{jurosId} {
+          allow read, write: if ehDonoOuFuncionario(uid);
         }
       }
     }
 
-    // ----- /clientes/{clienteId} (coleção top-level) -----
+    // ----- /clientes/{clienteId} (coleção top-level — fonte canônica) -----
 
     match /clientes/{clienteId} {
       // Dono: lê/atualiza/exclui clientes com ownerId == seu uid

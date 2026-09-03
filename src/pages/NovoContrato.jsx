@@ -161,10 +161,10 @@ export default function NovoContrato() {
   // e histórico NÃO são tocados aqui.
   useEffect(() => {
     if (!modoEdicao) return;
-    if (!usuario || !idEdicao) return;
+    if (!effectiveUid || !idEdicao) return;
     let ativo = true;
     setEstadoEdicao("carregando");
-    buscarContrato(usuario, idEdicao)
+    buscarContrato({ uid: effectiveUid }, idEdicao)
       .then((dados) => {
         if (!ativo) return;
         if (!dados) {
@@ -508,11 +508,12 @@ export default function NovoContrato() {
       // (success branch via .then). Garante 1 doc ↔ 1 notificação nativa,
       // sem duplicar se a Firestore write falhar.
       const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
-      // Notificação vai para o caminho do usuário autenticado: o dono
-      // ou o funcionário que está criando o contrato (cada um tem
-      // seu próprio "sino").
-      const notificacaoUid = auth.currentUser?.uid || usuario.uid;
-      criarNotificacao(notificacaoUid, {
+      // Notificação vai para o caminho do PROPRIETÁRIO (não do auth uid).
+      // A coleção `usuarios/{ownerUid}/notificacoes` é compartilhada entre
+      // dono e funcionários do mesmo dono (regra do Firestore), e o sino
+      // do app sempre lê da conta do proprietário. Para DONO, ambos são
+      // iguais; para FUNCIONÁRIO, é o `ownerUid` vinculado.
+      criarNotificacao(effectiveUid, {
         tipo: "contrato_criado",
         titulo: "Novo contrato criado",
         descricao: descricaoContrato,

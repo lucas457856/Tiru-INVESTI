@@ -37,7 +37,6 @@ import {
 import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import {
@@ -120,7 +119,6 @@ function formatarMoedaSinal(v) {
 // da mesma janela de "A receber").
 
 export default function Relatorios() {
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   // ---- Estados
@@ -191,7 +189,7 @@ export default function Relatorios() {
     return () => {
       cancelado = true;
     };
-  }, [usuario, contratos]);
+  }, [effectiveUid, contratos]);
 
   // ---- Filtros de tipo e aba
   // REGRA DOS FILTROS:

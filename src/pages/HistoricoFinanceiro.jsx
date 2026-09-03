@@ -49,7 +49,6 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { db } from "../services/firebase";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 
@@ -156,7 +155,6 @@ function classificarPagamento(p) {
 
 export default function HistoricoFinanceiro() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
 
   const [eventos, setEventos] = useState([]);
@@ -305,7 +303,7 @@ export default function HistoricoFinanceiro() {
     return () => {
       cancelado = true;
     };
-  }, [usuario]);
+  }, [effectiveUid]);
 
   const totalEventos = useMemo(() => eventos.length, [eventos]);
 

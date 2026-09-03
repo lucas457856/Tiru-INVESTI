@@ -8,13 +8,11 @@ import {
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
-import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 
 export default function Clientes() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const effectiveUid = useEffectiveUid();
   const [clientes, setClientes] = useState([]);
   const [busca, setBusca] = useState("");
@@ -24,9 +22,12 @@ export default function Clientes() {
   // feita em memória para dispensar índice composto.
   useEffect(() => {
     if (!effectiveUid) return;
+    const q = query(collection(db, "clientes"), where("ownerId", "==", effectiveUid));
+    console.log("[CLIENTES] query:", "clientes where ownerId ==", effectiveUid);
     const unsub = onSnapshot(
-      query(collection(db, "clientes"), where("ownerId", "==", effectiveUid)),
+      q,
       (snap) => {
+        console.log("[CLIENTES] snap recebido, docs:", snap.size);
         const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         // Timestamp do Firestore → segundos; ISO string → epoch ms; ausente → 0
         const chave = (c) =>
@@ -34,6 +35,13 @@ export default function Clientes() {
           (c.createdAt ? new Date(c.createdAt).getTime() / 1000 : 0);
         lista.sort((a, b) => chave(a) - chave(b));
         setClientes(lista);
+      },
+      (err) => {
+        console.error("[CLIENTES] erro:", {
+          code: err.code,
+          message: err.message,
+          effectiveUid,
+        });
       }
     );
     return unsub;

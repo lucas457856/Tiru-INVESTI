@@ -1,0 +1,74 @@
+================================================================
+COMO PUBLICAR AS FIRESTORE RULES NO FIREBASE
+================================================================
+
+PROBLEMA:
+  As regras em `firestore.rules` (local) podem estar DESSINCRONIZADAS
+  com as regras implantadas no console do Firebase. Se você nunca
+  rodou `firebase deploy --only firestore:rules`, o Firebase está
+  usando a versão antiga (mais restritiva), que NÃO permite o
+  funcionário ler clientes/contratos do dono.
+
+================================================================
+OPÇÃO 1 — Via Firebase CLI (recomendado)
+================================================================
+
+1. Configurar o projeto Firebase (escolha o projeto correto!):
+
+   firebase login
+   firebase use --add
+   # selecione o projeto onde o frontend está conectado
+
+2. Publicar as rules:
+
+   firebase deploy --only firestore:rules
+
+3. Verificar (opcional):
+
+   firebase firestore:rules
+
+================================================================
+OPÇÃO 2 — Via Console do Firebase (manual)
+================================================================
+
+1. Abra https://console.firebase.google.com/
+2. Selecione o projeto do frontend
+3. Vá em Firestore Database → Rules
+4. Copie TODO o conteúdo de `firestore.rules` (local)
+5. Cole no editor do console
+6. Clique em "Publicar"
+
+================================================================
+COMO VERIFICAR SE A REGRA ESTÁ PUBLICADA
+================================================================
+
+1. Abra o console do Firebase
+2. Firestore Database → Rules
+3. A primeira linha deve ser:
+     rules_version = '2';
+   E o arquivo deve ter o comentário:
+     // ----- /usuarios/{uid} (perfil raiz) -----
+   Se NÃO tiver, a regra está desatualizada.
+
+================================================================
+QUANDO A REGRA PROPAGA
+================================================================
+
+- As regras levam até 1 minuto para propagar globalmente
+- Após publicar, faça logout/login no app
+
+================================================================
+TESTE APÓS PUBLICAR
+================================================================
+
+1. Logout
+2. Login novamente como funcionário
+3. Abrir /debug-auth
+4. Esperado:
+   - authUid: <UID-FUNC>
+   - role: funcionario
+   - ownerUid: <UID-DONO>
+   - effectiveUid: <UID-DONO>
+   - Clientes: count > 0
+   - Contratos: count > 0
+5. Se ainda permission-denied, me avise com o stack trace

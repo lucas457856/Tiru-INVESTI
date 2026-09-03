@@ -15,10 +15,18 @@ import { AuthContext } from "./AuthContext";
 // - SEM PERFIL: o doc não existe — usuário autenticado sem registro
 //   (não deveria acontecer no fluxo normal: cadastro Auth sempre
 //   cria o doc). Tratamos como logout forçado.
+//
+// IMPORTANTE: o estado `roleResolvido` distingue "ainda não sei o
+// papel do usuário" de "sei que é dono". Sem isso, useEffectiveUid()
+// retornaria usuario.uid durante a janela de 1-2 rounds de Firestore
+// em que o perfil está sendo buscado — e as queries de Clientes/
+// Contratos rodariam com o UID errado (causando 0 resultados para
+// funcionários). Ver useEffectiveUid.js.
 export default function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(true);
-  const [role, setRole] = useState("dono"); // "dono" | "funcionario" | "sem-perfil"
+  const [role, setRole] = useState(null); // null | "dono" | "funcionario" | "sem-perfil"
+  const [roleResolvido, setRoleResolvido] = useState(false);
   const [ownerUid, setOwnerUid] = useState(null);
   const [funcionarioId, setFuncionarioId] = useState(null);
   const [funcionarioStatus, setFuncionarioStatus] = useState(null);
@@ -36,10 +44,13 @@ export default function AuthProvider({ children }) {
       setOwnerUid(null);
       setFuncionarioId(null);
       setFuncionarioStatus(null);
-      setRole(user ? "dono" : "dono"); // default até carregar
+      setRole(null);
+      setRoleResolvido(false);
+      setCarregando(false);
 
       if (!user) {
-        setCarregando(false);
+        // Sem usuário: papel resolvido (não há papel).
+        setRoleResolvido(true);
         return;
       }
 
@@ -48,11 +59,18 @@ export default function AuthProvider({ children }) {
       getDoc(perfilRef)
         .then((snap) => {
           if (!snap.exists()) {
+            console.warn("[AUTH] perfil não encontrado em usuarios/" + user.uid);
             setRole("sem-perfil");
-            setCarregando(false);
+            setRoleResolvido(true);
             return;
           }
           const data = snap.data() || {};
+          console.log("[AUTH]", {
+            authUid: user.uid,
+            role: data.role ?? "(ausente — DONO)",
+            ownerUid: data.ownerUid ?? null,
+            funcionarioId: data.funcionarioId ?? null,
+          });
           if (data.role === "funcionario" && data.ownerUid) {
             setRole("funcionario");
             setOwnerUid(data.ownerUid);
@@ -76,15 +94,16 @@ export default function AuthProvider({ children }) {
                 setFuncionarioStatus(fData.status || "ativo");
               });
             }
-            setCarregando(false);
+            setRoleResolvido(true);
           } else {
             setRole("dono");
-            setCarregando(false);
+            setRoleResolvido(true);
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[AUTH] erro ao carregar perfil:", err);
           setRole("sem-perfil");
-          setCarregando(false);
+          setRoleResolvido(true);
         });
     });
     return () => {
@@ -99,6 +118,7 @@ export default function AuthProvider({ children }) {
         usuario,
         carregando,
         role,
+        roleResolvido,
         ownerUid,
         funcionarioId,
         funcionarioStatus,

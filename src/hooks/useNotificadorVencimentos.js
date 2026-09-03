@@ -85,21 +85,27 @@ const TEXTOS = {
  * vencendo hoje / vencidas. Sem polling. Sem `setInterval`. Reage a
  * mudanças em `contratosAtivos` (que o Dashboard já deriva do `onSnapshot`).
  *
+ * IMPORTANTE: `ownerUid` deve ser o **UID do proprietário** dos contratos,
+ * não o `auth.currentUser.uid`. Para DONO, ambos são iguais; para
+ * FUNCIONÁRIO, é o `ownerUid` ao qual ele está vinculado. A coleção
+ * `usuarios/{ownerUid}/notificacoes` é a chave da regra do Firestore
+ * (dono e funcionário do dono acessam).
+ *
  * @param {Array} contratosAtivos - Contratos não quitados. Já é filtrado
  *   pelo Dashboard via `useMemo` em `Dashboard.jsx:122-125`.
- * @param {string|undefined|null} usuarioUid - `useAuth().usuario.uid`. Se
- *   ausente (deslogado), o hook é no-op.
+ * @param {string|undefined|null} ownerUid - UID do proprietário dos
+ *   contratos. Ausente (deslogado) → hook é no-op.
  * @returns {{ verificadas: number, disparadas: number }} Contadores
  *   apenas para debug / log. NÃO usar em render — não causam re-render.
  */
-export function useNotificadorVencimentos(contratosAtivos, usuarioUid) {
+export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
   // Contadores expostos via ref (não causam re-render). Servem só para
   // diagnóstico em dev — logados na primeira execução e em mudanças.
   const statsRef = useRef({ verificadas: 0, disparadas: 0 });
 
   useEffect(() => {
-    // Guarda 1: precisa ter usuário autenticado.
-    if (!usuarioUid) return;
+    // Guarda 1: precisa ter um ownerUid válido.
+    if (!ownerUid) return;
     // Guarda 2: precisa ter contratos para inspecionar.
     if (!Array.isArray(contratosAtivos) || contratosAtivos.length === 0) return;
 
@@ -166,7 +172,7 @@ export function useNotificadorVencimentos(contratosAtivos, usuarioUid) {
         //   2) NA success branch: mostrarNotificacaoNativa (best-effort)
         // Falha do (1) NÃO dispara o (2). Falha do (2) é silenciada
         // internamente por `mostrarNotificacaoNativa`.
-        criarNotificacao(usuarioUid, {
+        criarNotificacao(ownerUid, {
           tipo,
           titulo,
           descricao,
@@ -204,7 +210,7 @@ export function useNotificadorVencimentos(contratosAtivos, usuarioUid) {
         hoje,
       );
     }
-  }, [contratosAtivos, usuarioUid]);
+  }, [contratosAtivos, ownerUid]);
 
   // Retorno só para conveniência de debug em testes; não usar em render.
   return {
