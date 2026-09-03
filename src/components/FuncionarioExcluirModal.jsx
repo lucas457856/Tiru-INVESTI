@@ -15,16 +15,26 @@
 
 import { useState } from "react";
 import { LoaderCircle, X, PowerOff, Power } from "lucide-react";
-import { atualizarFuncionario } from "../services/employeesService";
+import { alternarStatusFuncionario } from "../services/employeesService";
 
 export default function FuncionarioExcluirModal({ aberto, funcionario, aoFechar, aoSucesso }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  // Estado local espelhado do `funcionario` recebido via prop. Isso
+  // garante que, se o `onSnapshot` da lista mudar o status enquanto o
+  // modal está aberto, a UI do modal reflete o estado mais recente —
+  // e o botão "Ativar/Inativar" nunca fica dessincronizado.
+  const [funcAtual, setFuncAtual] = useState(funcionario);
 
-  if (!aberto || !funcionario) return null;
+  // Sincroniza quando a prop muda. Não roda enquanto salva (não
+  // queremos trocar o alvo da operação no meio do submit).
+  if (funcAtual !== funcionario && !salvando) {
+    setFuncAtual(funcionario);
+  }
 
-  const jaInativo = funcionario.status === "inativo";
-  const novoStatus = jaInativo ? "ativo" : "inativo";
+  if (!aberto || !funcAtual) return null;
+
+  const jaInativo = funcAtual.status === "inativo";
   const acao = jaInativo ? "ativar" : "inativar";
   const corBotao = jaInativo
     ? "bg-gradient-to-r from-jurex to-emerald-500 shadow-jurex/25"
@@ -39,15 +49,13 @@ export default function FuncionarioExcluirModal({ aberto, funcionario, aoFechar,
   async function handleConfirmar() {
     setErro("");
     setSalvando(true);
-    // Mostra o erro real retornado pelo backend (sem try/catch que
-    // esconda). `postJSON` sempre devolve { ok, erro } — incluindo a
-    // mensagem de validação do servidor.
-    const resp = await atualizarFuncionario({
-      funcionarioId: funcionario.id,
-      status: novoStatus,
-    });
+    // Envia `action: "ativar" | "inativar"` (forma preferida). O
+    // backend decide se grava status + deletedAt (inativar) ou
+    // status + remove deletedAt via FieldValue.delete() (ativar).
+    const resp = await alternarStatusFuncionario(funcAtual.id, acao);
     setSalvando(false);
     if (!resp || !resp.ok) {
+      // Mostra a mensagem real do backend (sem try/catch que esconda).
       setErro(resp?.erro || `Não foi possível ${acao}.`);
       return;
     }
@@ -84,8 +92,8 @@ export default function FuncionarioExcluirModal({ aberto, funcionario, aoFechar,
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {jaInativo
-                  ? `${funcionario.nome} voltará a conseguir acessar o sistema.`
-                  : `${funcionario.nome} não conseguirá mais acessar o sistema.`}
+                  ? `${funcAtual.nome} voltará a conseguir acessar o sistema.`
+                  : `${funcAtual.nome} não conseguirá mais acessar o sistema.`}
               </p>
             </div>
           </div>

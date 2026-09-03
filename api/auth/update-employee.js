@@ -1,7 +1,10 @@
 // API: POST /api/auth/update-employee
 //
 // Fluxo (chamado pelo DONO autenticado):
-//   1. Recebe { funcionarioId, nome?, limiteContratos?, status? }.
+//   1. Recebe { funcionarioId, action? | status?, nome?, limiteContratos? }.
+//      - `action` pode ser "ativar" ou "inativar" (forma preferida).
+//      - `status` pode ser "ativo" ou "inativo" (forma legada,
+//        mantida por compatibilidade).
 //   2. Valida método, body, tipos e ranges.
 //   3. Valida o `Authorization: Bearer <idToken>` via Firebase Admin.
 //   4. Confirma que o chamador é DONO (perfil sem role/ownerUid).
@@ -9,7 +12,7 @@
 //      confirma que pertence ao chamador.
 //   6. Aplica APENAS os campos enviados (merge). Não aceita mudar
 //      email, authUid, createdAt, ownerUid. Atualiza updatedAt.
-//   7. Retorna { ok:true, funcionarioId }.
+//   7. Retorna { ok:true, funcionarioId, status }.
 //
 // Segurança:
 //   - Variáveis sensíveis em process.env.
@@ -25,6 +28,14 @@ const NOME_MIN = 2;
 const NOME_MAX = 80;
 const LIMITE_MIN = 0;
 const LIMITE_MAX = 100000;
+
+// Mapeia a chave do body para o `status` final armazenado no doc.
+// Aceita tanto `action: "ativar" | "inativar"` (preferido) quanto
+// `status: "ativo" | "inativo"` (legado).
+const ACTION_TO_STATUS = {
+  ativar: "ativo",
+  inativar: "inativo",
+};
 const STATUSES = ["ativo", "inativo"];
 
 function bad(res, status, erro) {
@@ -50,12 +61,13 @@ export default async function handler(req, res) {
   const funcionarioId = typeof body.funcionarioId === "string" ? body.funcionarioId.trim() : "";
   const querMudarNome = Object.prototype.hasOwnProperty.call(body, "nome");
   const querMudarLimite = Object.prototype.hasOwnProperty.call(body, "limiteContratos");
+  const querMudarAction = Object.prototype.hasOwnProperty.call(body, "action");
   const querMudarStatus = Object.prototype.hasOwnProperty.call(body, "status");
 
   if (!funcionarioId) {
     return bad(res, 400, "Informe o identificador do funcionário.");
   }
-  if (!querMudarNome && !querMudarLimite && !querMudarStatus) {
+  if (!querMudarNome && !querMudarLimite && !querMudarAction && !querMudarStatus) {
     return bad(res, 400, "Nenhum campo para atualizar foi informado.");
   }
 
@@ -81,12 +93,21 @@ export default async function handler(req, res) {
     }
   }
 
+  // Resolve `novoStatus` a partir de `action` (preferido) ou `status` (legado).
   let novoStatus;
-  if (querMudarStatus) {
-    novoStatus = body.status;
-    if (!STATUSES.includes(novoStatus)) {
-      return bad(res, 400, "Status inválido.");
+  let querMudarStatusFinal = false;
+  if (querMudarAction) {
+    if (typeof body.action !== "string" || !ACTION_TO_STATUS[body.action]) {
+      return bad(res, 400, "Ação inválida. Use 'ativar' ou 'inativar'.");
     }
+    novoStatus = ACTION_TO_STATUS[body.action];
+    querMudarStatusFinal = true;
+  } else if (querMudarStatus) {
+    if (typeof body.status !== "string" || !STATUSES.includes(body.status)) {
+      return bad(res, 400, "Status inválido. Use 'ativo' ou 'inativo'.");
+    }
+    novoStatus = body.status;
+    querMudarStatusFinal = true;
   }
 
   const idToken = extrairBearer(req);
@@ -150,12 +171,13 @@ export default async function handler(req, res) {
   };
   if (querMudarNome) update.nome = nome;
   if (querMudarLimite) update.limiteContratos = limiteNumero;
-  if (querMudarStatus) {
+  if (querMudarStatusFinal) {
     update.status = novoStatus;
     // Inativar: marca deletedAt com timestamp.
-    // Reativar: REMOVE o campo deletedAt (FieldValue.delete). Nunca
-    // usamos `null` porque Firestore rejeita atribuir null a um campo
-    // já existente em `update()`.
+    // Ativar:   REMOVE o campo deletedAt (FieldValue.delete). Nunca
+    //           usamos `null` porque Firestore rejeita atribuir null
+    //           a um campo já existente em `update()`. O campo some
+    //           completamente do documento.
     if (novoStatus === "inativo") {
       update.deletedAt = FieldValue.serverTimestamp();
     } else {
@@ -173,5 +195,5 @@ export default async function handler(req, res) {
     return bad(res, 500, err?.message || "Não foi possível atualizar o funcionário.");
   }
 
-  return res.status(200).json({ ok: true, funcionarioId });
+  return res.status(200).json({ ok: true, funcionarioId, status: novoStatus });
 }

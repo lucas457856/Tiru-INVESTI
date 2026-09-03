@@ -55,10 +55,34 @@ export function criarFuncionario({ nome, email, senha, limiteContratos }) {
 
 // Edita nome, limiteContratos e/ou status de um funcionário existente.
 // Qualquer campo omitido NÃO é alterado. Apenas o dono pode chamar.
-export function atualizarFuncionario({ funcionarioId, nome, limiteContratos, status }) {
+//
+// Aceita:
+//   - `status: "ativo" | "inativo"` (forma legada, mantida para a
+//     página de edição completa).
+//   - `action: "ativar" | "inativar"` (forma preferida, usada pelo
+//     modal de toggle de status). O backend traduz para o campo
+//     `status` no Firestore.
+export function atualizarFuncionario({
+  funcionarioId,
+  nome,
+  limiteContratos,
+  status,
+  action,
+}) {
   const body = { funcionarioId };
   if (nome !== undefined) body.nome = nome;
   if (limiteContratos !== undefined) body.limiteContratos = limiteContratos;
   if (status !== undefined) body.status = status;
+  if (action !== undefined) body.action = action;
   return postJSON("/api/auth/update-employee", body);
+}
+
+// Atalho para o toggle de status: usa `action: "ativar" | "inativar"`.
+// O backend faz updateDoc com FieldValue.delete() (ativar) ou
+// FieldValue.serverTimestamp() (inativar) em `deletedAt`.
+export function alternarStatusFuncionario(funcionarioId, acao) {
+  if (acao !== "ativar" && acao !== "inativar") {
+    return Promise.resolve({ ok: false, erro: "Ação inválida." });
+  }
+  return atualizarFuncionario({ funcionarioId, action: acao });
 }
