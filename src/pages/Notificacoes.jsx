@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
   Bell,
   Check,
   CircleCheck,
@@ -12,6 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { useNotificacoes } from "../hooks/useNotificacoes";
 
 // Mapeamento: tipo de notificação → ícone + cor do container.
@@ -81,24 +81,15 @@ export default function Notificacoes() {
         {/* Cabeçalho — mesmo padrão verde claro do Perfil/Dashboard */}
         <div className="rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-slate-900 px-5 py-4">
           <div className="flex items-center gap-4">
+            <BackButton />
             <button
               type="button"
-              onClick={() => navigate(-1)}
-              aria-label="Voltar"
-              className="rounded-full p-2 ring-1 ring-slate-200 dark:ring-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              aria-label="Início"
+              onClick={() => navigate("/dashboard")}
+              className="rounded-full p-2 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-[0_2px_4px_rgba(15,23,42,0.04)] hover:bg-slate-50 dark:hover:bg-slate-700 transition"
             >
-              <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
+              <Home className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
             </button>
-            <span className="rounded-full bg-slate-100 dark:bg-slate-800 p-2">
-              <button
-                type="button"
-                aria-label="Início"
-                onClick={() => navigate("/dashboard")}
-                className="block"
-              >
-                <Home className="w-4.5 h-4.5 text-slate-600 dark:text-slate-300" />
-              </button>
-            </span>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">
               Notificações
             </h1>

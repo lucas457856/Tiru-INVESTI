@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   House,
   Save,
   LoaderCircle,
@@ -15,6 +14,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
 import { collection, addDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
@@ -326,14 +326,7 @@ export default function NovoContrato() {
           {/* Cabeçalho */}
           <div className="rounded-2xl border border-emerald-100/70 dark:border-slate-800 bg-gradient-to-r from-emerald-50/80 via-emerald-50/40 to-white dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 px-5 sm:px-7 py-4 sm:py-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate("/emprestimos")}
-                aria-label="Voltar"
-                className="rounded-full p-2.5 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 transition"
-              >
-                <ArrowLeft className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
-              </button>
+              <BackButton to="/emprestimos" className="p-2.5" iconSize="w-[18px] h-[18px]" />
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}

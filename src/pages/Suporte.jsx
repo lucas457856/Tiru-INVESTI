@@ -8,13 +8,13 @@
 // Sidebar existente) e a mesma paleta/cor padrão do projeto.
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Home,
   MessageCircle,
   Mail,
   Phone,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 
 const EMAIL_CONTATO = "luquetedev@gmail.com";
 const WHATSAPP_NUMERO = "5585999348700"; // sem máscara; usado no wa.me
@@ -30,14 +30,7 @@ export default function Suporte() {
           {/* Cabeçalho verde claro com botões circulares */}
           <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-5 py-4 sm:px-6 sm:py-5 mb-6 sm:mb-8">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                aria-label="Voltar"
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+              <BackButton className="w-9 h-9 sm:w-10 sm:h-10" iconSize="w-4 h-4" />
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}

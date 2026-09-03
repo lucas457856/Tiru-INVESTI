@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   FileText,
   Users,
   Download,
@@ -9,6 +8,7 @@ import {
 import jsPDF from "jspdf";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
@@ -127,14 +127,7 @@ export default function BackupDados() {
         {/* Cabeçalho */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-emerald-950/20 px-6 py-5">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              aria-label="Voltar"
-              className="rounded-full p-2 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 transition"
-            >
-              <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
-            </button>
+            <BackButton />
             <HomeButton />
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white">

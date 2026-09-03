@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   Send,
   FileText,
   Pencil,
@@ -20,6 +19,7 @@ import {
   FileSignature,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { formatarMoeda, formatarTelefone, formatarData, numeroCurto } from "../utils/formatadores";
 import { gerarPdfContrato } from "../utils/pdfContrato";
@@ -580,14 +580,11 @@ export default function EmprestimoDetalhes() {
           <header className="rounded-[22px] border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/60 dark:bg-slate-900 px-6 py-5 shadow-[0_8px_25px_rgba(20,100,70,0.05)] dark:shadow-none">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => navigate("/emprestimos")}
-                  aria-label="Voltar"
-                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 border shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-                >
-                  <ArrowLeft className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
-                </button>
+                <BackButton
+                  to="/emprestimos"
+                  className="w-[42px] h-[42px]"
+                  iconSize="w-[18px] h-[18px]"
+                />
                 <button
                   type="button"
                   onClick={() => navigate("/dashboard")}

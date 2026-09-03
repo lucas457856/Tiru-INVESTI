@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   House,
   Pencil,
   Trash2,
@@ -22,6 +21,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
 import {
@@ -272,14 +272,7 @@ export default function PerfilCliente() {
         {/* Cabeçalho */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate("/clientes")}
-              aria-label="Voltar"
-              className="rounded-full p-2 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-            >
-              <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
-            </button>
+            <BackButton to="/clientes" />
             <button
               type="button"
               onClick={() => navigate("/dashboard")}

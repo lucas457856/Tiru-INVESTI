@@ -35,7 +35,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Home,
   FileText,
   ArrowDown,
@@ -48,6 +47,7 @@ import {
 } from "lucide-react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { db } from "../services/firebase";
 import { useAuth } from "../context/useAuth";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
@@ -314,14 +314,7 @@ export default function HistoricoFinanceiro() {
           {/* Cabeçalho verde claro com botões circulares */}
           <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-5 py-4 sm:px-6 sm:py-5 mb-8">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                aria-label="Voltar"
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+              <BackButton className="w-9 h-9 sm:w-10 sm:h-10" iconSize="w-4 h-4" />
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}

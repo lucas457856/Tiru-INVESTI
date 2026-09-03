@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   House,
   LoaderCircle,
   TriangleAlert,
   Calendar,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
+import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import {
   formatarMoeda,
@@ -282,14 +282,7 @@ export default function RenegociarParcela() {
         {/* Cabeçalho */}
         <header className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-emerald-950/20 px-6 py-5">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate(`/emprestimos/${contrato.id}`)}
-              aria-label="Voltar"
-              className="rounded-full p-2 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 transition"
-            >
-              <ArrowLeft className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200" />
-            </button>
+            <BackButton to={`/emprestimos/${contrato.id}`} />
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
