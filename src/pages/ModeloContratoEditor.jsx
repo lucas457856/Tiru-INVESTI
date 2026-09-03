@@ -98,7 +98,7 @@ export default function ModeloContratoEditor() {
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 required
-                className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
               />
             </section>
 
@@ -113,7 +113,7 @@ export default function ModeloContratoEditor() {
                 onChange={(e) => setTexto(e.target.value)}
                 rows={14}
                 required
-                className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
               />
 
               {/* Variáveis */}
@@ -126,7 +126,7 @@ export default function ModeloContratoEditor() {
                     key={v}
                     type="button"
                     onClick={() => inserirVariavel(v)}
-                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-Cred Facil transition"
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-jurex transition"
                   >
                     + &#123;{v}&#125;
                   </button>
@@ -138,7 +138,7 @@ export default function ModeloContratoEditor() {
             <div className="flex gap-3 mb-12">
               <button
                 type="submit"
-                className="flex-1 h-12 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition"
+                className="flex-1 h-12 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition"
               >
                 <Save className="w-5 h-5" />
                 Salvar
@@ -153,7 +153,7 @@ export default function ModeloContratoEditor() {
               </button>
             </div>
             {salvo && (
-              <p className="-mt-8 mb-10 text-xs font-semibold text-Cred Facil">Salvo!</p>
+              <p className="-mt-8 mb-10 text-xs font-semibold text-jurex">Salvo!</p>
             )}
           </form>
         )}

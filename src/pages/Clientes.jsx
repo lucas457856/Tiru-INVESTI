@@ -81,13 +81,13 @@ export default function Clientes() {
               placeholder="Buscar por nome ou CPF"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+              className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
             />
           </div>
           <button
             type="button"
             onClick={() => navigate("/clientes/novo")}
-            className="h-12 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
+            className="h-12 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition shrink-0"
           >
             <Plus className="w-4.5 h-4.5" />
             Cadastrar cliente
@@ -98,7 +98,7 @@ export default function Clientes() {
         {clientes.length === 0 ? (
           <section className="mt-14 mb-16 flex flex-col items-center text-center">
             <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
-              <UsersRound className="w-7 h-7 text-Cred Facil" />
+              <UsersRound className="w-7 h-7 text-jurex" />
             </span>
             <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
               Nenhum cliente cadastrado
@@ -109,7 +109,7 @@ export default function Clientes() {
             <button
               type="button"
               onClick={() => navigate("/clientes/novo")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Cadastrar primeiro cliente
             </button>
@@ -132,7 +132,7 @@ export default function Clientes() {
               <article
                 key={id}
                 onClick={() => navigate(`/clientes/${id}`)}
-                className="cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:border-Cred Facil/40 hover:shadow-md transition"
+                className="cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:border-jurex/40 hover:shadow-md transition"
               >
                 <div className="flex items-center gap-3">
                   <span className="w-11 h-11 rounded-xl bg-emerald-500 text-white font-bold flex items-center justify-center overflow-hidden">

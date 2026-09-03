@@ -27,11 +27,11 @@ import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato, li
 import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado, getNextOpenInstallment, calculatePenalty } from "../services/paymentCalculations";
 import { buscarJurosRecebidos } from "../services/jurosRecebidosService";
 import { gerarMensagem, MODELOS_PADRAO } from "../utils/mensagens";
-import logoCred Facil from "../assets/Cred Facil-logo.png";
+import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
 const STATUS_PARCELA = {
-  Paga: { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Paga" },
+  Paga: { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Paga" },
   Pendente: { classe: "bg-amber-50 dark:bg-amber-500/10 text-amber-500", label: "Em dia" },
   Vencida: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Vencida" },
   Parcial: { classe: "bg-blue-50 dark:bg-blue-500/10 text-blue-600", label: "Parcial" },
@@ -40,7 +40,7 @@ const STATUS_PARCELA = {
 const STATUS_CONTRATO = {
   Quitado: { classe: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", label: "Quitado" },
   Atrasado: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Atrasado" },
-  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Em dia" },
+  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Em dia" },
 };
 
 const HOJE = new Date();
@@ -65,7 +65,7 @@ const SUB_CONFIG = [
   { to: "/configuracoes/backup", label: "Backup de dados" },
   { to: "/configuracoes/ajuda", label: "Central de ajuda" },
   { to: "/configuracoes/privacidade", label: "Privacidade" },
-  { to: "/configuracoes/sobre", label: "Sobre o Cred Facil" },
+  { to: "/configuracoes/sobre", label: "Sobre o Jurex" },
 ];
 
 export default function EmprestimoDetalhes() {
@@ -377,7 +377,7 @@ export default function EmprestimoDetalhes() {
   // Compartilhar PDF atualizado
   function compartilharPdf() {
     if (!contrato) return;
-    gerarPdfContrato({ contrato, cliente, logoDataUrl: logoCred Facil });
+    gerarPdfContrato({ contrato, cliente, logoDataUrl: logoJurex });
   }
 
   // Navega para a tela de recebimento para a parcela clicada
@@ -438,7 +438,7 @@ export default function EmprestimoDetalhes() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
           <p className="text-sm font-semibold">Carregando contrato...</p>
         </div>
       </AppLayout>
@@ -469,7 +469,7 @@ export default function EmprestimoDetalhes() {
             <button
               type="button"
               onClick={() => navigate("/emprestimos")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para contratos
             </button>
@@ -512,7 +512,7 @@ export default function EmprestimoDetalhes() {
             </div>
             <div className="min-w-0">
               <p className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate max-w-[170px]">
-                Cred Facil
+                Jurex
               </p>
               <p className="text-[10px] font-medium tracking-wider text-blue-600 dark:text-blue-400 uppercase truncate max-w-[170px]">
                 FREDERICO KILLER
@@ -580,11 +580,14 @@ export default function EmprestimoDetalhes() {
           <header className="rounded-[22px] border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/60 dark:bg-slate-900 px-6 py-5 shadow-[0_8px_25px_rgba(20,100,70,0.05)] dark:shadow-none">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <BackButton
-                  to="/emprestimos"
-                  className="w-[42px] h-[42px]"
-                  iconSize="w-[18px] h-[18px]"
-                />
+                <button
+                  type="button"
+                  onClick={() => navigate("/emprestimos")}
+                  aria-label="Voltar"
+                  className="w-[42px] h-[42px] rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 border shadow-[0_4px_6px_rgba(15,23,42,0.03)] flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                >
+                  <ArrowLeft className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
+                </button>
                 <button
                   type="button"
                   onClick={() => navigate("/dashboard")}
@@ -682,7 +685,7 @@ export default function EmprestimoDetalhes() {
               </div>
               <div className="mt-2 h-[7px] rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-Cred Facil to-emerald-500 transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-jurex to-emerald-500 transition-all"
                   style={{ width: `${progresso.porcentagem}%` }}
                 />
               </div>
@@ -842,7 +845,7 @@ export default function EmprestimoDetalhes() {
                           className={`shrink-0 rounded-full px-[11px] py-1 text-[10px] font-bold flex items-center gap-1 ${sp.classe}`}
                         >
                           {p.status === "Paga" && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-Cred Facil" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-jurex" />
                           )}
                           {sp.label}
                         </span>

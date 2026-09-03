@@ -2,7 +2,7 @@
 //
 // Acionado pelo botão "Menu" do `BottomNav` (mobile only). Reproduz o
 // design de referência: drawer vindo da esquerda, ~75% da largura,
-// header com logo + "Cred Facil" + nome do usuário, seções FERRAMENTAS e
+// header com logo + "Jurex" + nome do usuário, seções FERRAMENTAS e
 // CONFIGURAÇÕES, itens com ícone verde dentro de chip cinza claro,
 // seta à direita e destaque cinza-claro nos itens destacados
 // ("Modelos de cobrança" e "Central de ajuda").
@@ -94,7 +94,7 @@ const secoes = [
         icone: ScrollText,
       },
       {
-        label: "Sobre o Cred Facil",
+        label: "Sobre o Jurex",
         to: "/configuracoes/sobre",
         icone: Info,
       },
@@ -201,12 +201,12 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
           <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
             <img
               src="/logo.png"
-              alt="Cred Facil"
+              alt="Jurex"
               className="w-7 h-7 object-contain"
             />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="text-base font-bold text-slate-800 dark:text-slate-100">Cred Facil</p>
+            <p className="text-base font-bold text-slate-800 dark:text-slate-100">Jurex</p>
             <p className="text-[11px] tracking-[0.18em] text-slate-500 dark:text-slate-400 font-semibold uppercase truncate">
               {nomeHeader}
             </p>
@@ -219,7 +219,7 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
             aria-label="Fechar menu"
             className="absolute top-3 right-3 w-9 h-9 rounded-full border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-800 flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
           >
-            <X className="w-4 h-4 text-Cred Facil" strokeWidth={2.25} />
+            <X className="w-4 h-4 text-jurex" strokeWidth={2.25} />
           </button>
         </header>
 
@@ -249,7 +249,7 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
                         }`}
                       >
                         <Icone
-                          className="w-[18px] h-[18px] text-Cred Facil"
+                          className="w-[18px] h-[18px] text-jurex"
                           strokeWidth={2}
                         />
                       </span>

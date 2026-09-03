@@ -21,9 +21,9 @@
 //
 // DEDUPLICAÇÃO: 3 camadas (ver `src/utils/notificationDedup.js`).
 //   - Set em memória (`notificacoesInSession`)  — O(1), cobre re-renders.
-//   - localStorage (`Cred Facil:notif:<tipo>:<contratoId>:<parcelaNumero>:<vencimentoISO>`)
+//   - localStorage (`jurex:notif:<tipo>:<contratoId>:<parcelaNumero>:<vencimentoISO>`)
 //     — cobre F5, logout/login, fechamento de aba.
-//   - `tag` no Chrome (`Cred Facil:parcela_<estado>:<contratoId>:<parcelaNumero>:<vencimentoISO>`)
+//   - `tag` no Chrome (`jurex:parcela_<estado>:<contratoId>:<parcelaNumero>:<vencimentoISO>`)
 //     — cobre toast visual repetido no browser.
 //
 // QUANDO RODA: num `useEffect([contratosAtivos, usuarioUid])`. Sem
@@ -179,7 +179,7 @@ export function useNotificadorVencimentos(contratosAtivos, usuarioUid) {
               tipo,
               contratoId: c.id,
               parcelaNumero: p.numero,
-              tag: `Cred Facil:${tipo}:${c.id}:${p.numero}:${vStr}`,
+              tag: `jurex:${tipo}:${c.id}:${p.numero}:${vStr}`,
             });
             disparadas += 1;
             statsRef.current.disparadas += 1;

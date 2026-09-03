@@ -95,7 +95,7 @@ export default function Calendario() {
           </div>
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-center">
             <span className="inline-flex rounded-full bg-emerald-50 dark:bg-emerald-500/10 p-2.5 mb-3">
-              <CalendarDays className="w-5 h-5 text-Cred Facil" />
+              <CalendarDays className="w-5 h-5 text-jurex" />
             </span>
             <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Total no mês</p>
             <p className="mt-1 text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">R$ 0,00</p>
@@ -115,7 +115,7 @@ export default function Calendario() {
                 onClick={() => setFiltro(id)}
                 className={`h-9 rounded-full text-sm font-semibold transition ${
                   filtro === id
-                    ? "bg-Cred Facil text-white shadow"
+                    ? "bg-jurex text-white shadow"
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
                 }`}
               >
@@ -173,11 +173,11 @@ export default function Calendario() {
                       onClick={() => setDiaSelecionado(dia)}
                       className={`mx-auto w-9 h-9 rounded-full text-sm font-semibold flex items-center justify-center transition ${
                         selecionado
-                          ? "bg-Cred Facil text-white shadow-md shadow-Cred Facil/30"
+                          ? "bg-jurex text-white shadow-md shadow-jurex/30"
                           : foraDoMes
                             ? "text-slate-300 dark:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
                             : ehHoje(dia)
-                              ? "text-Cred Facil font-bold hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                              ? "text-jurex font-bold hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
                               : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       }`}
                     >
@@ -200,7 +200,7 @@ export default function Calendario() {
         {/* Cobranças do dia */}
         <section className="mt-8 mb-12 flex flex-col items-center text-center">
           <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
-            <CalendarDays className="w-7 h-7 text-Cred Facil" />
+            <CalendarDays className="w-7 h-7 text-jurex" />
           </span>
           {cobrancasDoDia.length === 0 ? (
             <>

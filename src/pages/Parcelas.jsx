@@ -217,11 +217,11 @@ function DatePicker({ value, onChange }) {
               onClick={() => selecionar(data)}
               className={`mx-auto my-0.5 w-7 h-7 flex items-center justify-center rounded-full transition ${
                 sel
-                  ? "bg-Cred Facil text-white font-bold"
+                  ? "bg-jurex text-white font-bold"
                   : fora
                     ? "text-slate-300 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
                     : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-              } ${hj && !sel ? "ring-1 ring-Cred Facil/40 font-bold" : ""}`}
+              } ${hj && !sel ? "ring-1 ring-jurex/40 font-bold" : ""}`}
             >
               {data.getDate()}
             </button>
@@ -561,8 +561,8 @@ export default function Parcelas() {
                   onClick={() => setFiltro(f.id)}
                   className={`h-9 px-4 rounded-full text-xs font-bold transition ${
                     ativo
-                      ? "bg-Cred Facil text-white shadow-sm shadow-Cred Facil/30"
-                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-700 hover:border-Cred Facil/40"
+                      ? "bg-jurex text-white shadow-sm shadow-jurex/30"
+                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-700 hover:border-jurex/40"
                   }`}
                 >
                   {f.label}
@@ -583,11 +583,11 @@ export default function Parcelas() {
                   aria-expanded={dataPickerAberto}
                   className={`w-full inline-flex items-center gap-3 rounded-xl border ${
                     dataPickerAberto
-                      ? "border-Cred Facil ring-2 ring-Cred Facil/20"
+                      ? "border-jurex ring-2 ring-jurex/20"
                       : "border-slate-200 dark:border-slate-700"
-                  } bg-white dark:bg-slate-900 px-5 py-3 text-left transition hover:border-Cred Facil/40 focus:outline-none`}
+                  } bg-white dark:bg-slate-900 px-5 py-3 text-left transition hover:border-jurex/40 focus:outline-none`}
                 >
-                  <CalendarDays className="w-4.5 h-4.5 text-Cred Facil shrink-0" />
+                  <CalendarDays className="w-4.5 h-4.5 text-jurex shrink-0" />
                   <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                     {dataInicial
                       ? formatarDataPorExtensoBR(dataInicial)
@@ -622,7 +622,7 @@ export default function Parcelas() {
               className={`mt-3 rounded-xl px-4 py-2.5 text-sm font-semibold ${
                 feedback.tipo === "erro"
                   ? "bg-red-50 text-red-500 border border-red-200/70"
-                  : "bg-emerald-50 text-Cred Facil border border-emerald-200/70"
+                  : "bg-emerald-50 text-jurex border border-emerald-200/70"
               }`}
             >
               {feedback.texto}
@@ -641,7 +641,7 @@ export default function Parcelas() {
                   {parcelasFiltradas.length === 1 ? "parcela" : "parcela(s)"}
                 </p>
               </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-Cred Facil tabular-nums">
+              <p className="text-2xl sm:text-3xl font-extrabold text-jurex tabular-nums">
                 {carregando ? "..." : formatarMoeda(totalFiltrado)}
               </p>
             </div>
@@ -708,7 +708,7 @@ export default function Parcelas() {
                         abrirDetalhes(item);
                       }
                     }}
-                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm cursor-pointer transition hover:border-Cred Facil/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-Cred Facil/20"
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm cursor-pointer transition hover:border-jurex/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-jurex/20"
                   >
                     <div className="flex items-start gap-3">
                       <span className="shrink-0 w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center text-sm font-extrabold">
@@ -729,7 +729,7 @@ export default function Parcelas() {
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2">
-                      <p className="text-base font-extrabold text-Cred Facil tabular-nums">
+                      <p className="text-base font-extrabold text-jurex tabular-nums">
                         {formatarMoeda(p.valor)}
                       </p>
                       <div className="flex items-center gap-2">
@@ -740,7 +740,7 @@ export default function Parcelas() {
                             abrirWhatsapp(item);
                           }}
                           aria-label="Enviar mensagem pelo WhatsApp"
-                          className="rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 p-2 text-Cred Facil transition"
+                          className="rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 p-2 text-jurex transition"
                         >
                           <MessageCircle className="w-4 h-4" />
                         </button>
@@ -790,8 +790,8 @@ function calcularStatus(parcela, venc, hojeISO) {
 function StatusBadge({ status }) {
   // Mesma paleta do projeto (emerald-50/red-50/amber-50/blue-50)
   const mapa = {
-    Paga: "bg-emerald-50 text-Cred Facil border border-emerald-200/70",
-    Hoje: "bg-emerald-50 text-Cred Facil border border-emerald-200/70",
+    Paga: "bg-emerald-50 text-jurex border border-emerald-200/70",
+    Hoje: "bg-emerald-50 text-jurex border border-emerald-200/70",
     "A vencer": "bg-amber-50 text-amber-700 border border-amber-200/70",
     Atrasada: "bg-red-50 text-red-500 border border-red-200/70",
   };

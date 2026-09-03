@@ -383,7 +383,7 @@ export default function ReceberPagamento() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
-          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
           <p className="text-sm font-semibold">Carregando contrato...</p>
         </div>
       </AppLayout>
@@ -411,7 +411,7 @@ export default function ReceberPagamento() {
             <button
               type="button"
               onClick={() => navigate(`/emprestimos/${contratoId}`)}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para o contrato
             </button>
@@ -540,8 +540,8 @@ export default function ReceberPagamento() {
                   }}
                   className={`h-14 rounded-2xl text-sm font-bold transition ${
                     ativa
-                      ? "bg-gradient-to-r from-Cred Facil to-emerald-500 text-white shadow-lg shadow-Cred Facil/25"
-                      : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-700 dark:text-slate-300 hover:border-Cred Facil/40 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      ? "bg-gradient-to-r from-jurex to-emerald-500 text-white shadow-lg shadow-jurex/25"
+                      : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-700 dark:text-slate-300 hover:border-jurex/40 hover:bg-slate-50 dark:hover:bg-slate-800"
                   }`}
                 >
                   {m.label}
@@ -572,7 +572,7 @@ export default function ReceberPagamento() {
                   const digits = e.target.value.replace(/\D/g, "");
                   setValorJurosInput(digits ? (Number(digits) / 100).toFixed(2) : "");
                 }}
-                className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
               />
               {modalidade === "juros_apenas" && resumo.sugestao && (
                 <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -600,7 +600,7 @@ export default function ReceberPagamento() {
                     const digits = e.target.value.replace(/\D/g, "");
                     setValorAbatimentoInput(digits ? (Number(digits) / 100).toFixed(2) : "");
                   }}
-                  className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
                 />
                 {calculos.dividaRestante > 0 && (
                   <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -625,7 +625,7 @@ export default function ReceberPagamento() {
             type="date"
             value={dataRecebimento}
             onChange={(e) => setDataRecebimento(e.target.value)}
-            className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+            className="mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
           />
         </div>
 
@@ -643,7 +643,7 @@ export default function ReceberPagamento() {
             onChange={(e) => setObservacao(e.target.value)}
             rows={2}
             placeholder="Ex.: Pagamento em espécie"
-            className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+            className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
           />
         </div>
 
@@ -663,7 +663,7 @@ export default function ReceberPagamento() {
 
         {/* Sucesso */}
         {sucesso && (
-          <p className="mt-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-Cred Facil">
+          <p className="mt-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-jurex">
             {sucesso}
           </p>
         )}
@@ -674,7 +674,7 @@ export default function ReceberPagamento() {
             type="button"
             onClick={confirmarRecebimento}
             disabled={salvando || !validacoes.ok || !resumo}
-            className={`w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition ${
+            className={`w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition ${
               salvando || !validacoes.ok || !resumo
                 ? "opacity-60 pointer-events-none"
                 : ""
@@ -694,5 +694,5 @@ export default function ReceberPagamento() {
 const STATUS_CONTRATO = {
   Quitado: { classe: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", label: "Quitado" },
   Atrasado: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Atrasado" },
-  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Em dia" },
+  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Em dia" },
 };

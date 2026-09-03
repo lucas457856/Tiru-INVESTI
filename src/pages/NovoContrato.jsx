@@ -22,11 +22,11 @@ import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { criarNotificacao } from "../services/notificationsService";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
-import logoCred Facil from "../assets/Cred Facil-logo.png";
+import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
 const STATUS_PARCELA = {
-  Paga: { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Paga" },
+  Paga: { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Paga" },
   Pendente: { classe: "bg-amber-50 dark:bg-amber-500/10 text-amber-500", label: "Em dia" },
   Vencida: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Vencida" },
   Parcial: { classe: "bg-blue-50 dark:bg-blue-500/10 text-blue-600", label: "Parcial" },
@@ -36,7 +36,7 @@ const STATUS_PARCELA = {
 const STATUS_CONTRATO = {
   Quitado: { classe: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", label: "Quitado" },
   Atrasado: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Atrasado" },
-  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Em dia" },
+  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Em dia" },
 };
 
 export default function NovoContrato() {
@@ -274,7 +274,7 @@ export default function NovoContrato() {
   // são puramente decorativos. O estado é controlado por `checked`/`onChange`.
   function ToggleRow({ checked, onChange, label }) {
     return (
-      <label className="flex items-center justify-between h-12 px-5 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer select-none transition hover:border-Cred Facil/40">
+      <label className="flex items-center justify-between h-12 px-5 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer select-none transition hover:border-jurex/40">
         <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
         <span className="relative inline-flex items-center">
           <input
@@ -285,7 +285,7 @@ export default function NovoContrato() {
           />
           <span
             className={`w-9 h-5 rounded-full transition-colors ${
-              checked ? "bg-Cred Facil" : "bg-slate-300 dark:bg-slate-600"
+              checked ? "bg-jurex" : "bg-slate-300 dark:bg-slate-600"
             }`}
           />
           <span
@@ -302,11 +302,11 @@ export default function NovoContrato() {
   const classeLabel =
     "block text-[11px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase";
   const classeInput =
-    "mt-2 w-full h-12 px-5 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
+    "mt-2 w-full h-12 px-5 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
   const classeBotaoSegmentoInativo =
-    "h-12 rounded-[10px] text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition hover:border-Cred Facil/40 hover:text-slate-900 dark:hover:text-white";
+    "h-12 rounded-[10px] text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition hover:border-jurex/40 hover:text-slate-900 dark:hover:text-white";
   const classeBotaoSegmentoAtivo =
-    "h-12 rounded-[10px] text-sm font-semibold bg-Cred Facil border border-Cred Facil text-white shadow-sm shadow-Cred Facil/30 transition";
+    "h-12 rounded-[10px] text-sm font-semibold bg-jurex border border-jurex text-white shadow-sm shadow-jurex/30 transition";
 
   return (
     <AppLayout>
@@ -458,7 +458,7 @@ export default function NovoContrato() {
                             <Check
                               className={`w-4 h-4 mt-0.5 shrink-0 ${
                                 selecionado
-                                  ? "text-Cred Facil"
+                                  ? "text-jurex"
                                   : "text-transparent"
                               }`}
                             />
@@ -466,7 +466,7 @@ export default function NovoContrato() {
                               <p
                                 className={`text-sm font-semibold truncate ${
                                   selecionado
-                                    ? "text-Cred Facil dark:text-emerald-400"
+                                    ? "text-jurex dark:text-emerald-400"
                                     : "text-slate-900 dark:text-white"
                                 }`}
                               >
@@ -640,7 +640,7 @@ export default function NovoContrato() {
                   onChange={(e) => setObservacao(e.target.value)}
                   rows={2}
                   placeholder="Observação sobre o contrato..."
-                  className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                  className="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
                 />
               )}
             </div>
@@ -650,19 +650,19 @@ export default function NovoContrato() {
               <div className="mt-2 rounded-[14px] border border-emerald-100/80 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5 p-5 sm:p-6 space-y-3 shadow-sm">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 dark:text-slate-400">Valor da parcela</span>
-                  <span className="font-bold text-Cred Facil dark:text-emerald-400 tabular-nums">
+                  <span className="font-bold text-jurex dark:text-emerald-400 tabular-nums">
                     {formatarMoedaExibicao(resumo.valorParcela)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 dark:text-slate-400">Total a receber</span>
-                  <span className="font-bold text-Cred Facil dark:text-emerald-400 tabular-nums">
+                  <span className="font-bold text-jurex dark:text-emerald-400 tabular-nums">
                     {formatarMoedaExibicao(resumo.totalReceber)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 dark:text-slate-400">Lucro estimado</span>
-                  <span className="font-bold text-Cred Facil dark:text-emerald-400 tabular-nums">
+                  <span className="font-bold text-jurex dark:text-emerald-400 tabular-nums">
                     {formatarMoedaExibicao(resumo.lucro)}
                   </span>
                 </div>
@@ -687,7 +687,7 @@ export default function NovoContrato() {
                   parcelasNumero <= 0 ||
                   (tipoEmprestimo === "Com Juros" && jurosNumero <= 0)
                 }
-                className={`w-full h-12 rounded-[10px] bg-Cred Facil hover:bg-Cred Facil-dark text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-sm shadow-Cred Facil/30 transition ${
+                className={`w-full h-12 rounded-[10px] bg-jurex hover:bg-jurex-dark text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-sm shadow-jurex/30 transition ${
                   salvando ||
                   !clienteSel ||
                   valorNumero <= 0 ||

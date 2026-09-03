@@ -78,7 +78,7 @@ export default function BackupDados() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.text(
-        aba === "clientes" ? "Relatório de Clientes — Cred Facil" : "Relatório de Contratos — Cred Facil",
+        aba === "clientes" ? "Relatório de Clientes — Jurex" : "Relatório de Contratos — Jurex",
         14, 18
       );
       pdf.setFontSize(9);
@@ -115,7 +115,7 @@ export default function BackupDados() {
         }
       }
 
-      pdf.save(aba === "clientes" ? "clientes-Cred Facil.pdf" : "contratos-Cred Facil.pdf");
+      pdf.save(aba === "clientes" ? "clientes-jurex.pdf" : "contratos-jurex.pdf");
     } finally {
       setGerando(false);
     }
@@ -178,7 +178,7 @@ export default function BackupDados() {
                     className={`h-8 px-4 rounded-full text-xs font-bold transition ${
                       status === s
                         ? "bg-emerald-500 text-white shadow"
-                        : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-Cred Facil/40"
+                        : "bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-slate-500 dark:text-slate-400 hover:border-jurex/40"
                     }`}
                   >
                     {s}
@@ -200,7 +200,7 @@ export default function BackupDados() {
                     type="date"
                     value={de}
                     onChange={(e) => setDe(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                    className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
                   />
                 </div>
                 <div>
@@ -210,7 +210,7 @@ export default function BackupDados() {
                     type="date"
                     value={ate}
                     onChange={(e) => setAte(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+                    className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
                   />
                 </div>
               </div>
@@ -233,7 +233,7 @@ export default function BackupDados() {
           type="button"
           disabled={gerando || filtrados.length === 0}
           onClick={gerarPdf}
-          className="mt-5 w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+          className="mt-5 w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
         >
           <Download className="w-5 h-5" />
           Gerar PDF de{" "}

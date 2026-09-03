@@ -161,7 +161,7 @@ export default async function handler(req, res) {
   // O `oobCode` é codificado para ser seguro em URL.
   const linkFinal = `${PRODUCAO_ORIGEM}/nova-senha?oobCode=${encodeURIComponent(oobCode)}`;
 
-  // 6) Monta e envia o e-mail com a URL final do Cred Facil.
+  // 6) Monta e envia o e-mail com a URL final do Jurex.
   const { html, text } = renderEmailRedefinicaoSenha({ email, link: linkFinal });
 
   try {
@@ -169,7 +169,7 @@ export default async function handler(req, res) {
     const result = await resend.emails.send({
       from: resendFrom,
       to: email,
-      subject: "Redefinir sua senha — Cred Facil",
+      subject: "Redefinir sua senha — Jurex",
       html,
       text,
     });

@@ -1,8 +1,8 @@
-// Template HTML do e-mail de redefinição de senha da Cred Facil.
+// Template HTML do e-mail de redefinição de senha da Jurex.
 // Gera SOMENTE a string HTML (subject fica a cargo do chamador).
 //
 // Convenções:
-// - Visual Cred Facil: verde esmeralda (#10b981 / emerald-500) e cinza escuro.
+// - Visual Jurex: verde esmeralda (#10b981 / emerald-500) e cinza escuro.
 // - Largura máxima 560px (compatível com a maioria dos clientes).
 // - Tabela-based (não flex/grid), pra Gmail/Outlook renderizarem certo.
 // - Fallback textual do link sempre visível, para clientes que cortam
@@ -37,7 +37,7 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="x-apple-disable-message-reformatting" />
-<title>Redefinir sua senha — Cred Facil</title>
+<title>Redefinir sua senha — Jurex</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#0f172a;padding:32px 16px;">
@@ -54,7 +54,7 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
                   <div style="display:inline-block;width:40px;height:40px;line-height:40px;background-color:#10b981;color:#ffffff;text-align:center;font-weight:800;font-size:20px;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">J</div>
                 </td>
                 <td style="vertical-align:middle;padding-left:12px;">
-                  <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">Cred Facil</div>
+                  <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">Jurex</div>
                   <div style="font-size:10px;font-weight:700;color:#10b981;letter-spacing:2px;text-transform:uppercase;margin-top:2px;">Gestão Financeira</div>
                 </td>
               </tr>
@@ -71,7 +71,7 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
             </h1>
 
             <p style="margin:0 0 20px 0;font-size:15px;line-height:1.6;color:#475569;">
-              Recebemos um pedido para redefinir a senha da sua conta Cred Facil.
+              Recebemos um pedido para redefinir a senha da sua conta Jurex.
               Se você fez essa solicitação, clique no botão abaixo para
               escolher uma nova senha.
             </p>
@@ -148,13 +148,13 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
 </html>`;
 
   const text = [
-    "Cred Facil — Gestão Financeira",
+    "Jurex — Gestão Financeira",
     "",
     "Redefinir sua senha",
     "",
     `Conta: ${email || ""}`,
     "",
-    "Recebemos um pedido para redefinir a senha da sua conta Cred Facil.",
+    "Recebemos um pedido para redefinir a senha da sua conta Jurex.",
     "Se você fez essa solicitação, use o link abaixo para escolher uma",
     "nova senha:",
     "",
@@ -164,7 +164,7 @@ export function renderEmailRedefinicaoSenha({ email, link }) {
     "Se você não solicitou a redefinição, basta ignorar este e-mail —",
     "sua senha atual continua valendo.",
     "",
-    "— Cred Facil",
+    "— Jurex",
     "https://tiru-investi.vercel.app",
   ].join("\n");
 

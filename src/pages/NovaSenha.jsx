@@ -29,10 +29,10 @@ import {
 } from "../services/authService";
 
 const INPUT_CLASSE =
-  "w-full h-12 pl-11 pr-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
+  "w-full h-12 pl-11 pr-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
 
 const BOTAO_PRIMARIO =
-  "w-full h-12 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none";
+  "w-full h-12 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none";
 
 export default function NovaSenha() {
   const navigate = useNavigate();
@@ -119,7 +119,7 @@ export default function NovaSenha() {
     return (
       <div className="min-h-svh flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3 text-slate-500">
-          <span className="w-7 h-7 border-2 border-slate-200 border-t-Cred Facil rounded-full animate-spin" />
+          <span className="w-7 h-7 border-2 border-slate-200 border-t-jurex rounded-full animate-spin" />
           <p className="text-sm font-medium">Validando link…</p>
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function NovaSenha() {
           </Link>
           <Link
             to="/login"
-            className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-Cred Facil hover:text-Cred Facil-dark transition"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-jurex hover:text-jurex-dark transition"
           >
             Voltar para o login
           </Link>
@@ -163,7 +163,7 @@ export default function NovaSenha() {
     return (
       <div className="min-h-svh flex items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-emerald-900/10 ring-1 ring-black/5 p-6 sm:p-8 text-center">
-          <span className="inline-flex w-12 h-12 items-center justify-center rounded-2xl bg-emerald-50 text-Cred Facil mx-auto">
+          <span className="inline-flex w-12 h-12 items-center justify-center rounded-2xl bg-emerald-50 text-jurex mx-auto">
             <CircleCheck className="w-6 h-6" />
           </span>
           <h1 className="mt-4 text-lg font-bold text-slate-800">
@@ -184,7 +184,7 @@ export default function NovaSenha() {
       <div className="w-full max-w-md rounded-3xl border border-emerald-100 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-500/5 shadow-xl shadow-emerald-900/10 p-6 sm:p-8">
         {/* Cabeçalho verde claro — ícone cadeado + título + subtítulo */}
         <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-4 sm:p-5">
-          <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-Cred Facil text-white shadow-md">
+          <span className="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-jurex text-white shadow-md">
             <Lock className="w-5 h-5" strokeWidth={2.25} />
           </span>
           <h1 className="mt-4 text-xl font-extrabold text-slate-900 dark:text-white">

@@ -35,13 +35,13 @@ const itens = [
   { to: "/relatorios", label: "Relatórios", icone: ChartLine, end: true },
 ];
 
-// Classes por estado: item ativo = borda + texto + ícone verdes (Cred Facil).
+// Classes por estado: item ativo = borda + texto + ícone verdes (jurex).
 // Inativo = slate-500. Espelha a estética da Sidebar (emerald-50 de fundo
 // em ativo), mas em formato horizontal mais compacto para a barra inferior.
 const classeItem = ({ isActive }) =>
   `flex flex-col items-center justify-center gap-0.5 min-w-0 flex-1 py-2 rounded-2xl transition ${
     isActive
-      ? "text-Cred Facil"
+      ? "text-jurex"
       : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
   }`;
 
@@ -70,13 +70,13 @@ export default function BottomNav() {
                       }`}
                     >
                       <Icone
-                        className={`w-5 h-5 ${isActive ? "text-Cred Facil" : "text-slate-500 dark:text-slate-400"}`}
+                        className={`w-5 h-5 ${isActive ? "text-jurex" : "text-slate-500 dark:text-slate-400"}`}
                         strokeWidth={isActive ? 2.25 : 2}
                       />
                     </span>
                     <span
                       className={`text-[10px] font-semibold tracking-wide truncate ${
-                        isActive ? "text-Cred Facil" : "text-slate-500 dark:text-slate-400"
+                        isActive ? "text-jurex" : "text-slate-500 dark:text-slate-400"
                       }`}
                     >
                       {label}

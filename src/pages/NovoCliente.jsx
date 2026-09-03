@@ -176,7 +176,7 @@ export default function NovoCliente() {
   }
 
   const classeCampo =
-    "mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20";
+    "mt-2 w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
   const classeLabel =
     "block text-[10px] font-bold tracking-widest text-slate-500 uppercase";
 
@@ -222,7 +222,7 @@ export default function NovoCliente() {
           <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
             <p className={classeLabel}>Foto do cliente</p>
             <div className="mt-3 flex items-center gap-4">
-              <span className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 overflow-hidden flex items-center justify-center">
+              <span className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 overflow-hidden flex items-center justify-center">
                 {foto ? (
                   <img src={foto} alt="Foto do cliente" className="w-full h-full object-cover" />
                 ) : (
@@ -329,7 +329,7 @@ export default function NovoCliente() {
               </p>
               <label
                 htmlFor="novo-cliente-documentos"
-                className="inline-flex items-center gap-1 text-xs font-bold text-Cred Facil cursor-pointer hover:brightness-105 transition select-none"
+                className="inline-flex items-center gap-1 text-xs font-bold text-jurex cursor-pointer hover:brightness-105 transition select-none"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Adicionar documento
@@ -383,7 +383,7 @@ export default function NovoCliente() {
 
           {/* Sucesso */}
           {sucesso && (
-            <p className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-Cred Facil">
+            <p className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-jurex">
               Cliente cadastrado com sucesso!
             </p>
           )}
@@ -392,7 +392,7 @@ export default function NovoCliente() {
           <button
             type="submit"
             disabled={salvando}
-            className="w-full h-13 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
+            className="w-full h-13 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 disabled:pointer-events-none"
           >
             {salvando ? "Salvando..." : "Cadastrar cliente"}
           </button>

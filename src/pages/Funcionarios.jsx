@@ -69,7 +69,7 @@ export default function Funcionarios() {
               : "Requer assinatura paga ativa"
           }
           onClick={() => navigate("/configuracoes/meus-planos")}
-          className="mt-5 mx-auto max-w-md w-full h-12 rounded-2xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-50 disabled:pointer-events-none"
+          className="mt-5 mx-auto max-w-md w-full h-12 rounded-2xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-50 disabled:pointer-events-none"
         >
           <UserPlus className="w-5 h-5" />
           Adicionar funcionário
@@ -79,7 +79,7 @@ export default function Funcionarios() {
         {funcionarios.length === 0 ? (
           <section className="mt-14 mb-16 flex flex-col items-center text-center">
             <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
-              <UsersRound className="w-7 h-7 text-Cred Facil" />
+              <UsersRound className="w-7 h-7 text-jurex" />
             </span>
             <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
               Nenhum funcionário cadastrado

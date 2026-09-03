@@ -30,7 +30,7 @@ import BackupDados from "../pages/BackupDados";
 import Funcionarios from "../pages/Funcionarios";
 import CentralAjuda from "../pages/CentralAjuda";
 import Privacidade from "../pages/Privacidade";
-import SobreCred Facil from "../pages/SobreCred Facil";
+import SobreJurex from "../pages/SobreJurex";
 import ModeloContratoEditor from "../pages/ModeloContratoEditor";
 import Relatorios from "../pages/Relatorios";
 import Perfil from "../pages/Perfil";
@@ -91,7 +91,7 @@ export default function AppRoutes() {
           <Route path="/configuracoes/backup" element={<RotaPrivada><BackupDados /></RotaPrivada>} />
           <Route path="/configuracoes/ajuda" element={<RotaPrivada><CentralAjuda /></RotaPrivada>} />
           <Route path="/configuracoes/privacidade" element={<RotaPrivada><Privacidade /></RotaPrivada>} />
-          <Route path="/configuracoes/sobre" element={<RotaPrivada><SobreCred Facil /></RotaPrivada>} />
+          <Route path="/configuracoes/sobre" element={<RotaPrivada><SobreJurex /></RotaPrivada>} />
           <Route path="/configuracoes/funcionarios" element={<RotaPrivada><Funcionarios /></RotaPrivada>} />
           <Route path="/configuracoes" element={<RotaPrivada><Configuracoes /></RotaPrivada>} />
 

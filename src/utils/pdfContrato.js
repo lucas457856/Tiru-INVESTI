@@ -31,8 +31,8 @@ export function construirPdfContrato({ contrato, cliente, logoDataUrl, agora = n
   const ALT = pdf.internal.pageSize.getHeight();
 
   const pad = (n) => String(n).padStart(2, "0");
-  // Padrão do número do documento: Cred Facil-CTR-EEA382-20260823-1718
-  const numeroDoc = `Cred Facil-CTR-${(contrato.id ?? "").slice(0, 6).toUpperCase()}-${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(agora.getDate())}-${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
+  // Padrão do número do documento: JUREX-CTR-EEA382-20260823-1718
+  const numeroDoc = `JUREX-CTR-${(contrato.id ?? "").slice(0, 6).toUpperCase()}-${agora.getFullYear()}${pad(agora.getMonth() + 1)}${pad(agora.getDate())}-${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
 
   // ---- Cabeçalho
   if (logoDataUrl) {
@@ -184,7 +184,7 @@ export function construirPdfContrato({ contrato, cliente, logoDataUrl, agora = n
   pdf.setFont("helvetica", "italic");
   pdf.setFontSize(7);
   pdf.setTextColor(...TEXTO_SUAVE);
-  pdf.text("Cred Facil — Gestão de Cobranças", M, ALT - 8);
+  pdf.text("Jurex — Gestão de Cobranças", M, ALT - 8);
   pdf.text(`Página ${pdf.internal.getNumberOfPages()}`, D, ALT - 8, { align: "right" });
 
   return { pdf, numeroDoc };

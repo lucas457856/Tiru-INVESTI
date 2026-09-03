@@ -38,7 +38,7 @@ if (contrato.clienteId) {
 }
 console.log("Cliente:", cliente?.nomeCompleto, "| telefone:", cliente?.telefone);
 
-const logoDataUrl = `data:image/png;base64,${(await readFile("./src/assets/Cred Facil-logo.png")).toString("base64")}`;
+const logoDataUrl = `data:image/png;base64,${(await readFile("./src/assets/jurex-logo.png")).toString("base64")}`;
 
 // Cronograma calculado (valida status/datas)
 const parcelas = calcularParcelas(contrato, new Date());

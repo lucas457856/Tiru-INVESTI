@@ -85,7 +85,7 @@ function formatarMoedaInput(v) {
 const STATUS_CONTRATO = {
   Quitado: { classe: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400", label: "Quitado" },
   Atrasado: { classe: "bg-red-50 dark:bg-red-500/10 text-red-500", label: "Atrasado" },
-  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-Cred Facil", label: "Em dia" },
+  "Em dia": { classe: "bg-emerald-50 dark:bg-emerald-500/10 text-jurex", label: "Em dia" },
 };
 
 export default function RenegociarParcela() {
@@ -234,7 +234,7 @@ export default function RenegociarParcela() {
     return (
       <AppLayout>
         <div className="min-h-svh flex flex-col items-center justify-center gap-3 text-slate-500">
-          <LoaderCircle className="w-7 h-7 text-Cred Facil animate-spin" />
+          <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
           <p className="text-sm font-semibold">Carregando contrato...</p>
         </div>
       </AppLayout>
@@ -264,7 +264,7 @@ export default function RenegociarParcela() {
             <button
               type="button"
               onClick={() => navigate("/emprestimos")}
-              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-sm font-bold shadow-md shadow-Cred Facil/25 hover:brightness-105 active:scale-[0.98] transition"
+              className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
             >
               Voltar para contratos
             </button>
@@ -336,7 +336,7 @@ export default function RenegociarParcela() {
                   setValorInput(digits);
                 }}
                 disabled={salvando}
-                className="w-full h-[46px] pl-[14px] pr-[14px] rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium focus:outline-none focus:ring-2 focus:ring-Cred Facil/20 focus:border-Cred Facil transition"
+                className="w-full h-[46px] pl-[14px] pr-[14px] rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium focus:outline-none focus:ring-2 focus:ring-jurex/20 focus:border-jurex transition"
               />
               <span className="absolute right-[14px] top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
                 R$
@@ -374,7 +374,7 @@ export default function RenegociarParcela() {
                 }}
                 disabled={salvando}
                 placeholder="DD/MM/AAAA"
-                className="w-full h-[46px] pl-[14px] pr-[42px] rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium focus:outline-none focus:ring-2 focus:ring-Cred Facil/20 focus:border-Cred Facil transition"
+                className="w-full h-[46px] pl-[14px] pr-[42px] rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium focus:outline-none focus:ring-2 focus:ring-jurex/20 focus:border-jurex transition"
               />
               <Calendar className="absolute right-[14px] top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400" />
             </div>
@@ -396,7 +396,7 @@ export default function RenegociarParcela() {
               disabled={salvando}
               placeholder="Detalhes do acordo..."
               rows={4}
-              className="w-full min-h-[90px] px-[14px] py-3 rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium resize-y focus:outline-none focus:ring-2 focus:ring-Cred Facil/20 focus:border-Cred Facil transition"
+              className="w-full min-h-[90px] px-[14px] py-3 rounded-[10px] border border-[#DADFE5] bg-white text-slate-800 text-base font-medium resize-y focus:outline-none focus:ring-2 focus:ring-jurex/20 focus:border-jurex transition"
             />
           </div>
 

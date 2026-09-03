@@ -91,14 +91,14 @@ const ICONES = {
 
 // Cor da bolinha da timeline: + verde, - vermelho
 function corBola(evento) {
-  if (evento.sinal === "+") return "bg-Cred Facil";
+  if (evento.sinal === "+") return "bg-jurex";
   if (evento.sinal === "-") return "bg-rose-500";
   return "bg-slate-300";
 }
 
 // Cor do valor à direita do card
 function corValor(sinal) {
-  if (sinal === "+") return "text-Cred Facil";
+  if (sinal === "+") return "text-jurex";
   if (sinal === "-") return "text-rose-500";
   return "text-slate-700";
 }
@@ -332,7 +332,7 @@ export default function HistoricoFinanceiro() {
           {/* Loading */}
           {carregando && (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500 dark:text-slate-400">
-              <LoaderCircle className="w-7 h-7 animate-spin text-Cred Facil" />
+              <LoaderCircle className="w-7 h-7 animate-spin text-jurex" />
               <p className="mt-3 text-sm font-medium">Carregando histórico…</p>
             </div>
           )}

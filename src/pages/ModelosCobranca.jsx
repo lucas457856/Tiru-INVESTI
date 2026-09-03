@@ -186,11 +186,11 @@ export default function ModelosCobranca() {
               onClick={() => setAtivo(id)}
               className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold border transition ${
                 ativo === id
-                  ? "bg-Cred Facil text-white border-Cred Facil shadow-md shadow-Cred Facil/25"
-                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-Cred Facil/40"
+                  ? "bg-jurex text-white border-jurex shadow-md shadow-jurex/25"
+                  : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-jurex/40"
               }`}
             >
-              <Icone className={`w-3.5 h-3.5 ${ativo === id ? "" : "text-Cred Facil"}`} />
+              <Icone className={`w-3.5 h-3.5 ${ativo === id ? "" : "text-jurex"}`} />
               {label}
             </button>
           ))}
@@ -208,13 +208,13 @@ export default function ModelosCobranca() {
               setTextos((t) => ({ ...t, [ativo]: e.target.value }))
             }
             rows={12}
-            className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-Cred Facil focus:ring-2 focus:ring-Cred Facil/20"
+            className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/40 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 outline-none resize-y transition focus:border-jurex focus:ring-2 focus:ring-jurex/20"
           />
           <div className="mt-4 flex gap-3">
             <button
               type="button"
               onClick={salvar}
-              className="flex-1 h-12 rounded-xl bg-gradient-to-r from-Cred Facil to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-Cred Facil/30 hover:brightness-105 active:scale-[0.99] transition"
+              className="flex-1 h-12 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition"
             >
               <Save className="w-5 h-5" />
               Salvar
@@ -229,7 +229,7 @@ export default function ModelosCobranca() {
             </button>
           </div>
           {salvo && (
-            <p className="mt-2 text-xs font-semibold text-Cred Facil">
+            <p className="mt-2 text-xs font-semibold text-jurex">
               Salvo!
             </p>
           )}
@@ -249,7 +249,7 @@ export default function ModelosCobranca() {
                 key={v}
                 type="button"
                 onClick={() => inserirVariavel(v)}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-Cred Facil transition"
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 font-mono text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-jurex transition"
               >
                 + &#123;{v}&#125;
               </button>

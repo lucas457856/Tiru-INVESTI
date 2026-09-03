@@ -1,4 +1,4 @@
-// Cred Facil — Service Worker
+// Jurex — Service Worker
 //
 // OBJETIVO ÚNICO: habilitar `registration.showNotification()` no Android
 // (Chrome/Firefox). Sem este SW, a Notification Web API funciona SÓ
@@ -21,7 +21,7 @@
 // versão e descarte a antiga (resolve o problema clássico de "service
 // worker antigo continua executando código anterior").
 
-const SW_VERSION = "Cred Facil-sw-v1";
+const SW_VERSION = "jurex-sw-v1";
 const APP_URL = "/dashboard";
 
 // Instalação: ativa imediatamente sem esperar fechamento de abas antigas.
