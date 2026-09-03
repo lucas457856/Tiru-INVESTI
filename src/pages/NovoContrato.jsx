@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   House,
   Save,
@@ -17,7 +17,7 @@ import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { db } from "../services/firebase";
-import { collection, addDoc, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { criarNotificacao } from "../services/notificationsService";
@@ -42,6 +42,10 @@ const STATUS_CONTRATO = {
 export default function NovoContrato() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  // Quando a rota carrega com /emprestimos/:id/editar, o `id` é o ID real
+  // do contrato no Firestore. Ausência de `id` => modo criação.
+  const { id: idEdicao } = useParams();
+  const modoEdicao = Boolean(idEdicao);
 
   // Formulário
   const [valor, setValor] = useState("");
@@ -127,6 +131,114 @@ export default function NovoContrato() {
     return () => document.removeEventListener("keydown", onKey);
   }, [mostraDropdown]);
 
+  // Estado de carregamento do contrato no modo edição.
+  //   carregando  : busca inicial no Firestore
+  //   pronto      : dados carregados, formulário liberado
+  //   nao-encontrado : id inexistente / sem permissão
+  //   erro        : falha de rede / permissão
+  const [estadoEdicao, setEstadoEdicao] = useState(modoEdicao ? "carregando" : "pronto");
+  // Snapshot do contrato carregado (validação / debug). useRef porque não
+  // precisa re-renderizar — só consulta durante o submit.
+  const contratoOriginalRef = useRef(null);
+
+  // Pré-preenche o formulário com os dados reais do contrato em modo edição.
+  // IMPORTANTE: o array `abatimentos` é PRESERVADO no Firestore — apenas os
+  // campos editáveis são recarregados para o estado do formulário. Pagamentos
+  // e histórico NÃO são tocados aqui.
+  useEffect(() => {
+    if (!modoEdicao) return;
+    if (!usuario || !idEdicao) return;
+    let ativo = true;
+    setEstadoEdicao("carregando");
+    buscarContrato(usuario, idEdicao)
+      .then((dados) => {
+        if (!ativo) return;
+        if (!dados) {
+          setEstadoEdicao("nao-encontrado");
+          return;
+        }
+        const c = dados.contrato;
+        contratoOriginalRef.current = c;
+
+        // Campos financeiros
+        if (c.valorEmprestado !== undefined && c.valorEmprestado !== null) {
+          setValor(formatarMoedaExibicao(Number(c.valorEmprestado)));
+        }
+        if (c.numeroParcelas !== undefined && c.numeroParcelas !== null) {
+          setParcelas(String(c.numeroParcelas));
+        }
+        if (c.juros !== undefined && c.juros !== null) {
+          setJuros(String(c.juros));
+        }
+        // "Com Juros" se houver juros > 0, senão "Sem Juros"
+        setTipoEmprestimo(Number(c.juros) > 0 ? "Com Juros" : "Sem Juros");
+        if (c.frequencia) {
+          setFrequencia(c.frequencia);
+        }
+
+        // Data da primeira parcela — Firestore pode ter Timestamp, string ISO
+        // ou Date. Normaliza para YYYY-MM-DD (input[type=date]) sem drift de TZ.
+        let dataStr = "";
+        if (c.dataPrimeiraParcela) {
+          if (typeof c.dataPrimeiraParcela === "string") {
+            dataStr = c.dataPrimeiraParcela.slice(0, 10);
+          } else if (typeof c.dataPrimeiraParcela.toDate === "function") {
+            const d = c.dataPrimeiraParcela.toDate();
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            dataStr = `${yyyy}-${mm}-${dd}`;
+          }
+        }
+        if (dataStr) setDataPrimeira(dataStr);
+
+        // Juros em atraso
+        if (c.cobrarJurosAtraso) {
+          setJurosAtraso("sim");
+          if (c.modoJurosAtraso) setModoJurosAtraso(c.modoJurosAtraso);
+          if (c.jurosAtrasoValor !== undefined && c.jurosAtrasoValor !== null) {
+            // Exibe como string simples ("10", "2.5") — o input filtra a vírgula
+            setJurosAtrasoValor(String(c.jurosAtrasoValor));
+          }
+        } else {
+          setJurosAtraso("");
+        }
+
+        // Observação
+        if (c.observacao && String(c.observacao).trim() !== "") {
+          setTemObservacao(true);
+          setObservacao(c.observacao);
+        } else {
+          setTemObservacao(false);
+          setObservacao("");
+        }
+
+        // Cliente: usa o cliente que veio em `dados.cliente` (validado por
+        // ownerId) ou, se não vier, busca o clienteId diretamente.
+        if (dados.cliente) {
+          setClienteSel(dados.cliente);
+          setBuscaCliente("");
+        } else if (c.clienteId) {
+          getDoc(doc(db, "clientes", c.clienteId))
+            .then((snap) => {
+              if (!ativo) return;
+              if (snap.exists() && snap.data().ownerId === usuario.uid) {
+                setClienteSel({ id: snap.id, ...snap.data() });
+              }
+            })
+            .catch(() => {});
+        }
+
+        setEstadoEdicao("pronto");
+      })
+      .catch(() => {
+        if (ativo) setEstadoEdicao("erro");
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [modoEdicao, usuario, idEdicao]);
+
   // Formata o valor enquanto digita (R$ 0,00)
   function formatarValor(e) {
     const digits = e.target.value.replace(/\D/g, "");
@@ -179,7 +291,7 @@ export default function NovoContrato() {
   async function criarContrato(e) {
     e.preventDefault();
     setErro("");
-    if (!clienteSel) return setErro("Selecione um cliente antes de criar o contrato.");
+    if (!clienteSel) return setErro(modoEdicao ? "Selecione um cliente antes de salvar as alterações." : "Selecione um cliente antes de criar o contrato.");
     if (valorNumero <= 0) return setErro("Informe um valor emprestado válido.");
     if (parcelasNumero <= 0) return setErro("Informe um número de parcelas válido.");
     if (tipoEmprestimo === "Com Juros" && jurosNumero <= 0) {
@@ -189,6 +301,51 @@ export default function NovoContrato() {
     try {
       setSalvando(true);
       // Subcoleção por usuário: usuarios/{uid}/contratos (lida por Emprestimos.jsx)
+      if (modoEdicao) {
+        // ====== MODO EDIÇÃO ======
+        // Atualiza APENAS o documento existente (NÃO cria novo). Preserva:
+        //   - ID original (Firestore docRef.id)
+        //   - pagamentos já realizados (parcelasPagas, valorRecebido, jurosRecebidos)
+        //   - histórico de abatimentos (`abatimentos` array, `abatimentoTotal`)
+        //   - dataProximo (recalculada via getNextOpenInstallment se alterado)
+        //   - vencimentosCustom / parcelasCustom (renegociações anteriores)
+        //   - criadoEm (timestamp original)
+        // Apenas os CAMPOS EDITÁVEIS no formulário são sobrescritos.
+        //
+        // ATENÇÃO: o array `parcelas` é RECALCULADO a partir de calcularParcelas
+        // com base nos novos parâmetros. As parcelas já PAGADAS permanecem
+        // preservadas na lógica de `parcelasDoContrato` (linhas que tratam
+        // status === "Paga"). Parcelas pagas NÃO são recriadas.
+        const ref = doc(db, "usuarios", usuario.uid, "contratos", idEdicao);
+        await updateDoc(ref, {
+          // Vínculo com o cliente
+          clienteId: clienteSel.id,
+          clienteNome: clienteSel.nomeCompleto,
+          // Dados financeiros
+          nome: clienteSel.nomeCompleto,
+          valorEmprestado: valorNumero,
+          valorParcela: resumo.valorParcela,
+          totalReceber: resumo.totalReceber,
+          // juros: zera em modo "Sem Juros" para refletir a escolha do usuário
+          juros: tipoEmprestimo === "Com Juros" ? jurosNumero : 0,
+          numeroParcelas: parcelasNumero,
+          // Juros em atraso
+          cobrarJurosAtraso: jurosAtraso ? true : false,
+          modoJurosAtraso: jurosAtraso ? modoJurosAtraso : null,
+          jurosAtrasoValor: jurosAtraso ? (parseFloat(jurosAtrasoValor.replace(",", ".")) || 0) : 0,
+          // Condições
+          frequencia,
+          dataPrimeiraParcela: dataPrimeira,
+          observacao: temObservacao ? observacao.trim() : "",
+          updatedAt: serverTimestamp(),
+        });
+        // Após salvar: volta para a tela de detalhes do MESMO contrato.
+        // `replace: true` evita empilhar histórico de navegação
+        // (Detalhes → Editar → Detalhes, em vez de 2x Detalhes no back).
+        navigate(`/emprestimos/${idEdicao}`, { replace: true });
+        return;
+      }
+      // ====== MODO CRIAÇÃO ======
       const docRef = await addDoc(collection(db, "usuarios", usuario.uid, "contratos"), {
         // Vínculo com o cliente selecionado
         clienteId: clienteSel.id,
@@ -326,7 +483,13 @@ export default function NovoContrato() {
           {/* Cabeçalho */}
           <div className="rounded-2xl border border-emerald-100/70 dark:border-slate-800 bg-gradient-to-r from-emerald-50/80 via-emerald-50/40 to-white dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 px-5 sm:px-7 py-4 sm:py-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <BackButton to="/emprestimos" className="p-2.5" iconSize="w-[18px] h-[18px]" />
+              {/* Em modo edição, voltar retorna aos DETALHES do mesmo contrato.
+                  Em modo criação, volta para a lista de contratos. */}
+              <BackButton
+                to={modoEdicao ? `/emprestimos/${idEdicao}` : "/emprestimos"}
+                className="p-2.5"
+                iconSize="w-[18px] h-[18px]"
+              />
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}
@@ -336,7 +499,7 @@ export default function NovoContrato() {
                 <House className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300" />
               </button>
               <h1 className="text-[20px] font-bold text-slate-900 dark:text-white tracking-tight">
-                Novo contrato
+                {modoEdicao ? "Editar contrato" : "Novo contrato"}
               </h1>
             </div>
           </div>
@@ -352,6 +515,47 @@ export default function NovoContrato() {
           )}
 
           {/* Formulário */}
+          {/* No modo edição, bloqueia interação até o contrato ser carregado.
+              Mostra spinner centralizado em vez do form para evitar edição
+              com dados ausentes. Em erro/nao-encontrado, mostra mensagem. */}
+          {modoEdicao && estadoEdicao === "carregando" && (
+            <div className="mt-6 lg:mt-7 flex flex-col items-center justify-center gap-3 py-16 text-slate-500 dark:text-slate-400">
+              <LoaderCircle className="w-7 h-7 text-jurex animate-spin" />
+              <p className="text-sm font-semibold">Carregando contrato...</p>
+            </div>
+          )}
+          {modoEdicao && estadoEdicao === "nao-encontrado" && (
+            <div className="mt-6 lg:mt-7 flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <p className="text-base font-semibold text-slate-700 dark:text-slate-200">
+                Contrato não encontrado
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Este contrato pode ter sido excluído ou você não tem permissão para editá-lo.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/emprestimos")}
+                className="mt-2 h-10 px-5 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-jurex/40 transition"
+              >
+                Voltar para contratos
+              </button>
+            </div>
+          )}
+          {modoEdicao && estadoEdicao === "erro" && (
+            <div className="mt-6 lg:mt-7 flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <p className="text-base font-semibold text-red-500">
+                Erro ao carregar o contrato
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Verifique sua conexão e tente novamente.
+              </p>
+            </div>
+          )}
+
+          {/* Só renderiza o form em modo criação OU quando o contrato já
+              terminou de carregar em modo edição. Bloqueia edição com dados
+              ausentes (evita gravar lixo). */}
+          {(!modoEdicao || estadoEdicao === "pronto") && (
           <form onSubmit={criarContrato} className="mt-6 lg:mt-7 space-y-6 pb-24">
             {/* Cliente (dropdown customizado) */}
             <div ref={wrapperClienteRef} className="relative">
@@ -702,12 +906,15 @@ export default function NovoContrato() {
                     <LoaderCircle className="w-5 h-5 animate-spin" />
                     Salvando...
                   </>
+                ) : modoEdicao ? (
+                  "Salvar alterações"
                 ) : (
                   "Criar contrato"
                 )}
               </button>
             </div>
           </form>
+          )}
         </div>
       </div>
     </AppLayout>

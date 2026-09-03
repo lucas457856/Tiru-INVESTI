@@ -28,7 +28,6 @@ import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato, li
 import { calculateDebtRemaining, totalAbatimentos, calculatePrincipalQuitado, getNextOpenInstallment, calculatePenalty } from "../services/paymentCalculations";
 import { buscarJurosRecebidos } from "../services/jurosRecebidosService";
 import { gerarMensagem, MODELOS_PADRAO } from "../utils/mensagens";
-import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
 const STATUS_PARCELA = {
@@ -376,9 +375,37 @@ export default function EmprestimoDetalhes() {
   }
 
   // Compartilhar PDF atualizado
-  function compartilharPdf() {
-    if (!contrato) return;
-    gerarPdfContrato({ contrato, cliente, logoDataUrl: logoJurex });
+  // Antes de gerar, recarrega o contrato e o cliente do Firestore para
+  // garantir que o PDF reflita o estado ATUAL (parcelas pagas, status,
+  // juros, multas) — não o snapshot em memória. Logo oficial vem de
+  // `/logo.png` (asset público) carregado em runtime pelo pdfContrato.
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  async function compartilharPdf() {
+    if (!contrato || !usuario || !id) return;
+    if (gerandoPdf) return; // anti-double-click
+    setGerandoPdf(true);
+    try {
+      // Pega sempre o estado mais recente do Firestore antes de gerar.
+      const dados = await buscarContrato(usuario, id);
+      if (dados) {
+        const contratoAtualizado = { ...contrato, ...dados.contrato };
+        const clienteAtualizado = dados.cliente ?? cliente;
+        await gerarPdfContrato({
+          contrato: contratoAtualizado,
+          cliente: clienteAtualizado,
+          // Sem `logoDataUrl`: o pdfContrato busca `/logo.png` em runtime
+          // (asset oficial do app, mesmo do Sidebar/MobileMenuDrawer).
+        });
+      } else {
+        // fallback: usa o que está em memória se a busca falhar
+        await gerarPdfContrato({ contrato, cliente });
+      }
+    } catch (err) {
+      console.error("Falha ao gerar PDF:", err);
+      window.alert("Não foi possível gerar o PDF. Tente novamente.");
+    } finally {
+      setGerandoPdf(false);
+    }
   }
 
   // Navega para a tela de recebimento para a parcela clicada
@@ -403,9 +430,11 @@ export default function EmprestimoDetalhes() {
   }
 
   // Editar contrato
+  // Navega para a tela de edição reusando o componente `NovoContrato`,
+  // que detecta o `:id` na rota e carrega os dados reais do contrato.
   function editar() {
     if (!contrato) return;
-    navigate(`/contratos/${contrato.id}/sucesso`);
+    navigate(`/emprestimos/${contrato.id}/editar`);
   }
 
   // Excluir contrato com confirmação
@@ -745,10 +774,11 @@ export default function EmprestimoDetalhes() {
             <button
               type="button"
               onClick={compartilharPdf}
-              className="h-[46px] rounded-[14px] border border-emerald-300 dark:border-emerald-500/30 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
+              disabled={gerandoPdf}
+              className="h-[46px] rounded-[14px] border border-emerald-300 dark:border-emerald-500/30 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <FileImage className="w-[18px] h-[18px] text-slate-700 dark:text-slate-200" />
-              Compartilhar PDF atualizado
+              {gerandoPdf ? "Gerando PDF…" : "Compartilhar PDF atualizado"}
             </button>
             <button
               type="button"

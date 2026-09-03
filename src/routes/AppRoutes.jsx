@@ -70,6 +70,10 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<RotaPrivada><Dashboard /></RotaPrivada>} />
           <Route path="/emprestimos" element={<RotaPrivada><Emprestimos /></RotaPrivada>} />
           <Route path="/contratos/novo" element={<RotaPrivada><NovoContrato /></RotaPrivada>} />
+          {/* Edição reusa o mesmo componente `NovoContrato`, que detecta o
+              `:id` via `useParams` e alterna para modo edição (prefetch via
+              buscarContrato, updateDoc no salvar). */}
+          <Route path="/emprestimos/:id/editar" element={<RotaPrivada><NovoContrato /></RotaPrivada>} />
           <Route path="/contratos/:id/sucesso" element={<RotaPrivada><ContratoSucesso /></RotaPrivada>} />
           <Route path="/emprestimos/:id" element={<RotaPrivada><EmprestimoDetalhes /></RotaPrivada>} />
           <Route path="/receber-pagamento/:contratoId" element={<RotaPrivada><ReceberPagamento /></RotaPrivada>} />
