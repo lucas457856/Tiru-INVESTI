@@ -18,7 +18,7 @@ import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db, auth } from "../services/firebase";
-import { collection, addDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { collection, addDoc, doc, getCountFromServer, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { criarNotificacao } from "../services/notificationsService";
@@ -458,6 +458,40 @@ export default function NovoContrato() {
               "Limite de contratos atingido. Procure o administrador.",
             );
           }
+        }
+      }
+
+      // Gate administrativo: status, permissão e limite de contratos
+      // definidos pelo Painel Administrativo principal (ADMIN_UID).
+      // Vale para DONO e FUNCIONÁRIO (effectiveUid = dono). Os campos
+      // são opcionais (defaults permissivos) para compatibilidade com
+      // donos antigos.
+      const donoRef = doc(db, "usuarios", effectiveUid);
+      const donoSnap = await getDoc(donoRef);
+      const dono = donoSnap.exists() ? donoSnap.data() : {};
+      if (dono.status === "bloqueado") {
+        setSalvando(false);
+        return setErro(
+          "Conta bloqueada pelo administrador. Não é possível criar contratos.",
+        );
+      }
+      if (dono.permissoes?.criarContratos === false) {
+        setSalvando(false);
+        return setErro(
+          "A criação de contratos foi bloqueada pelo administrador.",
+        );
+      }
+      const limiteContratos = Number(dono.limites?.contratos) || 0;
+      if (limiteContratos > 0) {
+        const contSnap = await getCountFromServer(
+          collection(db, "usuarios", effectiveUid, "contratos"),
+        );
+        const cont = contSnap.data().count || 0;
+        if (cont >= limiteContratos) {
+          setSalvando(false);
+          return setErro(
+            `Limite de contratos atingido (${cont}/${limiteContratos}). Entre em contato com o administrador.`,
+          );
         }
       }
 

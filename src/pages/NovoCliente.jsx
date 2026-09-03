@@ -10,8 +10,12 @@ import {
   collection,
   addDoc,
   doc,
-  updateDoc,
+  getCountFromServer,
+  getDoc,
+  query,
   serverTimestamp,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 import { auth } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
@@ -104,6 +108,42 @@ export default function NovoCliente() {
     if (!effectiveUid) return setErro("Sessão sem escopo de proprietário.");
     try {
       setSalvando(true);
+
+      // Gate administrativo: status, permissão e limite de clientes
+      // definidos pelo Painel Administrativo principal (ADMIN_UID).
+      // Os campos são opcionais (defaults permissivos) para garantir
+      // compatibilidade com donos antigos que ainda não têm esses
+      // campos no doc /usuarios/{uid}. Bloqueia antes do addDoc
+      // para evitar criar o cliente e ter que excluir.
+      const donoRef = doc(db, "usuarios", effectiveUid);
+      const donoSnap = await getDoc(donoRef);
+      const dono = donoSnap.exists() ? donoSnap.data() : {};
+      if (dono.status === "bloqueado") {
+        setSalvando(false);
+        return setErro(
+          "Conta bloqueada pelo administrador. Não é possível cadastrar clientes.",
+        );
+      }
+      if (dono.permissoes?.criarClientes === false) {
+        setSalvando(false);
+        return setErro(
+          "A criação de clientes foi bloqueada pelo administrador.",
+        );
+      }
+      const limiteClientes = Number(dono.limites?.clientes) || 0;
+      if (limiteClientes > 0) {
+        const contSnap = await getCountFromServer(
+          query(collection(db, "clientes"), where("ownerId", "==", effectiveUid)),
+        );
+        const cont = contSnap.data().count || 0;
+        if (cont >= limiteClientes) {
+          setSalvando(false);
+          return setErro(
+            `Limite de clientes atingido (${cont}/${limiteClientes}). Entre em contato com o administrador.`,
+          );
+        }
+      }
+
       // Coleção única "clientes" com ownerId do escopo efetivo
       // (= uid do dono; para funcionário, é o ownerUid do dono).
       // (modelo exigido pelas Security Rules publicadas)

@@ -24,6 +24,7 @@ import {
   UsersRound,
   ChevronLeft,
   ChevronRight,
+  Lock,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
@@ -34,6 +35,7 @@ import FuncionarioExcluirModal from "../components/FuncionarioExcluirModal";
 import FuncionarioExcluirDefinitivoModal from "../components/FuncionarioExcluirDefinitivoModal";
 import { useFuncionarios } from "../hooks/useFuncionarios";
 import { useAuth } from "../context/useAuth";
+import { useDonoAdmin } from "../hooks/useDonoAdmin";
 
 const FILTROS = ["Todos", "Ativos", "Inativos"];
 const POR_PAGINA = 10;
@@ -108,6 +110,9 @@ function StatusBadge({ status }) {
 export default function Funcionarios() {
   const { role } = useAuth();
   const { funcionarios, contagemPorAuthUid, loading } = useFuncionarios();
+  // Lê o doc do DONO em tempo real para detectar permissão de criar
+  // funcionários desabilitada pelo Admin.
+  const { permissoes, limites, status: statusDono } = useDonoAdmin();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todos");
@@ -120,6 +125,12 @@ export default function Funcionarios() {
   const [modalEditar, setModalEditar] = useState({ aberto: false, func: null });
   const [modalExcluir, setModalExcluir] = useState({ aberto: false, func: null });
   const [modalExcluirDef, setModalExcluirDef] = useState({ aberto: false, func: null });
+
+  // Permissão de criar funcionário: só faz sentido para o DONO
+  // (funcionários não acessam esta página — papel bloqueado mais abaixo).
+  const podeCriar = role === "dono" && permissoes.criarFuncionarios !== false;
+  const limiteAtingido =
+    limites.funcionarios > 0 && funcionarios.length >= limites.funcionarios;
 
   // Filtragem
   const filtrados = useMemo(() => {
@@ -172,6 +183,7 @@ export default function Funcionarios() {
 
   // Helpers de ação
   function abrirCriar() {
+    if (!podeCriar) return;
     setModalCriar(true);
   }
   function abrirEditar(func) {
@@ -204,17 +216,70 @@ export default function Funcionarios() {
             </div>
             <div className="flex items-center gap-2">
               <NotificationBellButton />
-              <button
-                type="button"
-                onClick={abrirCriar}
-                className="h-10 px-4 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span className="hidden sm:inline">Adicionar</span>
-              </button>
+              {podeCriar ? (
+                <button
+                  type="button"
+                  onClick={abrirCriar}
+                  disabled={limiteAtingido}
+                  title={
+                    limiteAtingido
+                      ? `Limite de funcionários atingido (${funcionarios.length}/${limites.funcionarios})`
+                      : "Adicionar funcionário"
+                  }
+                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-jurex/30 hover:brightness-105 active:scale-[0.99] transition disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Adicionar</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="Criação de funcionários bloqueada pelo administrador."
+                  className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 text-sm font-bold flex items-center gap-2 cursor-not-allowed"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span className="hidden sm:inline">Bloqueado</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Banner: conta bloqueada */}
+        {statusDono === "bloqueado" && (
+          <div className="mt-4 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+            <Lock className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              Sua conta está bloqueada pelo administrador. Operações de
+              criação ficam desativadas. Entre em contato com o suporte.
+            </p>
+          </div>
+        )}
+
+        {/* Banner: permissão de criar funcionários desabilitada */}
+        {!podeCriar && statusDono !== "bloqueado" && (
+          <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
+            <Lock className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              A criação de funcionários foi <strong>bloqueada</strong> pelo
+              administrador. Você ainda pode visualizar, editar, ativar e
+              inativar funcionários existentes.
+            </p>
+          </div>
+        )}
+
+        {/* Banner: limite de funcionários atingido */}
+        {podeCriar && limiteAtingido && (
+          <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
+            <Lock className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              Limite de funcionários atingido (
+              {funcionarios.length}/{limites.funcionarios}). Para cadastrar
+              mais, entre em contato com o administrador.
+            </p>
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="mt-5 flex flex-col sm:flex-row gap-3">
@@ -252,7 +317,7 @@ export default function Funcionarios() {
             Carregando…
           </div>
         ) : funcionarios.length === 0 ? (
-          <EstadoVazio aoAdicionar={abrirCriar} />
+          <EstadoVazio aoAdicionar={abrirCriar} podeAdicionar={podeCriar} />
         ) : filtrados.length === 0 ? (
           <SemResultados busca={busca} />
         ) : (
@@ -502,7 +567,7 @@ function CardFuncionario({ func, usado, aoEditar, aoExcluir, aoExcluirDef }) {
   );
 }
 
-function EstadoVazio({ aoAdicionar }) {
+function EstadoVazio({ aoAdicionar, podeAdicionar = true }) {
   return (
     <section className="mt-14 mb-16 flex flex-col items-center text-center">
       <span className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-100 dark:ring-emerald-500/20 p-4">
@@ -515,13 +580,20 @@ function EstadoVazio({ aoAdicionar }) {
         Adicione funcionários para que eles acessem seus clientes e
         contratos com login próprio.
       </p>
-      <button
-        type="button"
-        onClick={aoAdicionar}
-        className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
-      >
-        Adicionar primeiro funcionário
-      </button>
+      {podeAdicionar ? (
+        <button
+          type="button"
+          onClick={aoAdicionar}
+          className="mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-jurex to-emerald-500 text-white text-sm font-bold shadow-md shadow-jurex/25 hover:brightness-105 active:scale-[0.98] transition"
+        >
+          Adicionar primeiro funcionário
+        </button>
+      ) : (
+        <p className="mt-5 text-xs text-amber-700 dark:text-amber-300 inline-flex items-center gap-1.5">
+          <Lock className="w-3.5 h-3.5" />
+          Criação de funcionários bloqueada pelo administrador.
+        </p>
+      )}
     </section>
   );
 }

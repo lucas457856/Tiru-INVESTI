@@ -1,15 +1,24 @@
-// Tela exibida quando um funcionário autenticado tem `status == "inativo"`
-// no doc /usuarios/{ownerUid}/funcionarios/{funcionarioId}.
+// Tela exibida quando o acesso do usuário autenticado foi desativado.
 //
-// O AuthProvider detecta essa condição e expõe `funcionarioStatus` no
-// contexto. As rotas internas ficam bloqueadas; o usuário só vê esta
-// tela e o botão Sair.
+// Cobrindo dois cenários (com mensagens distintas):
+//   - Funcionário inativo: doc /usuarios/{ownerUid}/funcionarios/{id}
+//     tem `status: "inativo"` (definido pelo próprio dono).
+//   - Dono bloqueado: doc /usuarios/{uid} tem `status: "bloqueado"`
+//     (definido pelo Painel Administrativo principal).
+//
+// O AuthProvider detecta essas condições em tempo real via listener
+// e expõe `funcionarioStatus` / `donoBloqueado` no contexto. As
+// rotas internas ficam bloqueadas; o usuário só vê esta tela e o
+// botão Sair.
 
 import { useNavigate } from "react-router-dom";
 import { Lock, LogOut } from "lucide-react";
 import { sair } from "../services/authService";
 
-export default function AcessoBloqueado() {
+export default function AcessoBloqueado({
+  titulo = "Acesso desativado",
+  mensagem = "Seu acesso foi desativado. Entre em contato com o administrador da conta.",
+}) {
   const navigate = useNavigate();
 
   async function handleSair() {
@@ -28,11 +37,10 @@ export default function AcessoBloqueado() {
           <Lock className="w-7 h-7 text-amber-500" />
         </span>
         <h1 className="mt-5 text-lg font-bold text-slate-900 dark:text-white">
-          Acesso desativado
+          {titulo}
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-          Seu acesso foi desativado. Entre em contato com o administrador da
-          conta.
+          {mensagem}
         </p>
         <button
           type="button"

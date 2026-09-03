@@ -8,6 +8,8 @@ import { AuthContext } from "./AuthContext";
 //
 // - DONO: o doc /usuarios/{uid} NÃO tem `role`/`ownerUid`.
 //   Compatível com perfis existentes (que nunca tiveram esses campos).
+//   Também escutamos o próprio doc em tempo real para detectar
+//   mudanças em `status: "bloqueado"` definidas pelo Admin via Painel.
 // - FUNCIONARIO: o doc tem role="funcionario" e ownerUid vinculado.
 //   O `funcionarioId` é usado para abrir listener em tempo real
 //   no doc /usuarios/{ownerUid}/funcionarios/{funcionarioId} e
@@ -30,14 +32,23 @@ export default function AuthProvider({ children }) {
   const [ownerUid, setOwnerUid] = useState(null);
   const [funcionarioId, setFuncionarioId] = useState(null);
   const [funcionarioStatus, setFuncionarioStatus] = useState(null);
+  // "ativo" | "bloqueado" — só setado para donos. Default = "ativo"
+  // até o listener confirmar. Se o doc do dono não tiver `status`,
+  // tratamos como "ativo" (compatibilidade com donos antigos).
+  const [donoBloqueado, setDonoBloqueado] = useState(false);
 
   useEffect(() => {
     let unsubFuncDoc = null;
+    let unsubDonoDoc = null;
     const unsubAuth = onAuthStateChanged(auth, (user) => {
-      // Limpa listener anterior ao trocar de usuário
+      // Limpa listeners anteriores ao trocar de usuário
       if (unsubFuncDoc) {
         unsubFuncDoc();
         unsubFuncDoc = null;
+      }
+      if (unsubDonoDoc) {
+        unsubDonoDoc();
+        unsubDonoDoc = null;
       }
 
       setUsuario(user);
@@ -46,15 +57,14 @@ export default function AuthProvider({ children }) {
       setFuncionarioStatus(null);
       setRole(null);
       setRoleResolvido(false);
+      setDonoBloqueado(false);
       setCarregando(false);
 
       if (!user) {
-        // Sem usuário: papel resolvido (não há papel).
         setRoleResolvido(true);
         return;
       }
 
-      // Carrega o perfil em /usuarios/{user.uid} para identificar role
       const perfilRef = doc(db, "usuarios", user.uid);
       getDoc(perfilRef)
         .then((snap) => {
@@ -75,8 +85,6 @@ export default function AuthProvider({ children }) {
             setRole("funcionario");
             setOwnerUid(data.ownerUid);
             setFuncionarioId(data.funcionarioId || null);
-            // Listener em tempo real no doc do funcionário para detectar
-            // mudança de status (dono inativa → funcionário bloqueado).
             if (data.funcionarioId) {
               const funcRef = doc(
                 db,
@@ -97,7 +105,17 @@ export default function AuthProvider({ children }) {
             setRoleResolvido(true);
           } else {
             setRole("dono");
+            // Define o status inicial a partir do que já foi lido
+            setDonoBloqueado(data.status === "bloqueado");
             setRoleResolvido(true);
+            // Listener em tempo real: o Admin pode mudar `status`
+            // remotamente (Painel Administrativo). Sem este listener,
+            // o dono só seria bloqueado no próximo login/reload.
+            unsubDonoDoc = onSnapshot(perfilRef, (dSnap) => {
+              if (!dSnap.exists()) return;
+              const d = dSnap.data() || {};
+              setDonoBloqueado(d.status === "bloqueado");
+            });
           }
         })
         .catch((err) => {
@@ -108,6 +126,7 @@ export default function AuthProvider({ children }) {
     });
     return () => {
       if (unsubFuncDoc) unsubFuncDoc();
+      if (unsubDonoDoc) unsubDonoDoc();
       unsubAuth();
     };
   }, []);
@@ -122,6 +141,7 @@ export default function AuthProvider({ children }) {
         ownerUid,
         funcionarioId,
         funcionarioStatus,
+        donoBloqueado,
       }}
     >
       {children}

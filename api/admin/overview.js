@@ -23,8 +23,14 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 
+// Defaults permissivos aplicados quando o doc do dono não tem os
+// campos administrativos. Compatibilidade total com donos antigos:
+// nenhum usuário existente é bloqueado retroativamente.
+const LIMITES_PADRAO = { contratos: 0, clientes: 0, funcionarios: 0 };
+const PERMISSOES_PADRAO = { criarContratos: true, criarClientes: true, criarFuncionarios: true };
+const STATUS_PADRAO = "ativo";
+
 function bad(res, status, erro, extra = {}) {
-  // Log estruturado para o painel da Vercel. NÃO loga secrets.
   console.error(`[admin/overview] ${status} ${erro}`, extra);
   return res.status(status).json({ ok: false, erro, ...extra });
 }
@@ -43,6 +49,40 @@ async function contarSubcolecao(dbAdmin, docRef, collName) {
   } catch {
     return 0;
   }
+}
+
+// Conta clientes por dono na coleção top-level /clientes (filtrada
+// por ownerId). Custo: 1 leitura agregada por dono. Aceitável.
+async function contarClientesPorDono(dbAdmin, donoUid) {
+  try {
+    const snap = await dbAdmin
+      .collection("clientes")
+      .where("ownerId", "==", donoUid)
+      .count()
+      .get();
+    return snap.data().count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Normaliza os campos administrativos aplicando defaults permissivos
+// quando ausentes. Garante que o front sempre recebe o objeto completo.
+function normalizarAdmin(data) {
+  const status = (data?.status === "bloqueado" || data?.status === "ativo")
+    ? data.status
+    : STATUS_PADRAO;
+  const limites = {
+    contratos: Number(data?.limites?.contratos) || LIMITES_PADRAO.contratos,
+    clientes: Number(data?.limites?.clientes) || LIMITES_PADRAO.clientes,
+    funcionarios: Number(data?.limites?.funcionarios) || LIMITES_PADRAO.funcionarios,
+  };
+  const permissoes = {
+    criarContratos: data?.permissoes?.criarContratos !== false,
+    criarClientes: data?.permissoes?.criarClientes !== false,
+    criarFuncionarios: data?.permissoes?.criarFuncionarios !== false,
+  };
+  return { status, limites, permissoes };
 }
 
 export default async function handler(req, res) {
@@ -109,7 +149,6 @@ export default async function handler(req, res) {
 
   // 6) Agrega dados
   try {
-    // Lista todos os perfis em /usuarios
     const usuariosSnap = await dbAdmin.collection("usuarios").get();
 
     const donos = [];
@@ -122,7 +161,6 @@ export default async function handler(req, res) {
       const uid = uDoc.id;
 
       if (data.role === "funcionario" || data.ownerUid) {
-        // Perfil de funcionário
         funcionarios.push({
           authUid: uid,
           ownerUid: data.ownerUid || null,
@@ -135,8 +173,13 @@ export default async function handler(req, res) {
       }
 
       // Perfil de dono
-      const contFuncionarios = await contarSubcolecao(dbAdmin, uDoc.ref, "funcionarios");
-      const contContratos = await contarSubcolecao(dbAdmin, uDoc.ref, "contratos");
+      const [contFuncionarios, contContratos, contClientes] = await Promise.all([
+        contarSubcolecao(dbAdmin, uDoc.ref, "funcionarios"),
+        contarSubcolecao(dbAdmin, uDoc.ref, "contratos"),
+        contarClientesPorDono(dbAdmin, uid),
+      ]);
+
+      const adminFields = normalizarAdmin(data);
 
       donos.push({
         uid,
@@ -146,11 +189,17 @@ export default async function handler(req, res) {
         criadoEm: data.criadoEm || data.createdAt?.toDate?.()?.toISOString() || null,
         contFuncionarios,
         contContratos,
+        contClientes,
+        status: adminFields.status,
+        limites: adminFields.limites,
+        permissoes: adminFields.permissoes,
       });
       totalContratos += contContratos;
     }
 
-    // Total de clientes (top-level collection)
+    // Total de clientes (top-level) — usado para o card "Clientes" do
+    // painel. Pode divergir da soma por dono se houver clientes
+    // órfãos (sem ownerId válido), o que é raro.
     try {
       const clientesSnap = await dbAdmin.collection("clientes").count().get();
       totalClientes = clientesSnap.data().count || 0;

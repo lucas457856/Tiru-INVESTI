@@ -60,11 +60,25 @@ service cloud.firestore {
 
       // Update: o próprio UID. Garante imutabilidade de role, ownerUid
       // e funcionarioId. Outros campos podem ser alterados livremente.
+      //
+      // CAMPOS ADMINISTRATIVOS (status, limites, permissoes):
+      //   Esses campos são EXCLUSIVOS do Painel Administrativo principal
+      //   (ADMIN_UID) e SÓ podem ser alterados via endpoint server-side
+      //   (que usa o Admin SDK e bypassa as rules). O client SDK —
+      //   inclusive o próprio dono autenticado — NÃO pode alterá-los.
+      //   A regra abaixo exige que o valor enviado no update seja
+      //   IDÊNTICO ao valor já persistido. Se o cliente tentar enviar
+      //   `limites: { contratos: 5 }` num doc que não tem `limites`,
+      //   a comparação falha → PERMISSION_DENIED. (Map equality no
+      //   Firestore Rules é por valor, não por identidade de objeto.)
       allow update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.funcionarioId == resource.data.funcionarioId;
+        && request.resource.data.funcionarioId == resource.data.funcionarioId
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.limites == resource.data.limites
+        && request.resource.data.permissoes == resource.data.permissoes;
 
       // ====== Subcoleções do dono ======
       // Para TUDO dentro do escopo do dono (exceto config/modelosContrato,

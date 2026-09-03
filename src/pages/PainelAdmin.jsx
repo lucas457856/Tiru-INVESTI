@@ -26,13 +26,15 @@ import {
   Phone,
   Calendar,
   Activity,
+  Settings,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
+import DonoGerenciarDrawer from "../components/DonoGerenciarDrawer";
 import { useAuth } from "../context/useAuth";
 import { ADMIN_UID, isAdminUid } from "../config/adminConfig";
-import { buscarOverview } from "../services/adminService";
+import { buscarOverview, salvarDono } from "../services/adminService";
 
 // Formata data ISO para pt-BR curto. Aceita string ISO, Timestamp do
 // Firestore (já convertido) ou null.
@@ -81,6 +83,9 @@ export default function PainelAdmin() {
   const [aba, setAba] = useState("dono");
   // Versão incremental: cada vez que "atualizar" muda, refaz o fetch.
   const [tick, setTick] = useState(0);
+  // Dono selecionado para edição no drawer.
+  const [donoSelecionado, setDonoSelecionado] = useState(null);
+  const [erroDrawer, setErroDrawer] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -103,6 +108,30 @@ export default function PainelAdmin() {
     setErro(null);
     setLoading(true);
     setTick((t) => t + 1);
+  }
+
+  function abrirGerenciar(dono) {
+    setErroDrawer(null);
+    setDonoSelecionado(dono);
+  }
+
+  function fecharGerenciar() {
+    setDonoSelecionado(null);
+    setErroDrawer(null);
+  }
+
+  // Persiste as alterações do drawer. Devolve { ok, erro? } para o
+  // drawer saber se fecha ou exibe a mensagem de erro.
+  async function handleSalvarDono(donoUid, payload) {
+    setErroDrawer(null);
+    const resp = await salvarDono(donoUid, payload);
+    if (resp && resp.ok) {
+      // Recarrega overview para refletir valores atualizados.
+      carregar();
+      return { ok: true };
+    }
+    setErroDrawer(resp || { ok: false, erro: "Falha ao salvar." });
+    return { ok: false, erro: resp?.erro || "Falha ao salvar." };
   }
 
   // Defesa adicional: se algo passou pelo RotaAdmin mas o usuário
@@ -311,33 +340,40 @@ export default function PainelAdmin() {
               </div>
 
               {aba === "dono" ? (
-                <ListaDonos donos={dados?.donos || []} />
+                <ListaDonos
+                  donos={dados?.donos || []}
+                  aoGerenciar={abrirGerenciar}
+                />
               ) : (
                 <ListaFuncionarios funcionarios={dados?.funcionarios || []} />
               )}
             </section>
-
-            {/* Aviso sobre controles futuros */}
-            <section className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
-              <p className="font-bold">Controles administrativos</p>
-              <p className="mt-1 text-xs leading-relaxed">
-                Ativação/desativação de donos, limites de uso e outras ações
-                administrativas exigirão um campo{" "}
-                <span className="font-mono">disabled</span> ou{" "}
-                <span className="font-mono">status</span> no documento{" "}
-                <span className="font-mono">usuarios/&#123;uid&#125;</span>, mais
-                endpoints server-side. A estrutura está pronta para receber
-                isso sem quebrar o sistema atual.
-              </p>
-            </section>
           </>
         )}
       </div>
+
+      {/* Drawer de gerenciamento de dono (status, limites, permissoes).
+          A `key` faz o React remontar o componente quando o `dono` muda,
+          o que aciona o lazy initializer do estado interno. */}
+      <DonoGerenciarDrawer
+        key={donoSelecionado?.uid || "vazio"}
+        aberto={!!donoSelecionado}
+        dono={donoSelecionado}
+        onFechar={fecharGerenciar}
+        onSalvar={handleSalvarDono}
+      />
+
+      {/* Erro do drawer (toast simples) */}
+      {erroDrawer && (
+        <div className="fixed bottom-4 right-4 z-[60] max-w-sm rounded-xl border border-red-200 dark:border-red-500/30 bg-white dark:bg-slate-900 shadow-xl p-3 text-xs text-red-700 dark:text-red-300">
+          {erroDrawer.erro || "Falha ao salvar."}
+        </div>
+      )}
     </AppLayout>
   );
 }
 
-function ListaDonos({ donos }) {
+function ListaDonos({ donos, aoGerenciar }) {
   if (donos.length === 0) {
     return <EstadoVazio mensagem="Nenhum dono cadastrado ainda." />;
   }
@@ -349,65 +385,118 @@ function ListaDonos({ donos }) {
             <th className="text-left font-bold px-5 py-3">Dono</th>
             <th className="text-left font-bold px-3 py-3">Contato</th>
             <th className="text-left font-bold px-3 py-3">Cadastro</th>
-            <th className="text-right font-bold px-3 py-3">Func.</th>
-            <th className="text-right font-bold px-3 py-3">Contratos</th>
-            <th className="text-left font-bold px-5 py-3">UID</th>
+            <th className="text-center font-bold px-3 py-3">Status</th>
+            <th className="text-right font-bold px-3 py-3">Uso</th>
+            <th className="text-right font-bold px-5 py-3">Ações</th>
           </tr>
         </thead>
         <tbody>
           {donos.map((d) => (
-            <tr
-              key={d.uid}
-              className="border-t border-slate-100 dark:border-slate-800"
-            >
-              <td className="px-5 py-3.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg bg-jurex text-white text-xs font-bold flex items-center justify-center">
-                    {(d.nome || d.email || "?")
-                      .trim()
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((s) => s[0]?.toUpperCase() || "")
-                      .join("") || "?"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                      {d.nome || "—"}
-                    </p>
-                  </div>
-                </div>
-              </td>
-              <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                <p className="flex items-center gap-1 truncate">
-                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span className="truncate">{d.email || "—"}</span>
-                </p>
-                {d.telefone && (
-                  <p className="flex items-center gap-1 mt-0.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    {d.telefone}
-                  </p>
-                )}
-              </td>
-              <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                <p className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  {fmtData(d.criadoEm)}
-                </p>
-              </td>
-              <td className="px-3 py-3.5 text-right tabular-nums">
-                {d.contFuncionarios}
-              </td>
-              <td className="px-3 py-3.5 text-right tabular-nums">
-                {d.contContratos}
-              </td>
-              <td className="px-5 py-3.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[180px]">
-                {d.uid}
-              </td>
-            </tr>
+            <LinhaDono key={d.uid} dono={d} aoGerenciar={aoGerenciar} />
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function LinhaDono({ dono, aoGerenciar }) {
+  const bloqueado = dono.status === "bloqueado";
+  return (
+    <tr className="border-t border-slate-100 dark:border-slate-800">
+      <td className="px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg bg-jurex text-white text-xs font-bold flex items-center justify-center shrink-0">
+            {(dono.nome || dono.email || "?")
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((s) => s[0]?.toUpperCase() || "")
+              .join("") || "?"}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+              {dono.nome || "—"}
+            </p>
+            <p className="text-[10px] font-mono text-slate-400 truncate">
+              {dono.uid}
+            </p>
+          </div>
+        </div>
+      </td>
+      <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300">
+        <p className="flex items-center gap-1 truncate">
+          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="truncate">{dono.email || "—"}</span>
+        </p>
+        {dono.telefone && (
+          <p className="flex items-center gap-1 mt-0.5">
+            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {dono.telefone}
+          </p>
+        )}
+      </td>
+      <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+        <p className="flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+          {fmtData(dono.criadoEm)}
+        </p>
+      </td>
+      <td className="px-3 py-3.5 text-center">
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+            bloqueado
+              ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300"
+              : "bg-emerald-50 text-jurex dark:bg-emerald-500/10 dark:text-emerald-400"
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              bloqueado ? "bg-red-500" : "bg-jurex"
+            }`}
+          />
+          {bloqueado ? "Bloqueado" : "Ativo"}
+        </span>
+      </td>
+      <td className="px-3 py-3.5 text-right">
+        <ResumoUso dono={dono} />
+      </td>
+      <td className="px-5 py-3.5 text-right">
+        <button
+          type="button"
+          onClick={() => aoGerenciar?.(dono)}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-jurex hover:text-jurex transition"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Gerenciar
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// Mostra "X / Y" para cada recurso. Se Y=0, mostra "X / ∞".
+function ResumoUso({ dono }) {
+  const lim = dono.limites || {};
+  const itens = [
+    { rotulo: "C", valor: dono.contContratos, limite: lim.contratos },
+    { rotulo: "Cl", valor: dono.contClientes, limite: lim.clientes },
+    { rotulo: "F", valor: dono.contFuncionarios, limite: lim.funcionarios },
+  ];
+  return (
+    <div className="inline-flex flex-col items-end gap-0.5 tabular-nums">
+      {itens.map((it) => (
+        <span
+          key={it.rotulo}
+          className="text-[11px] text-slate-600 dark:text-slate-300"
+        >
+          <span className="font-bold text-slate-900 dark:text-white">
+            {it.rotulo}
+          </span>
+          {": "}
+          {it.valor} / {it.limite > 0 ? it.limite : "∞"}
+        </span>
+      ))}
     </div>
   );
 }

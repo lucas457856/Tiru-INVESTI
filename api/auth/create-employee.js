@@ -135,6 +135,51 @@ export default async function handler(req, res) {
     );
   }
 
+  // 5b) Gate administrativo: status, permissão e limite de funcionários
+  //     definidos pelo Painel Administrativo principal (ADMIN_UID).
+  //     - status: se o dono está bloqueado, não pode criar funcionários.
+  //     - permissoes.criarFuncionarios: false → bloqueia.
+  //     - limites.funcionarios: 0 = sem limite; > 0 → não pode passar.
+  //
+  //     Esses campos são opcionais (defaults permissivos aplicados)
+  //     para garantir compatibilidade com donos antigos.
+  if (perfilChamador.status === "bloqueado") {
+    return bad(
+      res,
+      403,
+      "Conta bloqueada pelo administrador. Não é possível cadastrar funcionários.",
+    );
+  }
+  if (perfilChamador.permissoes?.criarFuncionarios === false) {
+    return bad(
+      res,
+      403,
+      "A criação de funcionários foi bloqueada pelo administrador.",
+    );
+  }
+  const limiteFuncionarios = Number(perfilChamador.limites?.funcionarios) || 0;
+  if (limiteFuncionarios > 0) {
+    try {
+      const contSnap = await dbAdmin
+        .collection("usuarios")
+        .doc(chamadorUid)
+        .collection("funcionarios")
+        .count()
+        .get();
+      const cont = contSnap.data().count || 0;
+      if (cont >= limiteFuncionarios) {
+        return bad(
+          res,
+          403,
+          `Limite de funcionários atingido (${cont}/${limiteFuncionarios}). Entre em contato com o administrador.`,
+        );
+      }
+    } catch (err) {
+      console.error("Contagem de funcionários falhou:", err?.message);
+      return bad(res, 500, "Não foi possível validar o limite de funcionários.");
+    }
+  }
+
   // 6) Verifica se já existe funcionário com esse e-mail na subcoleção
   //    do dono. Se existir (em qualquer status), recusamos — e-mail
   //    é único por dono.
