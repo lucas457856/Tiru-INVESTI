@@ -15,7 +15,7 @@ export default function SobreJurex() {
             <BackButton />
             <HomeButton />
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-              Sobre o Jurex
+              Sobre o Cred Facil
             </h1>
           </div>
         </div>
@@ -28,13 +28,13 @@ export default function SobreJurex() {
             className="w-16 h-16 rounded-2xl object-cover shadow-md"
           />
           <h2 className="mt-4 text-base font-bold text-slate-900 dark:text-white">
-            Jurex
+            Cred Facil
           </h2>
           <p className="mt-0.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
             Versão MVP 1.0
           </p>
           <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-            O Jurex é um aplicativo de gestão de contratos e cobranças, feito
+            O Cred Facil é um aplicativo de gestão de contratos e cobranças, feito
             para ajudar você a controlar empréstimos, parcelas e clientes em um
             só lugar, de forma simples e organizada.
           </p>

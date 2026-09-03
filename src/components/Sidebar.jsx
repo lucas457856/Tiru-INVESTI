@@ -40,7 +40,7 @@ const subConfig = [
       { to: "/configuracoes/backup", label: "Backup de dados" },
       { to: "/configuracoes/ajuda", label: "Central de ajuda" },
       { to: "/configuracoes/privacidade", label: "Privacidade" },
-      { to: "/configuracoes/sobre", label: "Sobre o Jurex" },
+      { to: "/configuracoes/sobre", label: "Sobre o Cred Facil" },
     ],
   },
 ];

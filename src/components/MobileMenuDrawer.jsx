@@ -94,7 +94,7 @@ const secoes = [
         icone: ScrollText,
       },
       {
-        label: "Sobre o Jurex",
+        label: "Sobre o Cred Facil",
         to: "/configuracoes/sobre",
         icone: Info,
       },

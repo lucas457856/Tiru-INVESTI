@@ -33,7 +33,7 @@ export default function CentralAjuda() {
           </h2>
           <p className="mt-1.5 max-w-md text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
             Nossa equipe está pronta para ajudar com qualquer dúvida sobre o uso
-            do Jurex — contratos, cobranças, pagamentos e mais.
+            do Cred Facil — contratos, cobranças, pagamentos e mais.
           </p>
         </section>
       </div>

@@ -17,6 +17,7 @@ import {
   Check,
   MessageCircle,
   FileSignature,
+  ArrowLeft,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
@@ -65,7 +66,7 @@ const SUB_CONFIG = [
   { to: "/configuracoes/backup", label: "Backup de dados" },
   { to: "/configuracoes/ajuda", label: "Central de ajuda" },
   { to: "/configuracoes/privacidade", label: "Privacidade" },
-  { to: "/configuracoes/sobre", label: "Sobre o Jurex" },
+  { to: "/configuracoes/sobre", label: "Sobre o Cred Facil" },
 ];
 
 export default function EmprestimoDetalhes() {
