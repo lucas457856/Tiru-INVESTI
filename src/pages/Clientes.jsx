@@ -9,20 +9,23 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 
 export default function Clientes() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
   const [clientes, setClientes] = useState([]);
   const [busca, setBusca] = useState("");
 
-  // Escuta somente os clientes do usuário autenticado (ownerId = uid).
-  // Ordenação por createdAt feita em memória para dispensar índice composto.
+  // Escuta somente os clientes do escopo efetivo (donorUid para
+  // funcionários; proprio uid para o dono). Ordenação por createdAt
+  // feita em memória para dispensar índice composto.
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const unsub = onSnapshot(
-      query(collection(db, "clientes"), where("ownerId", "==", usuario.uid)),
+      query(collection(db, "clientes"), where("ownerId", "==", effectiveUid)),
       (snap) => {
         const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         // Timestamp do Firestore → segundos; ISO string → epoch ms; ausente → 0
@@ -34,7 +37,7 @@ export default function Clientes() {
       }
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // Filtra por nome ou CPF
   const filtrados = useMemo(() => {

@@ -23,6 +23,7 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import {
   formatarMoeda,
@@ -62,6 +63,7 @@ export default function PerfilCliente() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [cliente, setCliente] = useState(null);
   // carregando | pronto | nao-encontrado | erro
@@ -84,13 +86,13 @@ export default function PerfilCliente() {
   // Busca o documento do cliente validando a posse (ownerId = uid autenticado).
   // O estado inicial já é "carregando"; resets ocorrem nos callbacks assíncronos.
   useEffect(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
     getDoc(doc(db, "clientes", id))
       .then((snap) => {
         if (!ativo) return;
         // Sem posse ou inexistente → trata como não encontrado (não vaza existência)
-        if (!snap.exists() || snap.data().ownerId !== usuario.uid) {
+        if (!snap.exists() || snap.data().ownerId !== effectiveUid) {
           setCliente(null);
           setEstado("nao-encontrado");
           return;
@@ -110,11 +112,11 @@ export default function PerfilCliente() {
     };
   }, [usuario, id]);
 
-  // Escuta os contratos do usuário e filtra os vinculados a este cliente
+  // Escuta os contratos do escopo efetivo e filtra os vinculados a este cliente
   useEffect(() => {
-    if (!usuario || !cliente) return;
+    if (!effectiveUid || !cliente) return;
     const unsub = onSnapshot(
-      collection(db, "usuarios", usuario.uid, "contratos"),
+      collection(db, "usuarios", effectiveUid, "contratos"),
       (snap) => {
         const vinculados = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))

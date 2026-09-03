@@ -10,7 +10,7 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
-import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 
 const STATUS = ["Todos", "Ativos", "Quitados"];
@@ -30,7 +30,7 @@ function formatarData(iso) {
 
 export default function BackupDados() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [aba, setAba] = useState("contratos");
   const [status, setStatus] = useState("Todos");
@@ -42,17 +42,17 @@ export default function BackupDados() {
 
   // Escuta contratos e clientes em tempo real
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const unsubC = onSnapshot(
-      query(collection(db, "usuarios", usuario.uid, "contratos"), orderBy("criadoEm", "asc")),
+      query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "asc")),
       (snap) => setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
     const unsubL = onSnapshot(
-      query(collection(db, "usuarios", usuario.uid, "clientes"), orderBy("nome", "asc")),
+      query(collection(db, "usuarios", effectiveUid, "clientes"), orderBy("nome", "asc")),
       (snap) => setClientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
     return () => { unsubC(); unsubL(); };
-  }, [usuario]);
+  }, [effectiveUid]);
 
   const filtrados = useMemo(() => {
     if (aba === "clientes") return clientes;

@@ -12,6 +12,7 @@ import { doc, getDoc } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { formatarMoeda, formatarTelefone, numeroCurto as numeroContrato } from "../utils/formatadores";
 import { gerarPdfContrato } from "../utils/pdfContrato";
@@ -21,6 +22,7 @@ export default function ContratoSucesso() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [contrato, setContrato] = useState(null);
   const [cliente, setCliente] = useState(null);
@@ -28,11 +30,11 @@ export default function ContratoSucesso() {
   const [estado, setEstado] = useState("carregando");
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
-  // Busca o contrato pelo ID validando a posse (subcoleção do usuário autenticado)
+  // Busca o contrato pelo ID validando a posse (subcoleção do escopo efetivo)
   useEffect(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
-    getDoc(doc(db, "usuarios", usuario.uid, "contratos", id))
+    getDoc(doc(db, "usuarios", effectiveUid, "contratos", id))
       .then((snap) => {
         if (!ativo) return;
         if (!snap.exists()) {
@@ -45,7 +47,7 @@ export default function ContratoSucesso() {
         if (dados.clienteId) {
           getDoc(doc(db, "clientes", dados.clienteId))
             .then((c) => {
-              if (ativo && c.exists() && c.data().ownerId === usuario.uid) {
+              if (ativo && c.exists() && c.data().ownerId === effectiveUid) {
                 setCliente({ id: c.id, ...c.data() });
               }
             })

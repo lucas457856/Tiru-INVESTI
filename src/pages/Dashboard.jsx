@@ -33,6 +33,7 @@ import { db } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import {
   parcelasDoContrato,
 } from "../services/contractService";
@@ -74,6 +75,7 @@ function statusContrato(c, hoje) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // ---- Estados de UI / dados
   const [contratos, setContratos] = useState([]);
@@ -139,10 +141,10 @@ export default function Dashboard() {
   // ---- Carrega contratos do usuário (em tempo real) — mesma collection usada
   // em Emprestimos.jsx; evita listeners duplicados via cleanup do onSnapshot.
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     setCarregando(true);
     const unsub = onSnapshot(
-      query(collection(db, "usuarios", usuario.uid, "contratos")),
+      query(collection(db, "usuarios", effectiveUid, "contratos")),
       (snap) => {
         setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setCarregando(false);
@@ -187,7 +189,7 @@ export default function Dashboard() {
         contratos.map(async (c) => {
           try {
             const snap = await getDocs(
-              collection(db, "usuarios", usuario.uid, "contratos", c.id, "pagamentos")
+              collection(db, "usuarios", effectiveUid, "contratos", c.id, "pagamentos")
             );
             acc[c.id] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           } catch (err) {

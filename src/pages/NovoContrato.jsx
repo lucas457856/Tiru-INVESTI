@@ -16,7 +16,8 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
-import { db } from "../services/firebase";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { db, auth } from "../services/firebase";
 import { collection, addDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
@@ -42,6 +43,7 @@ const STATUS_CONTRATO = {
 export default function NovoContrato() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
   // Quando a rota carrega com /emprestimos/:id/editar, o `id` é o ID real
   // do contrato no Firestore. Ausência de `id` => modo criação.
   const { id: idEdicao } = useParams();
@@ -90,20 +92,23 @@ export default function NovoContrato() {
 
   const valorNumero = parseFloat(valor.replace(/\D/g, "")) / 100 || 0;
 
-  // Carrega clientes do Firestore do usuário autenticado
+  // Carrega clientes do Firestore do usuário autenticado.
+  // Usa o "effective uid" para funcionar tanto para o dono
+  // (effectiveUid === usuario.uid) quanto para o funcionário
+  // (effectiveUid === ownerUid do funcionário).
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     setCarregandoClientes(true);
     const q = query(
       collection(db, "clientes"),
-      where("ownerId", "==", usuario.uid)
+      where("ownerId", "==", effectiveUid)
     );
     getDocs(q).then((snap) => {
       const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setClientes(lista);
       setCarregandoClientes(false);
     }).catch(() => setCarregandoClientes(false));
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // Filtra clientes pela busca
   const clientesFiltrados = useMemo(() => {
@@ -238,7 +243,7 @@ export default function NovoContrato() {
           getDoc(doc(db, "clientes", c.clienteId))
             .then((snap) => {
               if (!ativo) return;
-              if (snap.exists() && snap.data().ownerId === usuario.uid) {
+              if (snap.exists() && snap.data().ownerId === effectiveUid) {
                 setClienteSel({ id: snap.id, ...snap.data() });
               }
             })
@@ -354,9 +359,22 @@ export default function NovoContrato() {
       return setErro("Informe os juros ao mês.");
     }
     if (!usuario) return setErro("Usuário não autenticado.");
+    if (!effectiveUid) return setErro("Sessão sem escopo de proprietário.");
+
+    // Identifica QUEM está criando o contrato: o dono (auth.currentUser.uid
+    // === effectiveUid) ou um funcionário (uid diferente). Esse valor é
+    // gravado em `createdBy` na criação e serve para o contador de
+    // "contratos utilizados" da página de Funcionários.
+    const criadorUid = auth.currentUser?.uid || usuario.uid;
+    const ehFuncionarioLogado = criadorUid !== effectiveUid;
+
     try {
       setSalvando(true);
-      // Subcoleção por usuário: usuarios/{uid}/contratos (lida por Emprestimos.jsx)
+
+      // Subcoleção por usuário: usuarios/{effectiveUid}/contratos
+      // (effectiveUid = dono para o proprietário; = ownerUid para o
+      // funcionário). Lida por Emprestimos.jsx via useEffectiveUid().
+
       if (modoEdicao) {
         // ====== MODO EDIÇÃO ======
         // Atualiza APENAS o documento existente (NÃO cria novo). Preserva:
@@ -366,13 +384,14 @@ export default function NovoContrato() {
         //   - dataProximo (recalculada via getNextOpenInstallment se alterado)
         //   - vencimentosCustom / parcelasCustom (renegociações anteriores)
         //   - criadoEm (timestamp original)
+        //   - createdBy (NÃO é alterado em edição)
         // Apenas os CAMPOS EDITÁVEIS no formulário são sobrescritos.
         //
         // ATENÇÃO: o array `parcelas` é RECALCULADO a partir de calcularParcelas
         // com base nos novos parâmetros. As parcelas já PAGADAS permanecem
         // preservadas na lógica de `parcelasDoContrato` (linhas que tratam
         // status === "Paga"). Parcelas pagas NÃO são recriadas.
-        const ref = doc(db, "usuarios", usuario.uid, "contratos", idEdicao);
+        const ref = doc(db, "usuarios", effectiveUid, "contratos", idEdicao);
         await updateDoc(ref, {
           // Vínculo com o cliente
           clienteId: clienteSel.id,
@@ -404,8 +423,45 @@ export default function NovoContrato() {
         navigate(`/emprestimos/${idEdicao}`, { replace: true });
         return;
       }
+
       // ====== MODO CRIAÇÃO ======
-      const docRef = await addDoc(collection(db, "usuarios", usuario.uid, "contratos"), {
+
+      // Gate de funcionário: antes de criar, valida status e limite.
+      // O DONO (criadorUid === effectiveUid) nunca passa por aqui.
+      if (ehFuncionarioLogado) {
+        const funcQuery = query(
+          collection(db, "usuarios", effectiveUid, "funcionarios"),
+          where("authUid", "==", criadorUid),
+        );
+        const funcSnap = await getDocs(funcQuery);
+        const funcDoc = funcSnap.docs[0]?.data();
+        if (!funcDoc) {
+          setSalvando(false);
+          return setErro("Funcionário não encontrado. Contate o proprietário.");
+        }
+        if ((funcDoc.status || "ativo") === "inativo") {
+          setSalvando(false);
+          return setErro(
+            "Seu acesso foi desativado. Entre em contato com o administrador da conta.",
+          );
+        }
+        const limite = Number(funcDoc.limiteContratos) || 0;
+        if (limite > 0) {
+          const contQuery = query(
+            collection(db, "usuarios", effectiveUid, "contratos"),
+            where("createdBy", "==", criadorUid),
+          );
+          const contSnap = await getDocs(contQuery);
+          if (contSnap.size >= limite) {
+            setSalvando(false);
+            return setErro(
+              "Limite de contratos atingido. Procure o administrador.",
+            );
+          }
+        }
+      }
+
+      const docRef = await addDoc(collection(db, "usuarios", effectiveUid, "contratos"), {
         // Vínculo com o cliente selecionado
         clienteId: clienteSel.id,
         clienteNome: clienteSel.nomeCompleto,
@@ -422,6 +478,11 @@ export default function NovoContrato() {
         // tipoJuros só é persistido quando há juros. "parcela" ou "total".
         // Quando "Sem Juros", grava null para deixar explícito que não se aplica.
         tipoJuros: tipoEmprestimo === "Com Juros" ? tipoJuros : null,
+        // Quem criou o contrato: o UID autenticado. Para o dono é o
+        // próprio effectiveUid; para o funcionário é o authUid dele.
+        // Contratos antigos sem `createdBy` continuam funcionando
+        // normalmente (sistema legado).
+        createdBy: criadorUid,
         numeroParcelas: parcelasNumero,
         // Juros em atraso
         cobrarJurosAtraso: jurosAtraso ? true : false,
@@ -447,7 +508,11 @@ export default function NovoContrato() {
       // (success branch via .then). Garante 1 doc ↔ 1 notificação nativa,
       // sem duplicar se a Firestore write falhar.
       const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
-      criarNotificacao(usuario.uid, {
+      // Notificação vai para o caminho do usuário autenticado: o dono
+      // ou o funcionário que está criando o contrato (cada um tem
+      // seu próprio "sino").
+      const notificacaoUid = auth.currentUser?.uid || usuario.uid;
+      criarNotificacao(notificacaoUid, {
         tipo: "contrato_criado",
         titulo: "Novo contrato criado",
         descricao: descricaoContrato,

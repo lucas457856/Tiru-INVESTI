@@ -11,6 +11,7 @@ import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { numeroCurto } from "../utils/formatadores";
 import { calculateDebtRemaining, calcularStatusContrato } from "../services/paymentCalculations";
@@ -39,20 +40,21 @@ function statusContrato(c, hoje) {
 export default function Emprestimos() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [contratos, setContratos] = useState([]);
   const [status, setStatus] = useState("Todos");
   const [busca, setBusca] = useState("");
 
-  // Escuta os contratos em tempo real
+  // Escuta os contratos do escopo efetivo em tempo real
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const unsub = onSnapshot(
-      query(collection(db, "usuarios", usuario.uid, "contratos"), orderBy("criadoEm", "desc")),
+      query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "desc")),
       (snap) => setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // Filtra por status real e busca
   const filtrados = useMemo(() => {

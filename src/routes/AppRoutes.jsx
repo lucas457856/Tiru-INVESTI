@@ -9,6 +9,8 @@ import Cadastro from "../pages/Cadastro";
 import EsqueciSenha from "../pages/EsqueciSenha";
 import VerificarCodigo from "../pages/VerificarCodigo";
 import NovaSenha from "../pages/NovaSenha";
+import AcessoBloqueado from "../pages/AcessoBloqueado";
+import RotaProtegida from "../components/RotaProtegida";
 
 import Dashboard from "../pages/Dashboard";
 import Calendario from "../pages/Calendario";
@@ -67,37 +69,40 @@ export default function AppRoutes() {
           <Route path="/nova-senha" element={<NovaSenha />} />
 
           {/* SISTEMA (protegidas) */}
-          <Route path="/dashboard" element={<RotaPrivada><Dashboard /></RotaPrivada>} />
-          <Route path="/emprestimos" element={<RotaPrivada><Emprestimos /></RotaPrivada>} />
-          <Route path="/contratos/novo" element={<RotaPrivada><NovoContrato /></RotaPrivada>} />
+          <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
+          <Route path="/emprestimos" element={<RotaProtegida><Emprestimos /></RotaProtegida>} />
+          <Route path="/contratos/novo" element={<RotaProtegida><NovoContrato /></RotaProtegida>} />
           {/* Edição reusa o mesmo componente `NovoContrato`, que detecta o
               `:id` via `useParams` e alterna para modo edição (prefetch via
               buscarContrato, updateDoc no salvar). */}
-          <Route path="/emprestimos/:id/editar" element={<RotaPrivada><NovoContrato /></RotaPrivada>} />
-          <Route path="/contratos/:id/sucesso" element={<RotaPrivada><ContratoSucesso /></RotaPrivada>} />
-          <Route path="/emprestimos/:id" element={<RotaPrivada><EmprestimoDetalhes /></RotaPrivada>} />
-          <Route path="/receber-pagamento/:contratoId" element={<RotaPrivada><ReceberPagamento /></RotaPrivada>} />
-          <Route path="/contratos/:contratoId/parcelas/:parcelaNumero/renegociar" element={<RotaPrivada><RenegociarParcela /></RotaPrivada>} />
-          <Route path="/clientes" element={<RotaPrivada><Clientes /></RotaPrivada>} />
-          <Route path="/clientes/novo" element={<RotaPrivada><NovoCliente /></RotaPrivada>} />
-          <Route path="/clientes/:id" element={<RotaPrivada><PerfilCliente /></RotaPrivada>} />
-          <Route path="/clientes/:id/editar" element={<RotaPrivada><EditarCliente /></RotaPrivada>} />
-          <Route path="/calendario" element={<RotaPrivada><Calendario /></RotaPrivada>} />
-          <Route path="/parcelas" element={<RotaPrivada><Parcelas /></RotaPrivada>} />
-          <Route path="/historico-financeiro" element={<RotaPrivada><HistoricoFinanceiro /></RotaPrivada>} />
-          <Route path="/suporte" element={<RotaPrivada><Suporte /></RotaPrivada>} />
-          <Route path="/relatorios" element={<RotaPrivada><Relatorios /></RotaPrivada>} />
-          <Route path="/perfil" element={<RotaPrivada><Perfil /></RotaPrivada>} />
-          <Route path="/notificacoes" element={<RotaPrivada><Notificacoes /></RotaPrivada>} />
-          <Route path="/configuracoes/modelos-cobranca" element={<RotaPrivada><ModelosCobranca /></RotaPrivada>} />
-          <Route path="/configuracoes/modelos-contrato" element={<RotaPrivada><ModelosContrato /></RotaPrivada>} />
-          <Route path="/configuracoes/modelos-contrato/:id/editar" element={<RotaPrivada><ModeloContratoEditor /></RotaPrivada>} />
-          <Route path="/configuracoes/backup" element={<RotaPrivada><BackupDados /></RotaPrivada>} />
-          <Route path="/configuracoes/ajuda" element={<RotaPrivada><CentralAjuda /></RotaPrivada>} />
-          <Route path="/configuracoes/privacidade" element={<RotaPrivada><Privacidade /></RotaPrivada>} />
-          <Route path="/configuracoes/sobre" element={<RotaPrivada><SobreJurex /></RotaPrivada>} />
-          <Route path="/configuracoes/funcionarios" element={<RotaPrivada><Funcionarios /></RotaPrivada>} />
-          <Route path="/configuracoes" element={<RotaPrivada><Configuracoes /></RotaPrivada>} />
+          <Route path="/emprestimos/:id/editar" element={<RotaProtegida><NovoContrato /></RotaProtegida>} />
+          <Route path="/contratos/:id/sucesso" element={<RotaProtegida><ContratoSucesso /></RotaProtegida>} />
+          <Route path="/emprestimos/:id" element={<RotaProtegida><EmprestimoDetalhes /></RotaProtegida>} />
+          <Route path="/receber-pagamento/:contratoId" element={<RotaProtegida><ReceberPagamento /></RotaProtegida>} />
+          <Route path="/contratos/:contratoId/parcelas/:parcelaNumero/renegociar" element={<RotaProtegida><RenegociarParcela /></RotaProtegida>} />
+          <Route path="/clientes" element={<RotaProtegida><Clientes /></RotaProtegida>} />
+          <Route path="/clientes/novo" element={<RotaProtegida><NovoCliente /></RotaProtegida>} />
+          <Route path="/clientes/:id" element={<RotaProtegida><PerfilCliente /></RotaProtegida>} />
+          <Route path="/clientes/:id/editar" element={<RotaProtegida><EditarCliente /></RotaProtegida>} />
+          <Route path="/calendario" element={<RotaProtegida><Calendario /></RotaProtegida>} />
+          <Route path="/parcelas" element={<RotaProtegida><Parcelas /></RotaProtegida>} />
+          <Route path="/historico-financeiro" element={<RotaProtegida><HistoricoFinanceiro /></RotaProtegida>} />
+          <Route path="/suporte" element={<RotaProtegida><Suporte /></RotaProtegida>} />
+          <Route path="/relatorios" element={<RotaProtegida><Relatorios /></RotaProtegida>} />
+          <Route path="/perfil" element={<RotaProtegida><Perfil /></RotaProtegida>} />
+          <Route path="/notificacoes" element={<RotaProtegida><Notificacoes /></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-cobranca" element={<RotaProtegida><ModelosCobranca /></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-contrato" element={<RotaProtegida><ModelosContrato /></RotaProtegida>} />
+          <Route path="/configuracoes/modelos-contrato/:id/editar" element={<RotaProtegida><ModeloContratoEditor /></RotaProtegida>} />
+          <Route path="/configuracoes/backup" element={<RotaProtegida><BackupDados /></RotaProtegida>} />
+          <Route path="/configuracoes/ajuda" element={<RotaProtegida><CentralAjuda /></RotaProtegida>} />
+          <Route path="/configuracoes/privacidade" element={<RotaProtegida><Privacidade /></RotaProtegida>} />
+          <Route path="/configuracoes/sobre" element={<RotaProtegida><SobreJurex /></RotaProtegida>} />
+          <Route path="/configuracoes/funcionarios" element={<RotaProtegida><Funcionarios /></RotaProtegida>} />
+          <Route path="/configuracoes" element={<RotaProtegida><Configuracoes /></RotaProtegida>} />
+
+          {/* Tela de bloqueio para funcionário inativo */}
+          <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />
 
         </Routes>
         </BrowserRouter>

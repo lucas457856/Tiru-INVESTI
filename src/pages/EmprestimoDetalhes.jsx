@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
-import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { formatarMoeda, formatarTelefone, formatarData, numeroCurto } from "../utils/formatadores";
 import { gerarPdfContrato } from "../utils/pdfContrato";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato, listarModelosContrato } from "../services/contractService";
@@ -71,7 +71,7 @@ const SUB_CONFIG = [
 export default function EmprestimoDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
   const [estado, setEstado] = useState("carregando");
@@ -101,11 +101,11 @@ export default function EmprestimoDetalhes() {
 
   // Busca contrato + cliente pelo ID real do Firestore
   useEffect(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
     setEstado("carregando");
 
-    buscarContrato(usuario, id)
+    buscarContrato({ uid: effectiveUid }, id)
       .then((dados) => {
         if (!ativo) return;
         if (!dados) {
@@ -127,16 +127,16 @@ export default function EmprestimoDetalhes() {
       });
 
     return () => { ativo = false; };
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   // Carrega os recebimentos de juros do contrato (subcoleção Firestore dedicada).
   // Necessário para exibir o badge "Juros da semana recebido" nas parcelas
   // que receberam juros via modalidade "juros_apenas".
   useEffect(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
-    console.log("[DIAG] juros encontrados: buscando para contratoId=", id, "uid=", usuario?.uid);
-    buscarJurosRecebidos(usuario, id)
+    console.log("[DIAG] juros encontrados: buscando para contratoId=", id, "uid=", effectiveUid);
+    buscarJurosRecebidos({ uid: effectiveUid }, id)
       .then((docs) => {
         if (!ativo) return;
         console.log("[DIAG] juros encontrados:", Array.isArray(docs) ? docs.length : 0);
@@ -148,14 +148,14 @@ export default function EmprestimoDetalhes() {
         setJurosRecebidosContrato([]);
       });
     return () => { ativo = false; };
-  }, [usuario, id, contrato?.updatedAt]);
+  }, [effectiveUid, id, contrato?.updatedAt]);
 
   // Força reload dos dados do Firestore (necessário após pagamento/exclusão)
   const recarregar = useCallback(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
     setEstado("carregando");
-    buscarContrato(usuario, id)
+    buscarContrato({ uid: effectiveUid }, id)
       .then((dados) => {
         if (!ativo) return;
         if (!dados) {
@@ -169,7 +169,7 @@ export default function EmprestimoDetalhes() {
         setEstado("pronto");
         // Recarrega também os recebimentos de juros para que badges recém-pagos
         // apareçam imediatamente após o pagamento.
-        buscarJurosRecebidos(usuario, id)
+        buscarJurosRecebidos({ uid: effectiveUid }, id)
           .then((docs) => {
             if (!ativo) return;
             setJurosRecebidosContrato(Array.isArray(docs) ? docs : []);
@@ -185,7 +185,7 @@ export default function EmprestimoDetalhes() {
         }
       });
     return () => { ativo = false; };
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   // Status do contrato calculado a partir dos dados reais
   const status = useMemo(() => {
@@ -309,9 +309,9 @@ export default function EmprestimoDetalhes() {
   // Lazy: não roda no mount da página. Se o usuário não tiver modelos
   // salvos, mantém os MODELOS_PADRAO (que já são o estado inicial).
   useEffect(() => {
-    if (!modalEnvioAberto || !usuario) return;
+    if (!modalEnvioAberto || !effectiveUid) return;
     let ativo = true;
-    listarModelosContrato(usuario.uid)
+    listarModelosContrato(effectiveUid)
       .then((docs) => {
         if (!ativo || !docs || docs.length === 0) return;
         // Mescla: usa o que veio do Firestore, mas garante que os dois
@@ -329,7 +329,7 @@ export default function EmprestimoDetalhes() {
     return () => {
       ativo = false;
     };
-  }, [modalEnvioAberto, usuario]);
+  }, [modalEnvioAberto, effectiveUid]);
 
   // Regenera o texto da pré-visualização sempre que o modal abre, a aba
   // muda, os modelos chegam, ou os dados do contrato/parcelas mudam.
@@ -381,12 +381,12 @@ export default function EmprestimoDetalhes() {
   // `/logo.png` (asset público) carregado em runtime pelo pdfContrato.
   const [gerandoPdf, setGerandoPdf] = useState(false);
   async function compartilharPdf() {
-    if (!contrato || !usuario || !id) return;
+    if (!contrato || !effectiveUid || !id) return;
     if (gerandoPdf) return; // anti-double-click
     setGerandoPdf(true);
     try {
       // Pega sempre o estado mais recente do Firestore antes de gerar.
-      const dados = await buscarContrato(usuario, id);
+      const dados = await buscarContrato({ uid: effectiveUid }, id);
       if (dados) {
         const contratoAtualizado = { ...contrato, ...dados.contrato };
         const clienteAtualizado = dados.cliente ?? cliente;
@@ -416,7 +416,7 @@ export default function EmprestimoDetalhes() {
 
   // Estorno de parcela paga
   async function estornar(parcela) {
-    if (!contrato || !usuario) return;
+    if (!contrato || !effectiveUid) return;
     const ok = window.confirm(
       `Estornar o pagamento da parcela ${parcela.numero} do contrato ${numeroCurto(contrato.id)}?\nEsta ação não pode ser desfeita.`
     );
@@ -439,13 +439,13 @@ export default function EmprestimoDetalhes() {
 
   // Excluir contrato com confirmação
   async function excluir() {
-    if (!contrato || !usuario) return;
+    if (!contrato || !effectiveUid) return;
     const ok = window.confirm(
       `Excluir o contrato ${numeroCurto(contrato.id)}?\nEsta ação não pode ser desfeita.`
     );
     if (!ok) return;
     try {
-      await excluirContrato(usuario, contrato.id);
+      await excluirContrato({ uid: effectiveUid }, contrato.id);
       navigate("/emprestimos");
     } catch (err) {
       console.error("Erro ao excluir contrato:", err);

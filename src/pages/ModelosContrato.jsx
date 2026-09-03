@@ -16,7 +16,7 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
-import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 
 // Modelo padrão do resumo de empréstimo
@@ -53,25 +53,25 @@ const PADROES = [
 
 export default function ModelosContrato() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
   const [modelos, setModelos] = useState([]);
 
   // Escuta os modelos salvos no Firestore em tempo real
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const unsub = onSnapshot(
-      collection(db, "usuarios", usuario.uid, "modelosContrato"),
+      collection(db, "usuarios", effectiveUid, "modelosContrato"),
       (snap) => {
         setModelos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       }
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
   // Popula com os padrões na primeira visita
   async function criarPadroesIniciais() {
     for (const p of PADROES) {
-      await addDoc(collection(db, "usuarios", usuario.uid, "modelosContrato"), {
+      await addDoc(collection(db, "usuarios", effectiveUid, "modelosContrato"), {
         titulo: p.titulo,
         texto: p.texto,
       });
@@ -79,7 +79,7 @@ export default function ModelosContrato() {
   }
 
   async function criarNovo() {
-    await addDoc(collection(db, "usuarios", usuario.uid, "modelosContrato"), {
+    await addDoc(collection(db, "usuarios", effectiveUid, "modelosContrato"), {
       titulo: "Novo modelo",
       texto: "Olá, {nome}! 👋",
     });
@@ -87,7 +87,7 @@ export default function ModelosContrato() {
 
   async function excluir(id) {
     if (!window.confirm("Excluir este modelo?")) return;
-    await deleteDoc(doc(db, "usuarios", usuario.uid, "modelosContrato", id));
+    await deleteDoc(doc(db, "usuarios", effectiveUid, "modelosContrato", id));
   }
 
   return (

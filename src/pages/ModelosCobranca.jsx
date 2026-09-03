@@ -13,6 +13,7 @@ import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
@@ -91,6 +92,7 @@ function substituir(texto, exemplo) {
 export default function ModelosCobranca() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
   const [ativo, setAtivo] = useState(MODELOS[0].id);
   const [textos, setTextos] = useState(
     Object.fromEntries(MODELOS.map((m) => [m.id, m.padrao]))
@@ -99,15 +101,15 @@ export default function ModelosCobranca() {
 
   // Carrega textos salvos no Firestore
   useEffect(() => {
-    if (!usuario) return;
-    getDoc(doc(db, "usuarios", usuario.uid, "config", "modelosCobranca")).then(
+    if (!effectiveUid) return;
+    getDoc(doc(db, "usuarios", effectiveUid, "config", "modelosCobranca")).then(
       (snap) => {
         if (snap.exists()) {
           setTextos((t) => ({ ...t, ...snap.data() }));
         }
       }
     );
-  }, [usuario]);
+  }, [effectiveUid]);
 
   const modeloAtual = MODELOS.find((m) => m.id === ativo);
   const textoAtual = textos[ativo];
@@ -128,7 +130,7 @@ export default function ModelosCobranca() {
 
   async function salvar() {
     await setDoc(
-      doc(db, "usuarios", usuario.uid, "config", "modelosCobranca"),
+      doc(db, "usuarios", effectiveUid, "config", "modelosCobranca"),
       textos,
       { merge: true }
     );

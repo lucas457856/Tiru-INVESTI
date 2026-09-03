@@ -3,42 +3,121 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Perfil do usuário e subcoleções (contratos, modelosContrato, config...)
-    // Somente o dono da conta lê e escreve.
+    // ----- Helpers -----
+
+    // Lê o perfil do usuário autenticado em /usuarios/{uid}. Usado para
+    // detectar funcionários e seu `ownerUid`. Custa 1 leitura por
+    // avaliação — aceitável para o volume atual do projeto.
+    function meuPerfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    // O UID autenticado é o próprio dono do documento?
+    function ehDono(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // O UID autenticado é um funcionário vinculado a este ownerUid?
+    // Usa meuPerfil() para validar role/ownerUid — não há como o
+    // cliente mentir no payload.
+    function ehFuncionarioDe(ownerUid) {
+      return request.auth != null
+        && request.auth.uid != ownerUid
+        && meuPerfil().ownerUid == ownerUid
+        && meuPerfil().role == 'funcionario';
+    }
+
+    // ----- /usuarios/{uid} (perfil raiz) -----
+
     match /usuarios/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Qualquer usuário autenticado pode ler o próprio perfil.
+      allow read: if request.auth != null && request.auth.uid == uid;
 
-      match /{subcolecao}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-      }
+      // Criação: o próprio UID pode criar o próprio perfil. Perfis de
+      // dono NÃO carregam role/ownerUid. Perfis de funcionário são
+      // criados pelo endpoint server-side (Admin SDK, sem rules
+      // relevantes) — aqui aceitamos apenas a forma "dono" para
+      // impedir que um usuário finja ser dono ou vincule a outro owner.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && !('role' in request.resource.data)
+        && !('ownerUid' in request.resource.data);
 
-      // Subcoleção de pagamentos de um contrato (path:
-      // usuarios/{uid}/contratos/{contratoId}/pagamentos/{pagamentoId}).
-      // O match coringa acima só alcança 2 níveis de profundidade, então
-      // precisamos de um match explícito para esta subcoleção de 3º nível.
-      // Caso contrário, registrarPagamento e buscarHistoricoPagamentos
-      // falham com "Missing or insufficient permissions".
-      match /contratos/{contratoId}/pagamentos/{pagamentoId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-      }
+      // Update: o próprio UID. Garante imutabilidade de role e
+      // ownerUid. Outros campos podem ser alterados livremente.
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.ownerUid == resource.data.ownerUid;
 
-      // Subcoleção de recebimentos de JUROS de um contrato (path:
-      // usuarios/{uid}/contratos/{contratoId}/jurosRecebidos/{jurosId}).
-      // "Só os juros" NÃO é pagamento de parcela — é apenas um registro
-      // histórico de que os juros daquela semana foram recebidos, usado
-      // para exibir o badge "Juros da semana recebido" no card da parcela.
-      // Permissão segue o mesmo padrão das demais subcoleções do usuário.
-      match /contratos/{contratoId}/jurosRecebidos/{jurosId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Subcoleção /funcionarios/{funcionarioId}
+      // - Dono: CRUD total
+      // - O próprio funcionário: lê seu próprio doc (pelo authUid),
+      //   mas não pode editar (qualquer edição é feita via endpoint
+      //   server-side pelo dono).
+      // - Funcionário de OUTRO dono: bloqueado
+      match /funcionarios/{funcionarioId} {
+        allow read, write: if ehDono(uid);
+        allow read: if request.auth != null
+          && request.auth.uid == resource.data.authUid;
+
+        // Configurações do dono: SOMENTE o dono
+        match /config/{docId} {
+          allow read, write: if ehDono(uid);
+        }
+        match /modelosContrato/{docId} {
+          allow read, write: if ehDono(uid);
+        }
+        match /modelosCobranca/{docId} {
+          allow read, write: if ehDono(uid);
+        }
+
+        // Notificações: dono e funcionário do dono acessam
+        match /notificacoes/{docId} {
+          allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
+        }
+
+        // Contratos: dono e funcionário do dono acessam
+        match /contratos/{contratoId} {
+          allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
+
+          // Subcoleção de pagamentos (3º nível)
+          match /pagamentos/{pagamentoId} {
+            allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
+          }
+
+          // Subcoleção de recebimentos de juros (3º nível)
+          match /jurosRecebidos/{jurosId} {
+            allow read, write: if ehDono(uid) || ehFuncionarioDe(uid);
+          }
+        }
       }
     }
 
-    // Clientes top-level: posse pelo campo ownerId (UID do usuário autenticado)
+    // ----- /clientes/{clienteId} (coleção top-level) -----
+
     match /clientes/{clienteId} {
+      // Dono: lê/atualiza/exclui clientes com ownerId == seu uid
       allow read, update, delete: if request.auth != null
-        && request.auth.uid == resource.data.ownerId;
+        && resource.data.ownerId == request.auth.uid;
+
+      // Funcionário: lê/atualiza/exclui clientes com ownerId == ownerUid
+      // do seu perfil (vínculo funcionário → dono).
+      allow read, update, delete: if request.auth != null
+        && resource.data.ownerId == meuPerfil().ownerUid
+        && meuPerfil().role == 'funcionario';
+
+      // Create: o ownerId do novo doc deve ser o uid do dono OU o
+      // ownerUid do funcionário. Impede que um funcionário crie
+      // clientes para um owner diferente.
       allow create: if request.auth != null
-        && request.auth.uid == request.resource.data.ownerId;
+        && (
+          request.resource.data.ownerId == request.auth.uid
+          || (
+            request.resource.data.ownerId == meuPerfil().ownerUid
+            && meuPerfil().role == 'funcionario'
+          )
+        );
     }
   }
 }

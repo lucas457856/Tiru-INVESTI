@@ -50,6 +50,7 @@ import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { db } from "../services/firebase";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 
 // Converte qualquer fonte de data (Firestore Timestamp, ISO string,
@@ -156,22 +157,23 @@ function classificarPagamento(p) {
 export default function HistoricoFinanceiro() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [eventos, setEventos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    if (!usuario) return undefined;
+    if (!effectiveUid) return undefined;
     let cancelado = false;
 
     async function carregar() {
       setCarregando(true);
       setErro(null);
       try {
-        // 1) Todos os contratos do usuário (sem slice/limit).
+        // 1) Todos os contratos do escopo efetivo (sem slice/limit).
         const contratosSnap = await getDocs(
-          query(collection(db, "usuarios", usuario.uid, "contratos"))
+          query(collection(db, "usuarios", effectiveUid, "contratos"))
         );
         const contratos = contratosSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -184,13 +186,13 @@ export default function HistoricoFinanceiro() {
             const [pagResult, jurResult] = await Promise.allSettled([
               getDocs(
                 query(
-                  collection(db, "usuarios", usuario.uid, "contratos", c.id, "pagamentos"),
+                  collection(db, "usuarios", effectiveUid, "contratos", c.id, "pagamentos"),
                   orderBy("criadoEm", "asc")
                 )
               ),
               getDocs(
                 query(
-                  collection(db, "usuarios", usuario.uid, "contratos", c.id, "jurosRecebidos"),
+                  collection(db, "usuarios", effectiveUid, "contratos", c.id, "jurosRecebidos"),
                   orderBy("criadoEm", "asc")
                 )
               ),

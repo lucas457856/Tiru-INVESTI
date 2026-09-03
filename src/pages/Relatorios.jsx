@@ -38,6 +38,7 @@ import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import {
   parcelasDoContrato,
@@ -120,6 +121,7 @@ function formatarMoedaSinal(v) {
 
 export default function Relatorios() {
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // ---- Estados
   const [contratos, setContratos] = useState([]);
@@ -139,10 +141,10 @@ export default function Relatorios() {
 
   // ---- Carrega contratos em tempo real
   useEffect(() => {
-    if (!usuario) return undefined;
+    if (!effectiveUid) return undefined;
     setCarregando(true);
     const unsub = onSnapshot(
-      collection(db, "usuarios", usuario.uid, "contratos"),
+      collection(db, "usuarios", effectiveUid, "contratos"),
       (snap) => {
         setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setCarregando(false);
@@ -153,16 +155,16 @@ export default function Relatorios() {
       }
     );
     return unsub;
-  }, [usuario]);
+  }, [effectiveUid]);
 
-  // ---- Carrega TODOS os pagamentos do usuário (fontes reais).
+  // ---- Carrega TODOS os pagamentos do escopo efetivo (fontes reais).
   // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.
   // Sem collectionGroup para evitar regra nova; itera por contrato (mesmo
   // padrão de Parcelas.jsx). Se a subcoleção não existir ou estiver vazia
   // para um contrato, simplesmente pulamos.
   const [pagamentosPorContrato, setPagamentosPorContrato] = useState({});
   useEffect(() => {
-    if (!usuario || contratos.length === 0) {
+    if (!effectiveUid || contratos.length === 0) {
       setPagamentosPorContrato({});
       return undefined;
     }
@@ -173,7 +175,7 @@ export default function Relatorios() {
         contratos.map(async (c) => {
           try {
             const snap = await getDocs(
-              collection(db, "usuarios", usuario.uid, "contratos", c.id, "pagamentos")
+              collection(db, "usuarios", effectiveUid, "contratos", c.id, "pagamentos")
             );
             acc[c.id] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
           } catch (err) {

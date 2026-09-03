@@ -8,7 +8,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
-import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 
 const VARIAVEIS = [
@@ -20,7 +20,7 @@ const VARIAVEIS = [
 export default function ModeloContratoEditor() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [titulo, setTitulo] = useState("");
   const [texto, setTexto] = useState("");
@@ -29,8 +29,8 @@ export default function ModeloContratoEditor() {
 
   // Carrega o modelo do Firestore
   useEffect(() => {
-    if (!usuario || !id) return;
-    getDoc(doc(db, "usuarios", usuario.uid, "modelosContrato", id)).then(
+    if (!effectiveUid || !id) return;
+    getDoc(doc(db, "usuarios", effectiveUid, "modelosContrato", id)).then(
       (snap) => {
         if (snap.exists()) {
           setTitulo(snap.data().titulo ?? "");
@@ -39,12 +39,12 @@ export default function ModeloContratoEditor() {
         setCarregando(false);
       }
     );
-  }, [usuario, id]);
+  }, [effectiveUid, id]);
 
   async function salvar(e) {
     e.preventDefault();
     await setDoc(
-      doc(db, "usuarios", usuario.uid, "modelosContrato", id),
+      doc(db, "usuarios", effectiveUid, "modelosContrato", id),
       { titulo, texto },
       { merge: true }
     );

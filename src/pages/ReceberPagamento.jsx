@@ -9,6 +9,7 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { formatarMoeda, formatarData, formatarTelefone, numeroCurto } from "../utils/formatadores";
 import {
   buscarContrato,
@@ -52,6 +53,7 @@ export default function ReceberPagamento() {
   const parcelaParam = searchParams.get("parcela");
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
   const [estado, setEstado] = useState("carregando");
@@ -78,11 +80,11 @@ export default function ReceberPagamento() {
 
   // Busca contrato + cliente e identifica a parcela clicada
   useEffect(() => {
-    if (!usuario || !contratoId) return;
+    if (!effectiveUid || !contratoId) return;
     let ativo = true;
     setEstado("carregando");
 
-    buscarContrato(usuario, contratoId)
+    buscarContrato({ uid: effectiveUid }, contratoId)
       .then((dados) => {
         if (!ativo) return;
         if (!dados) {

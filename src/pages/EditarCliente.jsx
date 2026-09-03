@@ -10,6 +10,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { validarFoto, enviarFoto } from "../services/fotoService";
 
@@ -37,6 +38,7 @@ export default function EditarCliente() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
   const [estado, setEstado] = useState("carregando");
@@ -55,14 +57,14 @@ export default function EditarCliente() {
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState(false);
 
-  // Carrega os dados atuais do cliente validando a posse (ownerId = uid)
+  // Carrega os dados atuais do cliente validando a posse (ownerId = effectiveUid)
   useEffect(() => {
-    if (!usuario || !id) return;
+    if (!effectiveUid || !id) return;
     let ativo = true;
     getDoc(doc(db, "clientes", id))
       .then((snap) => {
         if (!ativo) return;
-        if (!snap.exists() || snap.data().ownerId !== usuario.uid) {
+        if (!snap.exists() || snap.data().ownerId !== effectiveUid) {
           setEstado("nao-encontrado");
           return;
         }
@@ -114,7 +116,7 @@ export default function EditarCliente() {
       // Revalida a posse antes de gravar
       const ref = doc(db, "clientes", id);
       const snap = await getDoc(ref);
-      if (!snap.exists() || snap.data().ownerId !== usuario?.uid) {
+      if (!snap.exists() || snap.data().ownerId !== effectiveUid) {
         setErro("Você não tem permissão para editar este cliente.");
         return;
       }

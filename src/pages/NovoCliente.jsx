@@ -16,6 +16,7 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import {
   validarFoto,
@@ -46,6 +47,7 @@ function formatarTelefone(v) {
 export default function NovoCliente() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   const [nome, setNome] = useState("");
   const [foto, setFoto] = useState(null); // preview (data URL) apenas visual
@@ -98,12 +100,14 @@ export default function NovoCliente() {
     if (!nome.trim()) return setErro("Informe o nome completo do cliente.");
     if (!telefone.trim()) return setErro("Informe o telefone do cliente.");
     if (!usuario) return setErro("Usuário não autenticado.");
+    if (!effectiveUid) return setErro("Sessão sem escopo de proprietário.");
     try {
       setSalvando(true);
-      // Coleção única "clientes" com ownerId do usuário autenticado
+      // Coleção única "clientes" com ownerId do escopo efetivo
+      // (= uid do dono; para funcionário, é o ownerUid do dono).
       // (modelo exigido pelas Security Rules publicadas)
       const ref = await addDoc(collection(db, "clientes"), {
-        ownerId: usuario.uid, // UID automático — nunca digitado pelo usuário
+        ownerId: effectiveUid, // UID automático — nunca digitado pelo usuário
         nomeCompleto: nome.trim(),
         cpf: cpf.replace(/\D/g, "") || "",
         telefone: telefone.replace(/\D/g, ""),

@@ -9,6 +9,7 @@ import {
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import {
   formatarMoeda,
   formatarData,
@@ -92,6 +93,7 @@ export default function RenegociarParcela() {
   const { contratoId, parcelaNumero } = useParams();
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
 
   // Estados
   const [estado, setEstado] = useState("carregando"); // carregando | pronto | nao-encontrado | erro
@@ -109,13 +111,13 @@ export default function RenegociarParcela() {
 
   // Busca contrato + cliente e identifica a parcela
   useEffect(() => {
-    if (!usuario || !contratoId) return;
+    if (!effectiveUid || !contratoId) return;
     let ativo = true;
     setEstado("carregando");
     setErro("");
     setSucesso("");
 
-    buscarContrato(usuario, contratoId)
+    buscarContrato({ uid: effectiveUid }, contratoId)
       .then((dados) => {
         if (!ativo) return;
         if (!dados) {

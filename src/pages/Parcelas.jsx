@@ -39,6 +39,7 @@ import {
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import { useAuth } from "../context/useAuth";
+import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { db } from "../services/firebase";
 import { parcelasDoContrato } from "../services/contractService";
 import {
@@ -272,6 +273,7 @@ const FILTROS = [
 export default function Parcelas() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  const effectiveUid = useEffectiveUid();
   const [searchParams] = useSearchParams();
 
   // Estados de UI / dados
@@ -324,11 +326,11 @@ export default function Parcelas() {
     };
   }, [dataPickerAberto]);
 
-  // ---- Carrega contratos do usuário (tempo real)
+  // ---- Carrega contratos do escopo efetivo (tempo real)
   useEffect(() => {
-    if (!usuario) return;
+    if (!effectiveUid) return;
     const unsub = onSnapshot(
-      query(collection(db, "usuarios", usuario.uid, "contratos")),
+      query(collection(db, "usuarios", effectiveUid, "contratos")),
       (snap) => {
         setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setCarregando(false);
