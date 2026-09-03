@@ -206,7 +206,7 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
             />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="text-base font-bold text-slate-800 dark:text-slate-100">Jurex</p>
+            <p className="text-base font-bold text-slate-800 dark:text-slate-100">Cred-Facil</p>
             <p className="text-[11px] tracking-[0.18em] text-slate-500 dark:text-slate-400 font-semibold uppercase truncate">
               {nomeHeader}
             </p>
