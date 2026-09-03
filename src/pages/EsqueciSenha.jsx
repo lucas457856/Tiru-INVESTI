@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import AuthShell from "../components/AuthShell";
 import TurnstileMock from "../components/TurnstileMock";
-import { esqueciSenha } from "../services/authService";
+import { esqueciSenha, emailValido } from "../services/authService";
 
 const INPUT_CLASSE =
   "w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none transition focus:border-jurex focus:ring-2 focus:ring-jurex/20";
@@ -21,7 +21,11 @@ export default function EsqueciSenha() {
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  const podeEnviar = turnstileOk && email;
+  // Validação local: e-mail preenchido + formato válido + Turnstile ok.
+  // O Firebase também valida, mas a checagem local evita round-trips e
+  // dá feedback mais claro para o usuário.
+  const emailOk = emailValido(email);
+  const podeEnviar = turnstileOk && emailOk;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -48,7 +52,10 @@ export default function EsqueciSenha() {
           <p className="mt-2 text-sm text-slate-500 leading-relaxed">
             Enviamos um link de recuperação para{" "}
             <span className="font-semibold text-slate-700 dark:text-slate-200">{email}</span>.
-            Verifique sua caixa de entrada.
+            Verifique sua caixa de entrada (e o spam, se necessário).
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            O link expira em 1 hora.
           </p>
           <Link
             to="/login"
@@ -91,10 +98,19 @@ export default function EsqueciSenha() {
               autoComplete="email"
               placeholder="seu@email.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (erro) setErro("");
+              }}
               className={INPUT_CLASSE}
             />
           </div>
+          {email && !emailOk && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
+              <CircleAlert className="w-3.5 h-3.5 shrink-0" />
+              Verifique o formato do e-mail.
+            </p>
+          )}
         </div>
 
         {/* Widget Cloudflare Turnstile (visual) */}

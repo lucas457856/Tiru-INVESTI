@@ -12,7 +12,7 @@
 //   3. Retorna a Promise para o chamador resolver com .then().
 //
 // Garante que o popup nativo do Chrome aparece
-// ("www.jurexbrasil.com quer — Mostrar notificações — Permitir / Bloquear")
+// ("www.tiru-investi.vercel.app quer — Mostrar notificações — Permitir / Bloquear")
 // e evita re-solicitações desnecessárias quando o usuário já concedeu
 // ou bloqueou.
 //

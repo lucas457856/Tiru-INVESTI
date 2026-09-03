@@ -8,12 +8,15 @@ import {
   ChevronRight,
   Fingerprint,
   LogOut,
+  Check,
+  CircleAlert,
+  LoaderCircle,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useAuth } from "../context/useAuth";
 import { useTheme } from "../context/useTheme";
-import { sair, buscarPerfil } from "../services/authService";
+import { sair, buscarPerfil, solicitarRedefinicaoSenha } from "../services/authService";
 import { db } from "../services/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import {
@@ -32,6 +35,14 @@ export default function Perfil() {
   const [nome, setNome] = useState(usuario?.displayName ?? "");
   const [telefone, setTelefone] = useState("");
   const [salvo, setSalvo] = useState(false);
+
+  // Estado do fluxo "Trocar senha" — reaproveita `esqueciSenha()` do
+  // authService.js. O Firebase envia um e-mail com link de redefinição
+  // para o e-mail da sessão; a página /nova-senha só é aberta quando
+  // o usuário clica no link do e-mail (não direto da UI).
+  const [enviandoSenha, setEnviandoSenha] = useState(false);
+  const [senhaMsgOk, setSenhaMsgOk] = useState("");
+  const [senhaMsgErro, setSenhaMsgErro] = useState("");
 
   // Estado de permissão de notificações do navegador.
   // Mesmo padrão do Dashboard: sincroniza com Notification.permission no mount
@@ -89,6 +100,34 @@ export default function Perfil() {
     setTimeout(() => setSalvo(false), 2500);
   }
 
+  // Handler de "Trocar senha" — chama a API serverless que dispara o
+  // e-mail HTML personalizado (Firebase Admin + Resend). Pega o e-mail
+  // da sessão atual (NÃO pede para o usuário digitar de novo).
+  // Após sucesso, a única forma de chegar em /nova-senha é clicando
+  // no botão "Redefinir senha →" dentro do e-mail — não navegamos
+  // manualmente daqui.
+  async function handleTrocarSenha() {
+    if (enviandoSenha) return; // anti-double-click
+    const email = (usuario?.email || "").trim();
+    if (!email) {
+      setSenhaMsgErro("Não foi possível identificar o e-mail da conta atual.");
+      setSenhaMsgOk("");
+      return;
+    }
+    setSenhaMsgOk("");
+    setSenhaMsgErro("");
+    setEnviandoSenha(true);
+    const res = await solicitarRedefinicaoSenha(email);
+    setEnviandoSenha(false);
+    if (res.ok) {
+      setSenhaMsgOk("✓ Email enviado! Verifique sua caixa de entrada.");
+    } else {
+      setSenhaMsgErro(
+        res.erro || "Não foi possível enviar o e-mail de recuperação.",
+      );
+    }
+  }
+
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto px-6 py-6">
@@ -107,6 +146,30 @@ export default function Perfil() {
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Perfil</h1>
           </div>
         </div>
+
+        {/* Banner de feedback do "Trocar senha" — fica no topo, abaixo
+            do cabeçalho, exatamente como no mockup fornecido. Some
+            automaticamente após 6s (sucesso) ou 8s (erro). */}
+        {senhaMsgOk && (
+          <div
+            role="status"
+            className="mt-4 flex items-start gap-2.5 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300"
+          >
+            <span className="mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white shrink-0">
+              <Check className="w-3 h-3" strokeWidth={3} />
+            </span>
+            <span>{senhaMsgOk}</span>
+          </div>
+        )}
+        {senhaMsgErro && (
+          <div
+            role="alert"
+            className="mt-4 flex items-start gap-2.5 rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-600 dark:text-red-300"
+          >
+            <CircleAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{senhaMsgErro}</span>
+          </div>
+        )}
 
         {/* Cartão do usuário */}
         <div className="mt-5 flex items-center gap-4 rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-slate-900 p-5">
@@ -217,17 +280,23 @@ export default function Perfil() {
           <div className="mt-3 rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100">
             <button
               type="button"
-              className="w-full flex items-center justify-between px-5 py-4 group"
+              onClick={handleTrocarSenha}
+              disabled={enviandoSenha}
+              className="w-full flex items-center justify-between px-5 py-4 group disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <span className="flex items-center gap-3">
                 <span className="rounded-xl bg-emerald-50 p-2">
                   <KeyRound className="w-4.5 h-4.5 text-emerald-600" />
                 </span>
                 <span className="text-sm font-semibold text-slate-800">
-                  Trocar senha
+                  {enviandoSenha ? "Enviando e-mail…" : "Trocar senha"}
                 </span>
               </span>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition" />
+              {enviandoSenha ? (
+                <LoaderCircle className="w-4 h-4 text-slate-400 animate-spin" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition" />
+              )}
             </button>
             <div className="px-5 pb-5 pt-4">
               <button

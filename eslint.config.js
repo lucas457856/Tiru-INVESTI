@@ -18,4 +18,13 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  // Server-side: Vercel serverless functions (api/**) rodam em Node.js,
+  // então `process` é um global nativo. Sem essa regra, o ESLint
+  // marca `process.env.X` como `no-undef`.
+  {
+    files: ['api/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
 ])
