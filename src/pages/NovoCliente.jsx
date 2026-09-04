@@ -21,6 +21,7 @@ import {
   enviarDocumento,
 } from "../services/fotoService";
 import { criarCliente } from "../services/adminService";
+import { obterDeviceIdLocal } from "../services/notificationEvents";
 
 const SCORES = ["Baixo", "Médio", "Alto"];
 
@@ -169,6 +170,18 @@ export default function NovoCliente() {
       // garante que mesmo um addDoc direto do client SDK seja
       // bloqueado (as Firestore Rules negam create em /clientes
       // para o client SDK — apenas Admin SDK cria).
+      //
+      // O backend exige `deviceId` no body para registrar a
+      // origem do evento de criação (Fase C / auditoria). O
+      // deviceId é gerado UMA VEZ por browser pelo
+      // useDeviceRegistration e persistido em
+      // localStorage["jurex:device:id"]. Reutilizamos o helper
+      // canônico `obterDeviceIdLocal()` (mesmo usado por
+      // contractService.js e useNotificadorVencimentos.js) —
+      // nunca geramos um novo aqui. Se o localStorage estiver
+      // indisponível, o helper retorna null e o backend retorna
+      // 400 com mensagem clara; sem fallback improvisado.
+      const sourceDeviceId = obterDeviceIdLocal();
       const resp = await criarCliente({
         nomeCompleto: nome.trim(),
         cpf: cpf.replace(/\D/g, ""),
@@ -178,6 +191,7 @@ export default function NovoCliente() {
         scoreCredito: score,
         fotoUrl: "",
         documentos: [],
+        deviceId: sourceDeviceId || "",
       });
       if (!resp || !resp.ok) {
         setSalvando(false);
