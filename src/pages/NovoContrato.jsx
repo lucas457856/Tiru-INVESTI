@@ -25,6 +25,10 @@ import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { criarContrato as criarContratoApi } from "../services/adminService";
+import {
+  dispatchNotificationEvent,
+  obterDeviceIdLocal,
+} from "../services/notificationEvents";
 import logoJurex from "../assets/jurex-logo.png";
 
 // Badge de status da parcela (cores alinhadas ao design do sistema)
@@ -546,6 +550,48 @@ export default function NovoContrato() {
       } catch (err) {
         console.error("mostrarNotificacaoNativa:", err);
       }
+
+      // === FCM: dispatch do evento central já gravado pelo backend ===
+      //
+      // O backend (api/admin/criar-contrato.js:515-573) JÁ gravou o
+      // evento em `usuarios/{ownerId}/notificationEvents/{eventId}`
+      // (type=CONTRACT_CREATED) e devolveu o `eventId` na resposta.
+      // O servidor propositalmente NÃO chama o dispatch (separação
+      // entre gravação e envio FCM — ver comentário do servidor
+      // linhas 518-522). O call site do cliente é o responsável por
+      // disparar o push.
+      //
+      // Sem esta chamada, o evento fica salvo no Firestore mas
+      // NENHUM device (nem o originador nem os outros) recebe FCM.
+      // Segue o mesmo padrão de contractService.processarPagamento
+      // (linhas 716-752) e useNotificadorVencimentos (linhas
+      // 192-213).
+      //
+      // Best-effort: falha do dispatch é logada mas NÃO bloqueia
+      // o fluxo (o contrato já foi criado e a in-app notif já
+      // apareceu). Idempotente: re-chamar dispatch com o mesmo
+      // eventId é seguro (o dispatch apenas lê o evento e envia
+      // FCM novamente).
+      const contractEventId = resp && resp.eventId;
+      const sourceDeviceId = obterDeviceIdLocal();
+      if (contractEventId) {
+        try {
+          await dispatchNotificationEvent({
+            eventId: contractEventId,
+            sourceDeviceId: sourceDeviceId || "",
+          });
+        } catch (err) {
+          console.warn(
+            "[novo-contrato] dispatchNotificationEvent falhou (ignorado):",
+            err && err.message,
+          );
+        }
+      } else {
+        console.warn(
+          "[novo-contrato] resposta sem eventId; FCM nao sera disparado.",
+        );
+      }
+
       navigate(`/contratos/${resp.id}/sucesso`);
     } catch (err) {
       console.error("Erro ao salvar contrato:", err);
