@@ -17,6 +17,7 @@
 //   - onAuthChange: () => unsubscribe  (AuthProvider.onAuthStateChanged)
 
 import { useEffect, useRef, useState } from "react";
+import { getToken } from "firebase/messaging";
 import { registrarMeuDevice } from "../services/notificationEvents";
 
 const STORAGE_KEY = "jurex:device:id";
@@ -178,7 +179,11 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
             }
             const messaging = getMessagingFn();
             console.log(FCM_PREFIX, "messagingInit=" + (messaging ? "true" : "false"));
-            fcmToken = await messaging.getToken({ vapidKey });
+            // API modular do Firebase v12: getToken(messaging, options) e
+            // uma FUNCAO importada de firebase/messaging, NAO um metodo
+            // da instancia de Messaging. Chamar messaging.getToken(...)
+            // resulta em "e.getToken is not a function".
+            fcmToken = await getToken(messaging, { vapidKey });
             if (fcmToken && typeof fcmToken === "string") {
               console.log(FCM_PREFIX, "tokenObtained=true");
               console.log(FCM_PREFIX, "tokenLength=" + fcmToken.length);
