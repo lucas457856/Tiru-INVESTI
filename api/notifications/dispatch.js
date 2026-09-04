@@ -14,10 +14,15 @@
 //   7. Retorna 200 com o resumo (delivered, skipped, failed).
 //
 // REGRAS DE DISTRIBUIÇÃO:
-//   - O dispositivo que ORIGINOU o evento (event.sourceDeviceId) NÃO
-//     recebe FCM — ele já vê a notificação via in-app (sino) +
-//     `mostrarNotificacaoNativa` local. Evita 3 notificações (in-app +
-//     push + nativa) na mesma máquina.
+//   - Exclusão do originator ESPECÍFICA POR TIPO:
+//       * PAYMENT_REGISTERED: o device de origem NÃO recebe FCM —
+//         ele já vê a notificação via in-app (sino) +
+//         `mostrarNotificacaoNativa` local. Evita 3 notificações
+//         (in-app + push + nativa) na mesma máquina.
+//       * Demais tipos (CONTRACT_CREATED, CLIENT_CREATED, e
+//         qualquer outro que não seja pagamento): o originator
+//         RECEBE FCM normalmente, junto com os outros devices da
+//         conta. Regra definida em 2026-09-04.
 //   - Devices de DONO: recebem todos os eventos do ownerId.
 //   - Devices de FUNCIONÁRIO: recebem SOMENTE se o evento tiver
 //     `data.createdBy` ou se o `evento.createdBy.uid` for do próprio
@@ -256,11 +261,18 @@ export default async function handler(req, res) {
   // 8) Filtra devices elegíveis:
   //    - Tem fcmToken (não null/vazio)
   //    - notificationsEnabled === true
-  //    - sourceDeviceId !== event.sourceDeviceId (originador não recebe push)
+  //    - Regra de exclusão do originator ESPECÍFICA POR TIPO:
+  //        * PAYMENT_REGISTERED: o device de origem NÃO recebe FCM
+  //          (já vê a notificação via in-app + mostrarNotificacaoNativa
+  //          local, evitando 3 notificações na mesma máquina).
+  //        * Demais tipos (CONTRACT_CREATED, CLIENT_CREATED, e qualquer
+  //          outro que não seja pagamento): o originator RECEBE FCM
+  //          normalmente, junto com os outros devices da conta.
   //    - Se for device de FUNCIONÁRIO, o evento deve ter sido criado
   //      por esse funcionário OU o filtro passa (Fase A: passa sempre
   //      para dispositivos de dono; funcionários só recebem eventos
   //      do ownerId onde trabalham).
+  const pulaOriginator = evento.type === "PAYMENT_REGISTERED";
   const targets = [];
   const skipped = [];
   for (const d of devicesSnap.docs) {
@@ -274,7 +286,7 @@ export default async function handler(req, res) {
       skipped.push({ deviceId: d.id, reason: "disabled" });
       continue;
     }
-    if (evento.sourceDeviceId && d.id === evento.sourceDeviceId) {
+    if (pulaOriginator && evento.sourceDeviceId && d.id === evento.sourceDeviceId) {
       skipped.push({ deviceId: d.id, reason: "originator" });
       continue;
     }
