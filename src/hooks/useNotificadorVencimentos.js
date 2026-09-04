@@ -6,18 +6,24 @@
 //   2. `mostrarNotificacaoNativa(...)` (na success branch do (1))
 //      → 1 toast nativo do Chrome/Windows
 //
-// REGRA DE DETECÇÃO: REUTILIZA 100% o que o sistema já calcula.
-//   - `parcelasDoContrato(contrato, hoje)` é a MESMA função que o
-//     Dashboard, Parcelas e Relatórios já chamam para renderizar.
-//   - `parcela.status === "Pendente"` + `vencimento === DATA_HOJE`
-//     → "vencendo" (mesma semântica do card "Parcelas de hoje" do
-//     Dashboard.jsx:221-253).
-//   - `parcela.status === "Vencida"` → "atrasada" (sinal canônico
-//     definido em `src/utils/parcelasUtil.js:325, 352`).
+// REGRA DE DETECÇÃO: REUTILIZA o que o sistema já calcula para o
+// formato da parcela, mas a decisão de NOTIFICAR é LOCAL a este hook,
+// baseada em comparação de DIAS DE CALENDÁRIO (YYYY-MM-DD), imune a
+// drift de fuso UTC. Razão: a notificação NÃO pode disparar no mesmo
+// dia do vencimento, mesmo se a função compartilhada `calcularParcelas`
+// (que serve Dashboard, Parcelas e Relatórios) classificar a parcela
+// como "Vencida" no momento em que `new Date()` já passou de T12:00 do
+// dia. O sinal canônico `parcela.status === "Vencida"` é IGNORADO aqui
+// propositalmente — o que importa é a DATA, não o status compartilhado.
 //
-// NENHUMA nova regra de datas é introduzida. Nenhum cálculo financeiro
-// é tocado — `parcelasDoContrato` é chamada como função pura e seu
-// resultado é apenas LIDO.
+//   - `vencimento < DATA_HOJE` (comparação de strings ISO) → "atrasada".
+//   - `vencimento === DATA_HOJE` + status Pendente → "vencendo".
+//   - `vencimento > DATA_HOJE` → sem notificação.
+//
+// Nenhum cálculo financeiro é tocado — `parcelasDoContrato` é chamada
+// como função pura e seu resultado é apenas LIDO. A função
+// `calcularParcelas` (e o `parcela.status` que ela define) NÃO foi
+// modificada.
 //
 // DEDUPLICAÇÃO: 3 camadas (ver `src/utils/notificationDedup.js`).
 //   - Set em memória (`notificacoesInSession`)  — O(1), cobre re-renders.
@@ -71,6 +77,36 @@ function vencimentoISO(parcela) {
   if (typeof v === "string" && v.length >= 10) {
     return v.slice(0, 10);
   }
+  return null;
+}
+
+/**
+ * Decide se a notificação de "Parcela em atraso" / "Parcela vencendo"
+ * deve ser disparada para esta parcela. Função PURA — sem efeitos
+ * colaterais, sem leitura de relógio, sem acesso a Firestore.
+ *
+ * REGRA (específica da notificação, NÃO do `parcela.status` compartilhado):
+ *   - Paga: nunca notificar.
+ *   - Pendente + vencimento === hojeISO → "parcela_vencendo".
+ *   - Vencimento < hojeISO (comparação de strings ISO YYYY-MM-DD) →
+ *     "parcela_atrasada", independente de `parcela.status`.
+ *   - Vencimento > hojeISO → não notificar.
+ *
+ * A comparação é feita entre STRINGS ISO, não `Date < Date`, justamente
+ * para evitar drift de fuso UTC (`new Date("2026-09-04")` vira
+ * 2026-09-03T21:00 em horário de Brasília). Strings ISO são imunes a
+ * isso: "2026-09-04" < "2026-09-05" sempre, em qualquer fuso.
+ *
+ * @param {{ status?: string, vencimento?: Date|string }} parcela
+ * @param {string} hojeISO - "YYYY-MM-DD" no fuso do browser.
+ * @returns {"parcela_atrasada" | "parcela_vencendo" | null}
+ */
+export function decidirTipoNotificacaoParcela(parcela, hojeISO) {
+  if (parcela?.status === "Paga") return null;
+  const vStr = vencimentoISO(parcela);
+  if (!vStr) return null;
+  if (vStr < hojeISO) return "parcela_atrasada";
+  if (parcela.status === "Pendente" && vStr === hojeISO) return "parcela_vencendo";
   return null;
 }
 
@@ -137,24 +173,16 @@ export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
       if (!Array.isArray(parcelas)) continue;
 
       for (const p of parcelas) {
-        // Já paga? Nada a notificar.
-        if (p?.status === "Paga") continue;
+        verificadas += 1;
+
+        // Decide o tipo de evento. Função PURA — não lê relógio, não
+        // acessa Firestore. A REGRA é LOCAL à notificação (ver docstring
+        // de `decidirTipoNotificacaoParcela` acima).
+        const tipo = decidirTipoNotificacaoParcela(p, hoje);
+        if (!tipo) continue;
 
         const vStr = vencimentoISO(p);
         if (!vStr) continue;
-        verificadas += 1;
-
-        // Define o tipo de evento a partir do status canônico.
-        // `parcela_vencendo` exige status Pendente + vencimento HOJE.
-        // `parcela_atrasada` exige status Vencida (sinal canônico do
-        // `parcelasUtil.js`).
-        let tipo = null;
-        if (p.status === "Vencida") {
-          tipo = "parcela_atrasada";
-        } else if (p.status === "Pendente" && vStr === hoje) {
-          tipo = "parcela_vencendo";
-        }
-        if (!tipo) continue;
 
         // Chave estável do evento. Inclui o `vencimentoISO` ORIGINAL da
         // parcela — se ela for renegociada com novo vencimento, a chave
