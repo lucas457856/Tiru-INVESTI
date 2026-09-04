@@ -25,6 +25,7 @@ import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { criarContrato as criarContratoApi } from "../services/adminService";
+import { notifyWrite as syncNotifyWrite } from "../services/sync/SyncManager";
 import {
   dispatchNotificationEvent,
   obterDeviceIdLocal,
@@ -488,6 +489,12 @@ export default function NovoContrato() {
           observacao: temObservacao ? observacao.trim() : "",
           updatedAt: serverTimestamp(),
         });
+        // Notifica o SyncManager (Fase 1): o contrato foi editado.
+        // O listener singleton recebe o push oficial e atualiza os
+        // subscribers. Best-effort — não bloqueia o fluxo.
+        // (Aqui está inline porque a edição de contrato não usa um
+        // service dedicado; criação passa por API server-side.)
+        syncNotifyWrite(effectiveUid, "contratos");
         // Após salvar: volta para a tela de detalhes do MESMO contrato.
         // `replace: true` evita empilhar histórico de navegação
         // (Detalhes → Editar → Detalhes, em vez de 2x Detalhes no back).

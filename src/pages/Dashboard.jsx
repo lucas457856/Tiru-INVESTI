@@ -28,12 +28,13 @@ import {
   CircleCheck,
   X,
 } from "lucide-react";
-import { collection, getDocs, onSnapshot, query } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../services/firebase";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import {
   parcelasDoContrato,
 } from "../services/contractService";
@@ -79,8 +80,10 @@ export default function Dashboard() {
   const effectiveUid = useEffectiveUid();
 
   // ---- Estados de UI / dados
-  const [contratos, setContratos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  // Contratos vêm do useContratos() (Fase 1 do plano de cache):
+  // - hidrata do localStorage síncronamente (sem flash de loading);
+  // - compartilha 1 único onSnapshot com outras páginas via SyncManager.
+  const { data: contratos, loading: carregando } = useContratos();
   const [ocultarValores, setOcultarValores] = useState(false);
   const [notifSuportada, setNotifSuportada] = useState(false);
   const [notifPermissao, setNotifPermissao] = useState(
@@ -138,25 +141,6 @@ export default function Dashboard() {
       setMensagemOrientacao("");
     }
   }, [notifPermissao]);
-
-  // ---- Carrega contratos do usuário (em tempo real) — mesma collection usada
-  // em Emprestimos.jsx; evita listeners duplicados via cleanup do onSnapshot.
-  useEffect(() => {
-    if (!effectiveUid) return;
-    setCarregando(true);
-    const unsub = onSnapshot(
-      query(collection(db, "usuarios", effectiveUid, "contratos")),
-      (snap) => {
-        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setCarregando(false);
-      },
-      (err) => {
-        console.error("Erro ao carregar contratos (Dashboard):", err);
-        setCarregando(false);
-      }
-    );
-    return unsub;
-  }, [effectiveUid]);
 
   // ---- Cálculos derivados (todos a partir dos dados reais)
   // Contratos ATIVOS = não quitados (usado para "A receber" e "Parcelas hoje")

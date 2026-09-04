@@ -1,7 +1,11 @@
 // Firebase (App, Auth e Firestore)
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC6StDHxZn5VakxH1MDqiYDKAGx6f1QLJg",
@@ -15,4 +19,14 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Habilita cache persistente nativo do Firestore (IndexedDB) com
+// sincronização entre múltiplas tabs. Reduz drasticamente as leituras
+// em reload/offline — o SDK resolve snapshots do cache local antes
+// de consultar o backend. API recomendada (v9+); `enableIndexedDbPersistence`
+// está deprecated. Ver `node_modules/@firebase/firestore/dist/firestore/
+// src/api/cache_config.d.ts` para a tipagem.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});

@@ -13,6 +13,7 @@ import {
   obterDeviceIdLocal,
 } from "./notificationEvents";
 import { EVENT_TYPES } from "../utils/notificationEventTypes";
+import { notifyWrite as syncNotifyWrite } from "./sync/SyncManager";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { formatarMoeda } from "../utils/formatadores";
 
@@ -652,6 +653,9 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
   }
 
   await updateDoc(doc(db, "usuarios", usuario.uid, "contratos", contrato.id), updateData);
+  // Notifica o SyncManager: o contrato mudou (pagamento processado).
+  // O listener singleton recebe o push oficial e atualiza os subscribers.
+  syncNotifyWrite(usuario.uid, "contratos");
 
   // Registra no histórico.
   // - "Só os juros" (juros_apenas) → coleção dedicada `jurosRecebidos`
@@ -846,6 +850,10 @@ export async function excluirContrato(usuario, contratoId) {
   }
 
   await deleteDoc(doc(db, "usuarios", usuario.uid, "contratos", contratoId));
+  // Notifica o SyncManager para registro de invalidação. O listener
+  // singleton de `contratos` recebe o push oficial do Firestore e
+  // atualiza todos os subscribers. Best-effort — não bloqueia o fluxo.
+  syncNotifyWrite(usuario.uid, "contratos");
 }
 
 /**
@@ -905,6 +913,8 @@ export async function renegociarParcela(usuario, contrato, parcelaNumero, novoVa
     parcelasCustom: existentes,
     updatedAt: serverTimestamp(),
   });
+  // Notifica o SyncManager: contrato foi renegociado.
+  syncNotifyWrite(usuario.uid, "contratos");
 
   // Retorna a parcela atualizada (recomputa a partir do contrato atualizado)
   const contratoAtualizado = { ...dadosAtuais, id: snap.id, parcelasCustom: existentes };
