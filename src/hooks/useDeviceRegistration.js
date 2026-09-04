@@ -21,6 +21,13 @@ import { registrarMeuDevice } from "../services/notificationEvents";
 
 const STORAGE_KEY = "jurex:device:id";
 const LOG_PREFIX = "[device-reg]";
+// Prefixo de logs seguros para o fluxo FCM. NAO expoe a VAPID nem o token.
+const FCM_PREFIX = "[FCM]";
+// Evento customizado disparado por Perfil.jsx apos o usuario conceder
+// permissao de notificacoes. O hook escuta para re-tentar getToken +
+// registrarMeuDevice. Tambem cobrimos o caso de permissionchange via
+// Permissions API (cadeado do Chrome).
+const REENVIAR_EVENT = "jurex:notif:reenviar-device";
 
 // Gera UUID v4 usando crypto.randomUUID (disponivel em browsers modernos).
 // Fallback: timestamp + random, suficiente para unicidade pratica.
@@ -112,6 +119,12 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
   // Snapshot estavel do deviceId para uso dentro de callbacks (logout).
   // Inicializado com o proprio deviceId; NAO atualizado em render.
   const deviceIdForLogoutRef = useRef(deviceId);
+  // Refs usadas pelos listeners de reativacao (permissionchange +
+  // CustomEvent). Atualizadas dentro de enviarEstado; NAO disparam
+  // re-render. Mantemos o user atual e a permissao atual para que
+  // o listener saiba se faz sentido re-tentar getToken.
+  const currentUserRef = useRef(null);
+  const currentPermissionRef = useRef("default");
 
   useEffect(() => {
     if (typeof onAuthChange !== "function") return undefined;
@@ -125,23 +138,60 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
     const enviarEstado = async (user, opts) => {
       const type = detectarTipo(typeof navigator !== "undefined" ? navigator.userAgent : "");
       const platform = detectarPlatform();
-      const enabled = !!(user && opts && opts.permission === "granted");
+      const permission = (opts && opts.permission)
+        || (typeof Notification !== "undefined" ? Notification.permission : "default");
+      const enabled = !!(user && permission === "granted");
+      // Atualiza refs para que os listeners de reativacao
+      // (permissionchange + REENVIAR_EVENT) saibam o estado atual.
+      currentUserRef.current = user || null;
+      currentPermissionRef.current = permission;
       let fcmToken = null;
       if (user && enabled) {
         try {
-          const messaging = getMessagingFn();
+          // Le a VAPID key (constante em build-time). Loga apenas
+          // se esta configurada e o comprimento - nunca o valor.
           const vapidKey = (typeof import.meta !== "undefined" && import.meta.env)
-            ? import.meta.env.VITE_FIREBASE_VAPID_KEY
+            ? import.meta.env.VITE_FIREBASE_VAPID_KEY || ""
             : "";
-          if (!vapidKey) {
-            console.warn(LOG_PREFIX, "VITE_FIREBASE_VAPID_KEY nao definida; pulando getToken.");
+          const vapidConfigured = typeof vapidKey === "string" && vapidKey.length > 0;
+          console.log(FCM_PREFIX, "vapidConfigured=" + (vapidConfigured ? "true" : "false"));
+          if (vapidConfigured) console.log(FCM_PREFIX, "vapidLength=" + vapidKey.length);
+          console.log(FCM_PREFIX, "permission=" + permission);
+          if (!vapidConfigured) {
+            console.log(FCM_PREFIX, "tokenObtained=false (VAPID ausente)");
           } else {
+            // getToken exige que o SW esteja controlando a pagina.
+            // Aguarda readiness uma vez (idempotente). Se o SW ja
+            // estiver pronto, resolve imediato.
+            try {
+              if (typeof navigator !== "undefined"
+                && navigator.serviceWorker
+                && typeof navigator.serviceWorker.ready !== "undefined") {
+                await navigator.serviceWorker.ready;
+                console.log(FCM_PREFIX, "serviceWorkerReady=true");
+              } else {
+                console.log(FCM_PREFIX, "serviceWorkerReady=false");
+              }
+            } catch (swErr) {
+              const swMsg = swErr && swErr.message;
+              console.log(FCM_PREFIX, "serviceWorkerReady=false (" + (swMsg || "erro") + ")");
+            }
+            const messaging = getMessagingFn();
+            console.log(FCM_PREFIX, "messagingInit=" + (messaging ? "true" : "false"));
             fcmToken = await messaging.getToken({ vapidKey });
+            if (fcmToken && typeof fcmToken === "string") {
+              console.log(FCM_PREFIX, "tokenObtained=true");
+              console.log(FCM_PREFIX, "tokenLength=" + fcmToken.length);
+            } else {
+              console.log(FCM_PREFIX, "tokenObtained=false");
+            }
           }
         } catch (err) {
           const code = err && err.code;
           const msg = err && err.message;
-          console.warn(LOG_PREFIX, "getToken falhou:", code, msg);
+          console.warn(FCM_PREFIX, "tokenObtained=false",
+            "code=" + (code || "unknown"),
+            "message=" + (msg || "unknown"));
         }
       }
       const res = await registrarMeuDevice({
@@ -151,9 +201,14 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
         fcmToken,
         notificationsEnabled: enabled,
       });
-      if (!res || res.ok !== true) {
+      if (res && res.ok === true) {
+        console.log(FCM_PREFIX, "deviceRegistered=true");
+        console.log(FCM_PREFIX, "registerStatus=" + (res.status || 200));
+      } else {
+        console.log(FCM_PREFIX, "deviceRegistered=false");
         console.warn(LOG_PREFIX, "register-device falhou:", res && res.erro);
       }
+      return res;
     };
 
     // Snapshot do deviceId no momento da subscription.
@@ -188,6 +243,103 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
       }
     });
 
-    return unsubscribe;
+    // === REATIVACAO APOS CONCESSAO DE PERMISSAO (P0 FCM) ===
+    //
+    // O hook reage ao onAuthStateChanged (cima) E a dois sinais
+    // adicionais que cobrem o caso comum em que o usuario loga com
+    // permissao "default" e so depois clica em "Ativar notificacoes
+    // push" no Perfil:
+    //
+    //   1. Permissions API (navigator.permissions.query): emite
+    //      'change' quando o status muda (ex: usuario clica no
+    //      cadeado do Chrome e alterna). Suportado em Chrome/Edge;
+    //      Firefox pode nao implementar "notifications" - por isso
+    //      o sinal 2 e o principal.
+    //
+    //   2. CustomEvent 'jurex:notif:reenviar-device' no window.
+    //      Disparado por Perfil.jsx apos o popup resolver com
+    //      "granted". Funciona em todos os browsers e e o sinal
+    //      canonico no fluxo atual.
+    //
+    // Em QUALQUER um dos dois, lemos a permissao ATUAL (font of
+    // truth) e re-chamamos enviarEstado(user, { permission }). Se
+    // nao houver user logado, apenas atualizamos a ref.
+    const reativar = async () => {
+      try {
+        const perm = (typeof Notification !== "undefined")
+          ? Notification.permission
+          : "default";
+        console.log(FCM_PREFIX, "permissionChange=" + perm);
+        currentPermissionRef.current = perm;
+        const u = currentUserRef.current;
+        if (perm === "granted" && u) {
+          await enviarEstado(u, { permission: perm, deviceId: deviceIdSnap });
+        }
+      } catch (err) {
+        const msg = err && err.message;
+        console.warn(FCM_PREFIX, "reativacao falhou (ignorado):", msg);
+      }
+    };
+
+    // Permissions API - pode nao existir (Safari) ou rejeitar
+    // (Firefox para "notifications"). Capturamos tudo.
+    let permissionStatus = null;
+    let onPermissionChangeHandler = null;
+    if (typeof navigator !== "undefined"
+      && navigator.permissions
+      && typeof navigator.permissions.query === "function") {
+      try {
+        navigator.permissions
+          .query({ name: "notifications" })
+          .then((status) => {
+            permissionStatus = status;
+            onPermissionChangeHandler = () => {
+              // Sem await - listener deve ser sincrono.
+              reativar();
+            };
+            if (status && typeof status.addEventListener === "function") {
+              status.addEventListener("change", onPermissionChangeHandler);
+            }
+          })
+          .catch(() => {
+            // Sem suporte - o CustomEvent cobre o caso.
+          });
+      } catch {
+        // ignore
+      }
+    }
+
+    // CustomEvent disparado por Perfil.jsx apos o usuario clicar
+    // em "Ativar notificacoes push" e o popup resolver com "granted".
+    if (typeof window !== "undefined") {
+      window.addEventListener(REENVIAR_EVENT, reativar);
+    }
+
+    return () => {
+      try {
+        if (typeof unsubscribe === "function") unsubscribe();
+      } catch (err) {
+        const msg = err && err.message;
+        console.warn(LOG_PREFIX, "unsubscribe onAuthChange falhou:", msg);
+      }
+      // Cleanup do listener da Permissions API.
+      if (permissionStatus
+        && typeof onPermissionChangeHandler === "function"
+        && typeof permissionStatus.removeEventListener === "function") {
+        try {
+          permissionStatus.removeEventListener("change", onPermissionChangeHandler);
+        } catch {
+          // ignore
+        }
+      }
+      // Cleanup do listener do CustomEvent.
+      if (typeof window !== "undefined") {
+        try {
+          window.removeEventListener(REENVIAR_EVENT, reativar);
+        } catch {
+          // ignore
+        }
+      }
+    };
   }, [auth, getMessagingFn, onAuthChange]);
 }

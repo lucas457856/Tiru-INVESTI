@@ -281,8 +281,37 @@ export default async function handler(req, res) {
     targets.push({ uid: d._uid, deviceId: d.id, token });
   }
 
+  // Agregadores por motivo de skip para diagnostico nos logs. Nao
+  // alteram o comportamento - apenas facilitam entender por que um
+  // push NAO foi entregue (no_token vs disabled vs originator).
+  const skippedByReason = { no_token: 0, disabled: 0, originator: 0 };
+  for (let i = 0; i < skipped.length; i++) {
+    const r = skipped[i] && skipped[i].reason;
+    if (r && Object.prototype.hasOwnProperty.call(skippedByReason, r)) {
+      skippedByReason[r] += 1;
+    }
+  }
+
   if (targets.length === 0) {
     // Nada a enviar. Marca como dispatched mesmo assim.
+    // Log estruturado para diagnostico: mostra quantos devices foram
+    // encontrados no total e quantos foram pulados por cada reason.
+    // Sem expor tokens. Ajuda a distinguir "nenhum device tem
+    // fcmToken" de "todos foram pulados por originator" de
+    // "notificationsEnabled=false em todos".
+    console.warn(
+      "[FCM DISPATCH]",
+      `eventId=${eventId}`,
+      `ownerId=${donoUid}`,
+      `type=${evento.type || "(?)"}`,
+      `devicesFound=${devicesSnap.docs.length}`,
+      `skippedNoToken=${skippedByReason.no_token}`,
+      `skippedDisabled=${skippedByReason.disabled}`,
+      `skippedOriginator=${skippedByReason.originator}`,
+      `delivered=0`,
+      `failed=0`,
+      `status=no_targets`,
+    );
     try {
       await eventoRef.update({
         status: "no_targets",
@@ -404,12 +433,15 @@ export default async function handler(req, res) {
   }
 
   console.log(
-    "[notifications/dispatch] resumo:",
+    "[FCM DISPATCH]",
     `eventId=${eventId}`,
     `ownerId=${donoUid}`,
     `type=${evento.type || "(?)"}`,
+    `devicesFound=${devicesSnap.docs.length}`,
+    `skippedNoToken=${skippedByReason.no_token}`,
+    `skippedDisabled=${skippedByReason.disabled}`,
+    `skippedOriginator=${skippedByReason.originator}`,
     `delivered=${delivered}`,
-    `skipped=${skipped.length}`,
     `failed=${failed}`,
     `tokensRemovidos=${tokenRemovidos.length}`,
     `status=${status}`,

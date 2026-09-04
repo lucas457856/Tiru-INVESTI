@@ -70,6 +70,26 @@ export default function Perfil() {
             r === "unsupported"
           ) {
             setNotifPermissao(r);
+            // P0 FCM: se o usuario acabou de CONCEDER a permissao,
+            // sinaliza o useDeviceRegistration para re-tentar getToken
+            // + registrarMeuDevice agora. Sem isso, o doc do device no
+            // Firestore continua com fcmToken:null ate o proximo
+            // logout/login, e o dispatch nunca entrega FCM para este
+            // device. Cobre o caso comum em que o usuario logou
+            // antes de clicar em "Ativar notificacoes push".
+            if (r === "granted" && typeof window !== "undefined") {
+              try {
+                window.dispatchEvent(
+                  new CustomEvent("jurex:notif:reenviar-device"),
+                );
+              } catch (evtErr) {
+                // best-effort: nao quebra o fluxo
+                console.warn(
+                  "Falha ao disparar jurex:notif:reenviar-device:",
+                  evtErr,
+                );
+              }
+            }
           }
         })
         .catch((err) => {
