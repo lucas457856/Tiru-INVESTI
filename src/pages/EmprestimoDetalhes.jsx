@@ -135,11 +135,9 @@ export default function EmprestimoDetalhes() {
   useEffect(() => {
     if (!effectiveUid || !id) return;
     let ativo = true;
-    console.log("[DIAG] juros encontrados: buscando para contratoId=", id, "uid=", effectiveUid);
     buscarJurosRecebidos({ uid: effectiveUid }, id)
       .then((docs) => {
         if (!ativo) return;
-        console.log("[DIAG] juros encontrados:", Array.isArray(docs) ? docs.length : 0);
         setJurosRecebidosContrato(Array.isArray(docs) ? docs : []);
       })
       .catch((err) => {
