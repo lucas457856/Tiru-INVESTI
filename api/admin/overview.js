@@ -35,6 +35,14 @@ import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 const LIMITES_PADRAO = { contratos: 5, clientes: 5, funcionarios: 5 };
 const PERMISSOES_PADRAO = { criarContratos: true, criarClientes: true, criarFuncionarios: false };
 const STATUS_PADRAO = "ativo";
+const PLANO_PADRAO = "free";
+
+// Normaliza o campo `plan`. Aceita apenas "free" ou "pro" — qualquer
+// outro valor (ou ausente) é tratado como "free". Donos antigos sem
+// o campo continuam funcionando sem migração destrutiva.
+function normalizarPlano(data) {
+  return data?.plan === "pro" ? "pro" : PLANO_PADRAO;
+}
 
 function bad(res, status, erro, extra = {}) {
   console.error(`[admin/overview] ${status} ${erro}`, extra);
@@ -218,6 +226,7 @@ export default async function handler(req, res) {
         contContratos,
         contClientes,
         status: adminFields.status,
+        plano: normalizarPlano(data),
         limites: adminFields.limites,
         permissoes: adminFields.permissoes,
       });

@@ -27,6 +27,7 @@ import {
   Calendar,
   Activity,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
@@ -386,6 +387,7 @@ function ListaDonos({ donos, aoGerenciar }) {
             <th className="text-left font-bold px-3 py-3">Contato</th>
             <th className="text-left font-bold px-3 py-3">Cadastro</th>
             <th className="text-center font-bold px-3 py-3">Status</th>
+            <th className="text-center font-bold px-3 py-3">Plano</th>
             <th className="text-right font-bold px-3 py-3">Uso</th>
             <th className="text-right font-bold px-5 py-3">Ações</th>
           </tr>
@@ -458,6 +460,9 @@ function LinhaDono({ dono, aoGerenciar }) {
           {bloqueado ? "Bloqueado" : "Ativo"}
         </span>
       </td>
+      <td className="px-3 py-3.5 text-center">
+        <BadgePlano plano={dono.plano} />
+      </td>
       <td className="px-3 py-3.5 text-right">
         <ResumoUso dono={dono} />
       </td>
@@ -475,9 +480,12 @@ function LinhaDono({ dono, aoGerenciar }) {
   );
 }
 
-// Mostra "X / Y" para cada recurso. Se Y=0, mostra "X / ∞".
+// Mostra "X / Y" para cada recurso. PRO é ilimitado (exibe "Ilimitado"
+// em vez do número) e também cobre o caso `limite = 0` (legado:
+// significa "sem limite").
 function ResumoUso({ dono }) {
   const lim = dono.limites || {};
+  const ehPro = dono.plano === "pro";
   const itens = [
     { rotulo: "C", valor: dono.contContratos, limite: lim.contratos },
     { rotulo: "Cl", valor: dono.contClientes, limite: lim.clientes },
@@ -485,19 +493,47 @@ function ResumoUso({ dono }) {
   ];
   return (
     <div className="inline-flex flex-col items-end gap-0.5 tabular-nums">
-      {itens.map((it) => (
-        <span
-          key={it.rotulo}
-          className="text-[11px] text-slate-600 dark:text-slate-300"
-        >
-          <span className="font-bold text-slate-900 dark:text-white">
-            {it.rotulo}
+      {itens.map((it) => {
+        const semLimite = ehPro || !it.limite || it.limite <= 0;
+        return (
+          <span
+            key={it.rotulo}
+            className="text-[11px] text-slate-600 dark:text-slate-300"
+          >
+            <span className="font-bold text-slate-900 dark:text-white">
+              {it.rotulo}
+            </span>
+            {": "}
+            {it.valor} /{" "}
+            {semLimite ? (
+              <span className="font-bold text-jurex dark:text-emerald-400">
+                Ilimitado
+              </span>
+            ) : (
+              it.limite
+            )}
           </span>
-          {": "}
-          {it.valor} / {it.limite > 0 ? it.limite : "∞"}
-        </span>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+// Badge do plano na tabela. FREE = discreto, PRO = destacado
+// (mesma paleta de cores usada no card Pro de MeusPlanos).
+function BadgePlano({ plano }) {
+  if (plano === "pro") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-jurex text-white shadow-sm shadow-jurex/30">
+        <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+        PRO
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+      FREE
+    </span>
   );
 }
 

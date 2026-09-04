@@ -42,6 +42,7 @@ import Relatorios from "../pages/Relatorios";
 import Perfil from "../pages/Perfil";
 import Notificacoes from "../pages/Notificacoes";
 import Configuracoes from "../pages/Configuracoes";
+import MeusPlanos from "../pages/MeusPlanos";
 
 // Redireciona usuários autenticados para o dashboard
 function RotaPublica({ children }) {
@@ -100,6 +101,7 @@ export default function AppRoutes() {
           <Route path="/configuracoes/funcionarios" element={<RotaProtegida><RotaDono><Funcionarios /></RotaDono></RotaProtegida>} />
           <Route path="/debug-auth" element={<RotaProtegida><DebugAuth /></RotaProtegida>} />
           <Route path="/configuracoes" element={<RotaProtegida><Configuracoes /></RotaProtegida>} />
+          <Route path="/configuracoes/meus-planos" element={<RotaProtegida><MeusPlanos /></RotaProtegida>} />
 
           {/* Tela de bloqueio para funcionário inativo */}
           <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />

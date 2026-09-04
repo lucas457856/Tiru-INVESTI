@@ -103,6 +103,11 @@ export async function cadastrar({ nome, email, telefone, senha }) {
       nome,
       email,
       telefone,
+      // Plano inicial: FREE. O admin pode promover para "pro"
+      // depois via /api/admin/update-owner. Donos antigos sem
+      // esse campo são tratados como "free" (default aplicado nos
+      // hooks/overview — ver useDonoAdmin e api/admin/overview).
+      plan: "free",
       criadoEm: new Date().toISOString(),
     });
     return { ok: true };

@@ -59,7 +59,7 @@ const secoes = [
     titulo: "Configurações",
     itens: [
       { label: "Perfil", to: "/perfil", icone: User },
-      { label: "Meus Planos", to: "/perfil", icone: CreditCard },
+      { label: "Meus Planos", to: "/configuracoes/meus-planos", icone: CreditCard },
       { label: "Funcionários", to: "/configuracoes/funcionarios", icone: Users },
       {
         label: "Modelos de cobrança",

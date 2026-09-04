@@ -44,6 +44,7 @@ const LIMITES_PADRAO = {
 function defaults() {
   return {
     status: "ativo",
+    plan: "free",
     permissoes: PERMISSOES_PADRAO,
     limites: LIMITES_PADRAO,
     carregou: false,
@@ -58,9 +59,17 @@ function lerPermissao(valor, padrao) {
   return padrao;
 }
 
+// Normaliza o campo `plan`. Aceita apenas "pro"; qualquer outro valor
+// (incluindo ausente, null, string vazia) é tratado como "free".
+// Donos antigos sem esse campo continuam funcionando sem migração.
+function normalizarPlan(d) {
+  return d?.plan === "pro" ? "pro" : "free";
+}
+
 function aplicarDados(d) {
   return {
     status: d?.status === "bloqueado" ? "bloqueado" : "ativo",
+    plan: normalizarPlan(d),
     permissoes: {
       criarContratos: lerPermissao(d?.permissoes?.criarContratos, PERMISSOES_PADRAO.criarContratos),
       criarClientes: lerPermissao(d?.permissoes?.criarClientes, PERMISSOES_PADRAO.criarClientes),
@@ -69,15 +78,27 @@ function aplicarDados(d) {
     limites: {
       // `??` (não `||`) para preservar limite = 0 quando o campo
       // está presente mas é zero (caso válido: 0 = sem limite).
-      contratos: d?.limites?.contratos != null && Number.isFinite(Number(d.limites.contratos))
-        ? Number(d.limites.contratos)
-        : LIMITES_PADRAO.contratos,
-      clientes: d?.limites?.clientes != null && Number.isFinite(Number(d.limites.clientes))
-        ? Number(d.limites.clientes)
-        : LIMITES_PADRAO.clientes,
-      funcionarios: d?.limites?.funcionarios != null && Number.isFinite(Number(d.limites.funcionarios))
-        ? Number(d.limites.funcionarios)
-        : LIMITES_PADRAO.funcionarios,
+      // Quando o plano é "pro", substituímos os limites por 0
+      // (ilimitado) para que o restante do sistema — que já sabe
+      // tratar limite = 0 como "sem limite" — bloqueie corretamente.
+      // Os limites FREE originais continuam salvos no Firestore
+      // (em `limites.contratos/clientes/funcionarios`); basta
+      // alternar `plan: "free"` para que voltem a valer.
+      contratos: normalizarPlan(d) === "pro"
+        ? 0
+        : d?.limites?.contratos != null && Number.isFinite(Number(d.limites.contratos))
+          ? Number(d.limites.contratos)
+          : LIMITES_PADRAO.contratos,
+      clientes: normalizarPlan(d) === "pro"
+        ? 0
+        : d?.limites?.clientes != null && Number.isFinite(Number(d.limites.clientes))
+          ? Number(d.limites.clientes)
+          : LIMITES_PADRAO.clientes,
+      funcionarios: normalizarPlan(d) === "pro"
+        ? 0
+        : d?.limites?.funcionarios != null && Number.isFinite(Number(d.limites.funcionarios))
+          ? Number(d.limites.funcionarios)
+          : LIMITES_PADRAO.funcionarios,
     },
     carregou: true,
   };
@@ -113,6 +134,7 @@ export function useDonoAdmin() {
 
   return {
     status: dados.status,
+    plan: dados.plan,
     permissoes: dados.permissoes,
     limites: dados.limites,
     loading,

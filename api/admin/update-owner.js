@@ -110,10 +110,21 @@ function validarBody(body) {
     update.permissoes = out;
   }
 
+  // plano ("free" | "pro"). Aceita apenas esses dois valores. Donos
+  // antigos sem o campo continuam como "free" (default aplicado em
+  // /api/admin/overview e nos hooks de leitura). Não apaga limites
+  // configurados — apenas o sinalizador de plano é persistido.
+  if (body.plan !== undefined) {
+    if (body.plan !== "free" && body.plan !== "pro") {
+      return { ok: false, erro: "plan deve ser 'free' ou 'pro'." };
+    }
+    update.plan = body.plan;
+  }
+
   if (Object.keys(update).length === 0) {
     return {
       ok: false,
-      erro: "Informe pelo menos um campo para atualizar (status, limites ou permissoes).",
+      erro: "Informe pelo menos um campo para atualizar (status, limites, permissoes ou plan).",
     };
   }
 
@@ -215,6 +226,7 @@ export default async function handler(req, res) {
     ok: true,
     donoUid,
     status: update.status ?? null,
+    plano: update.plan ?? null,
     limites: update.limites ?? null,
     permissoes: update.permissoes ?? null,
   });

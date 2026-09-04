@@ -1,9 +1,9 @@
 // Drawer lateral do Painel Administrativo — permite editar os campos
-// administrativos de UM DONO (status, limites, permissoes).
+// administrativos de UM DONO (status, plano, limites, permissoes).
 //
 // Recebe um objeto `dono` com o shape retornado por /api/admin/overview:
 //   { uid, nome, email, telefone, contClientes, contContratos,
-//     contFuncionarios, status, limites: {contratos, clientes,
+//     contFuncionarios, status, plano, limites: {contratos, clientes,
 //     funcionarios}, permissoes: {criarContratos, criarClientes,
 //     criarFuncionarios} }
 //
@@ -12,6 +12,10 @@
 //   - Inputs numéricos para limites (0 = sem limite).
 //   - Toggles para permissoes.
 //   - Toggle grande para status (Ativo / Bloqueado).
+//   - Toggle grande para plano (Free / Pro). Quando PRO, o sistema
+//     trata os limites como ilimitados (ver useDonoAdmin e
+//     api/admin/overview). Os limites FREE permanecem salvos no
+//     Firestore — basta alternar para "free" para voltarem a valer.
 //   - Barra de progresso "Usado X / Y" para cada limite (se Y > 0).
 //   - Botão "Salvar" chama props.onSalvar(donoUid, payload).
 //   - Dirty state: o botão Salvar fica desabilitado se nada mudou.
@@ -29,6 +33,7 @@ import {
   Users,
   Briefcase,
   FileText,
+  Sparkles,
 } from "lucide-react";
 
 function fmtNum(n) {
@@ -39,6 +44,7 @@ function estadoInicialDeDono(dono) {
   if (!dono) {
     return {
       status: "ativo",
+      plano: "free",
       limites: { contratos: 5, clientes: 5, funcionarios: 5 },
       permissoes: {
         criarContratos: true,
@@ -49,6 +55,7 @@ function estadoInicialDeDono(dono) {
   }
   return {
     status: dono.status === "bloqueado" ? "bloqueado" : "ativo",
+    plano: dono.plano === "pro" ? "pro" : "free",
     limites: {
       contratos: fmtNum(dono.limites?.contratos),
       clientes: fmtNum(dono.limites?.clientes),
@@ -164,6 +171,7 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
   // componente e o lazy initializer é re-executado.
   const inicial = useMemo(() => estadoInicialDeDono(dono), [dono]);
   const [status, setStatus] = useState(() => inicial.status);
+  const [plano, setPlano] = useState(() => inicial.plano);
   const [limites, setLimites] = useState(() => inicial.limites);
   const [permissoes, setPermissoes] = useState(() => inicial.permissoes);
   const [salvando, setSalvando] = useState(false);
@@ -174,6 +182,7 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
   const mudou = useMemo(() => {
     if (!dono) return false;
     if ((dono.status === "bloqueado" ? "bloqueado" : "ativo") !== status) return true;
+    if ((dono.plano === "pro" ? "pro" : "free") !== plano) return true;
     const origLim = {
       contratos: fmtNum(dono.limites?.contratos),
       clientes: fmtNum(dono.limites?.clientes),
@@ -191,7 +200,7 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
     if (origPerm.criarClientes !== permissoes.criarClientes) return true;
     if (origPerm.criarFuncionarios !== permissoes.criarFuncionarios) return true;
     return false;
-  }, [dono, status, limites, permissoes]);
+  }, [dono, status, plano, limites, permissoes]);
 
   if (!aberto || !dono) return null;
 
@@ -201,6 +210,7 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
     setErro(null);
     const payload = {
       status,
+      plan: plano,
       limites: {
         contratos: Number(limites.contratos) || 0,
         clientes: Number(limites.clientes) || 0,
@@ -299,6 +309,45 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
                 </p>
               </div>
             </button>
+          </section>
+
+          {/* Plano (Free / Pro). PRO libera os limites como
+              ilimitados no resto do sistema. Os limites FREE originais
+              permanecem salvos — alternar para Free restaura. */}
+          <section>
+            <h3 className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+              Plano
+            </h3>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPlano("free")}
+                className={`flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl border text-sm font-bold transition ${
+                  plano === "free"
+                    ? "border-jurex/30 bg-emerald-50 dark:bg-emerald-500/10 text-jurex dark:text-emerald-400"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-jurex/40"
+                }`}
+              >
+                Free
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlano("pro")}
+                className={`flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl border text-sm font-bold transition ${
+                  plano === "pro"
+                    ? "border-jurex bg-jurex text-white shadow-sm shadow-jurex/30"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-jurex/40"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Pro
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              {plano === "pro"
+                ? "Contratos, clientes e funcionários ilimitados. Permissões continuam valendo."
+                : "Limites configurados abaixo são aplicados."}
+            </p>
           </section>
 
           {/* Limites */}
