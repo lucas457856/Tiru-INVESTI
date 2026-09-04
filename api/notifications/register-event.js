@@ -61,6 +61,9 @@ const EVENT_TYPES_VALIDOS = new Set([
   "INSTALLMENT_PAID",
   "INSTALLMENT_DUE_TODAY",
   "INSTALLMENT_OVERDUE",
+  // Resumo diário / agregado (1× por dia por usuário)
+  "CONTRACTS_SUMMARY",
+  "INSTALLMENTS_DUE_TODAY_SUMMARY",
   // Clientes
   "CLIENT_CREATED",
   "CLIENT_UPDATED",

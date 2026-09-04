@@ -22,6 +22,7 @@ const ICONES_POR_TIPO = {
   parcela_atrasada: { Icone: AlertTriangle, classe: "bg-red-50 text-red-600 dark:bg-red-500/10" },
   pagamento_recebido: { Icone: CircleCheck, classe: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10" },
   resumo_contratos: { Icone: TrendingUp, classe: "bg-sky-50 text-sky-600 dark:bg-sky-500/10" },
+  parcelas_para_receber_hoje: { Icone: Clock, classe: "bg-sky-50 text-sky-600 dark:bg-sky-500/10" },
 };
 
 const ICONE_PADRAO = { Icone: Bell, classe: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" };

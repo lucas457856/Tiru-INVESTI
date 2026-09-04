@@ -23,6 +23,9 @@ export const EVENT_TYPES = Object.freeze({
   INSTALLMENT_PAID: "INSTALLMENT_PAID",
   INSTALLMENT_DUE_TODAY: "INSTALLMENT_DUE_TODAY",
   INSTALLMENT_OVERDUE: "INSTALLMENT_OVERDUE",
+  // Resumo diário / agregado (1× por dia por usuário)
+  CONTRACTS_SUMMARY: "CONTRACTS_SUMMARY",
+  INSTALLMENTS_DUE_TODAY_SUMMARY: "INSTALLMENTS_DUE_TODAY_SUMMARY",
   // Clientes
   CLIENT_CREATED: "CLIENT_CREATED",
   CLIENT_UPDATED: "CLIENT_UPDATED",
@@ -60,6 +63,10 @@ export function textosPadraoEvento(type) {
       return { titulo: "Parcela vence hoje", corpo: "Uma parcela vence hoje." };
     case EVENT_TYPES.INSTALLMENT_OVERDUE:
       return { titulo: "Parcela em atraso", corpo: "Há uma parcela em atraso." };
+    case EVENT_TYPES.CONTRACTS_SUMMARY:
+      return { titulo: "Resumo dos seus contratos", corpo: "Veja como estão seus contratos." };
+    case EVENT_TYPES.INSTALLMENTS_DUE_TODAY_SUMMARY:
+      return { titulo: "Parcelas para receber hoje", corpo: "Há parcelas com vencimento hoje." };
     case EVENT_TYPES.CLIENT_CREATED:
       return { titulo: "Novo cliente cadastrado", corpo: "Um novo cliente foi adicionado." };
     case EVENT_TYPES.CLIENT_UPDATED:

@@ -52,6 +52,7 @@ import {
 } from "../utils/notifications";
 import { useNotificacoes } from "../hooks/useNotificacoes";
 import { useNotificadorVencimentos } from "../hooks/useNotificadorVencimentos";
+import { useNotificadorResumo } from "../hooks/useNotificadorResumo";
 
 // Data local de hoje (YYYY-MM-DD) — usada para "Parcelas de hoje".
 // Construída a partir dos componentes locais para evitar drift de timezone
@@ -169,6 +170,14 @@ export default function Dashboard() {
   // re-emissões do onSnapshot). O dedup (Set em memória + localStorage)
   // garante 1 notificação por evento, mesmo com re-renders / F5 / navegação.
   useNotificadorVencimentos(contratosAtivos, effectiveUid);
+
+  // Resumo diário (1× por dia por usuário): notificação agregada com
+  // quantidade de contratos ativos + parcelas pendentes com vencimento
+  // HOJE. Reaproveita `contratosAtivos` (já filtrado) e
+  // `parcelasDoContrato` (fonte canônica). `carregando` impede disparo
+  // durante a primeira carga do snapshot. Mesmo pipeline de
+  // deduplicação do useNotificadorVencimentos (Set + localStorage).
+  useNotificadorResumo(contratosAtivos, effectiveUid, carregando);
 
   // ---- Carrega TODOS os pagamentos do usuário (fontes REAIS).
   // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.
