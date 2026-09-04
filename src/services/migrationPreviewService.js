@@ -722,8 +722,3 @@ window.__applyMigrationToContracts = async function (simples, targetUid) {
 
   return updateCount;
 };
-
-console.log("[migrationPreviewService] Carregado. Use:");
-console.log("  const user = window.getMigrationPreviewUser();");
-console.log("  await window.previewMigrationDryRun(user.uid)        // DRY RUN");
-console.log("  await window.applyMigration(user.uid)                // APLICAR (após revisar o DRY RUN)");
