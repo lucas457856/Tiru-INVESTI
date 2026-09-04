@@ -480,11 +480,25 @@ function LinhaDono({ dono, aoGerenciar }) {
   );
 }
 
-// Mostra "X / Y" para cada recurso. PRO é ilimitado (exibe "Ilimitado"
-// em vez do número) e também cobre o caso `limite = 0` (legado:
-// significa "sem limite").
+// Mostra "X / Y" para cada recurso. Reutiliza o MESMO `dono.plano`
+// que a coluna PLANO usa (BadgePlano) — única fonte de verdade.
+//   - PRO: exibe "∞" (compacto, cabe bem na tabela) e o valor real
+//     usado continua sendo mostrado (não vira infinito).
+//   - FREE: exibe o limite FREE salvo no Firestore, sem alteração.
+//   - limite <= 0 (legado = "sem limite") também mostra "∞" para não
+//     exibir 0/0 confuso.
+// Os limites FREE nunca são apagados pelo overview: `normalizarPlano`
+// em api/admin/overview.js só troca o rótulo do plano, e os campos
+// `limites.contratos/clientes/funcionarios` retornam exatamente o
+// que está persistido no Firebase. Trocar FREE↔PRO no Gerenciar
+// chama `carregar()` (handleSalvarDono) → o próximo snapshot
+// traz `dono.plano` e `dono.limites` atualizados, e a tabela
+// re-renderiza imediatamente.
 function ResumoUso({ dono }) {
   const lim = dono.limites || {};
+  // Ausência do campo `plan` é tratada como FREE por `normalizarPlano`
+  // no backend — então esta mesma checagem funciona para donos antigos
+  // sem o campo.
   const ehPro = dono.plano === "pro";
   const itens = [
     { rotulo: "C", valor: dono.contContratos, limite: lim.contratos },
@@ -507,7 +521,7 @@ function ResumoUso({ dono }) {
             {it.valor} /{" "}
             {semLimite ? (
               <span className="font-bold text-jurex dark:text-emerald-400">
-                Ilimitado
+                ∞
               </span>
             ) : (
               it.limite
