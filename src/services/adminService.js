@@ -83,16 +83,29 @@ export async function buscarOverview() {
   });
 }
 
-// Atualiza os campos administrativos (status, limites, permissoes)
-// de um dono. Apenas o ADMIN_UID é aceito pelo servidor.
+// Atualiza os campos administrativos (status, plan, limites,
+// permissoes) de um dono. Apenas o ADMIN_UID é aceito pelo servidor.
 //
 // Aceita um payload parcial — cada chave é opcional, mas o servidor
-// exige pelo menos uma. Retorna { ok, donoUid, status, limites, permissoes }.
-export async function salvarDono(donoUid, { status, limites, permissoes } = {}) {
+// exige pelo menos uma. Retorna { ok, donoUid, status, plano,
+// limites, permissoes }.
+//
+// IMPORTANTE: o campo `plan` DEVE ser propagado para o endpoint.
+// O drawer envia `plan: "free" | "pro"` no payload. Se esta função
+// descartar o campo, o backend recebe o body sem `plan`, o doc do
+// dono continua sem o campo no Firestore, e a próxima leitura do
+// overview (que usa `normalizarPlano`) cai no default "free". Esse
+// era o bug que fazia a lista de donos continuar mostrando FREE
+// mesmo depois do admin ativar PRO no Gerenciar.
+export async function salvarDono(
+  donoUid,
+  { status, plan, limites, permissoes } = {},
+) {
   if (!donoUid) return { ok: false, erro: "donoUid ausente." };
   const token = await getToken();
   const body = { donoUid };
   if (status !== undefined) body.status = status;
+  if (plan !== undefined) body.plan = plan;
   if (limites !== undefined) body.limites = limites;
   if (permissoes !== undefined) body.permissoes = permissoes;
   return requisitar("/api/admin/update-owner", {
