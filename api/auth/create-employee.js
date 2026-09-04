@@ -40,6 +40,13 @@ const SENHA_MAX = 128;
 const LIMITE_MIN = 0;
 const LIMITE_MAX = 100000;
 
+// Plano: aceita apenas "pro". Qualquer outro valor (incluindo
+// ausente) é tratado como "free". Mantém compatibilidade com donos
+// antigos que não têm o campo `plan` no Firestore.
+function ehPro(perfil) {
+  return perfil?.plan === "pro";
+}
+
 function bad(res, status, erro) {
   return res.status(status).json({ ok: false, erro });
 }
@@ -158,7 +165,11 @@ export default async function handler(req, res) {
     );
   }
   const limiteFuncionarios = Number(perfilChamador.limites?.funcionarios) || 0;
-  if (limiteFuncionarios > 0) {
+  // EXCEÇÃO: se o DONO estiver no plano PRO, o limite de funcionários
+  // é ignorado (ilimitado). Os limites FREE permanecem salvos no
+  // Firestore para serem reativados se o DONO voltar para FREE.
+  // Status e permissão continuam validados acima.
+  if (!ehPro(perfilChamador) && limiteFuncionarios > 0) {
     try {
       const contSnap = await dbAdmin
         .collection("usuarios")

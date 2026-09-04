@@ -52,7 +52,7 @@ export default function NovoCliente() {
   // A defesa real continua no endpoint server-side
   // /api/admin/criar-cliente, que valida o limite no Admin SDK e
   // o Firestore Rules nega create direto do client SDK.
-  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
   // Contagem atual de clientes do escopo efetivo (dono próprio ou
   // dono do funcionário). Mantida em tempo real pelo onSnapshot.
   // 0 = sem escopo / ainda não carregou.
@@ -87,11 +87,14 @@ export default function NovoCliente() {
   // Regra de bloqueio (espelha Clientes.jsx). limite.clientes = 0
   // significa "sem limite" — não bloqueia. permissoes.criarClientes
   // = false → bloqueia sempre. status = "bloqueado" → bloqueia sempre.
+  // plan === "pro" → ilimitado (nunca bloqueia por limite).
+  const ehPro = plan === "pro";
   const limiteClientes = limites.clientes;
   const contaBloqueada = statusDono === "bloqueado";
   const permissaoNegada = !contaBloqueada && permissoes.criarClientes === false;
   const limiteAtingido =
     !loadingDono &&
+    !ehPro &&
     !contaBloqueada &&
     !permissaoNegada &&
     limiteClientes > 0 &&

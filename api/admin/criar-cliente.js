@@ -57,6 +57,14 @@ const DEFAULT_LIMITES = { contratos: 5, clientes: 5, funcionarios: 5 };
 const DEFAULT_PERMISSOES = { criarContratos: true, criarClientes: true, criarFuncionarios: false };
 const DEFAULT_STATUS = "ativo";
 
+// Plano: aceita apenas "pro". Qualquer outro valor (incluindo
+// ausente, null, string vazia, "free", "PRO" em maiúsculas) é
+// tratado como "free". Mantém compatibilidade com donos antigos
+// que não têm o campo `plan` no Firestore.
+function ehPro(perfil) {
+  return perfil?.plan === "pro";
+}
+
 function bad(res, status, erro) {
   console.error(`[admin/criar-cliente] ${status} ${erro}`);
   return res.status(status).json({ ok: false, erro });
@@ -217,7 +225,11 @@ export default async function handler(req, res) {
 
   // 8) Limite de clientes: contagem real no servidor.
   // 0 = sem limite; > 0 = bloqueia quando count >= limite.
-  if (limites.clientes > 0) {
+  // EXCEÇÃO: se o DONO estiver no plano PRO, o limite é ignorado
+  // (ilimitado). Os limites FREE permanecem salvos no Firestore para
+  // serem reativados se o DONO voltar para FREE. Permissões e status
+  // continuam sendo validados normalmente acima.
+  if (!ehPro(perfilDono) && limites.clientes > 0) {
     try {
       const contSnap = await dbAdmin
         .collection("clientes")

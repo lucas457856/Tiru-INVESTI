@@ -57,7 +57,7 @@ export default function NovoContrato() {
   // A defesa real continua no endpoint server-side
   // /api/admin/criar-contrato, que valida o limite no Admin SDK
   // e o Firestore Rules nega create direto do client SDK.
-  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
   // Contagem atual de contratos do escopo efetivo. Mantida em
   // tempo real pelo onSnapshot para detectar "limite atingido"
   // entre o momento em que o usuário abriu a página e o
@@ -144,7 +144,9 @@ export default function NovoContrato() {
   // = 0 significa "sem limite" — não bloqueia. permissoes.
   // criarContratos = false → bloqueia sempre. status =
   // "bloqueado" → bloqueia sempre. No modo edição, a checagem
-  // não se aplica (não cria novo documento).
+  // não se aplica (não cria novo documento). plan === "pro" →
+  // ilimitado (nunca bloqueia por limite).
+  const ehPro = plan === "pro";
   const limiteContratos = limites.contratos;
   const contaBloqueada = statusDono === "bloqueado";
   const permissaoNegada =
@@ -152,6 +154,7 @@ export default function NovoContrato() {
   const limiteAtingido =
     !modoEdicao &&
     !loadingDono &&
+    !ehPro &&
     !contaBloqueada &&
     !permissaoNegada &&
     limiteContratos > 0 &&

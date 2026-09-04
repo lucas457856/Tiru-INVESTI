@@ -112,7 +112,7 @@ export default function Funcionarios() {
   const { funcionarios, contagemPorAuthUid, loading } = useFuncionarios();
   // Lê o doc do DONO em tempo real para detectar permissão de criar
   // funcionários desabilitada pelo Admin.
-  const { permissoes, limites, status: statusDono } = useDonoAdmin();
+  const { permissoes, limites, status: statusDono, plan } = useDonoAdmin();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todos");
@@ -126,11 +126,15 @@ export default function Funcionarios() {
   const [modalExcluir, setModalExcluir] = useState({ aberto: false, func: null });
   const [modalExcluirDef, setModalExcluirDef] = useState({ aberto: false, func: null });
 
+  // PRO = ilimitado. Mesmo se `limites.funcionarios` estiver salvo
+  // com valor > 0, em PRO nunca bloqueamos por limite. Permissões
+  // continuam valendo normalmente.
+  const ehPro = plan === "pro";
   // Permissão de criar funcionário: só faz sentido para o DONO
   // (funcionários não acessam esta página — papel bloqueado mais abaixo).
   const podeCriar = role === "dono" && permissoes.criarFuncionarios !== false;
   const limiteAtingido =
-    limites.funcionarios > 0 && funcionarios.length >= limites.funcionarios;
+    !ehPro && limites.funcionarios > 0 && funcionarios.length >= limites.funcionarios;
 
   // Filtragem
   const filtrados = useMemo(() => {

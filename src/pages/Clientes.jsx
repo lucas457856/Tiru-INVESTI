@@ -21,22 +21,21 @@ export default function Clientes() {
   // desabilitar o botão "Cadastrar cliente" quando o limite é
   // atingido, exibir banner explicativo e impedir navegação para
   // a tela de cadastro.
-  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
   const [clientes, setClientes] = useState([]);
   const [busca, setBusca] = useState("");
 
-  // Regra de bloqueio do front (UX). A defesa real é o endpoint
-  // server-side /api/admin/criar-cliente, que valida o limite no
-  // Admin SDK e o Firestore Rules nega create direto do client SDK.
-  // Aqui só desabilitamos o botão e impedimos a navegação para
-  // dar feedback imediato ao usuário.
-  //
-  // limite.clientes = 0 significa "sem limite" — não bloqueia.
-  // permissoes.criarClientes = false → bloqueia sempre.
-  // status = "bloqueado" → bloqueia sempre.
+  // PRO = ilimitado. O useDonoAdmin devolve limites.* = 0 em PRO
+  // (e a defesa real é o endpoint server-side /api/admin/criar-cliente,
+  // que também ignora o limite em PRO). Aqui a checagem `ehPro` é
+  // explícita para garantir que a UI nunca exibe "Limite de clientes
+  // atingido" quando o DONO é PRO, mesmo se os limites FREE
+  // estiverem salvos com valor > 0.
+  const ehPro = plan === "pro";
   const limiteClientes = limites.clientes;
   const limiteAtingido =
     !loadingDono &&
+    !ehPro &&
     statusDono !== "bloqueado" &&
     permissoes.criarClientes !== false &&
     limiteClientes > 0 &&

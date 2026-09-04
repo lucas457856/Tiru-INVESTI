@@ -48,7 +48,7 @@ export default function Emprestimos() {
   // de cadastro. A defesa real é o endpoint server-side
   // /api/admin/criar-contrato, que valida o limite no Admin SDK
   // e o Firestore Rules nega create direto do client SDK.
-  const { permissoes, limites, status: statusDono, loading: loadingDono } = useDonoAdmin();
+  const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
 
   const [contratos, setContratos] = useState([]);
   const [status, setStatus] = useState("Todos");
@@ -58,9 +58,12 @@ export default function Emprestimos() {
   //   limite.contratos = 0 significa "sem limite" — não bloqueia.
   //   permissoes.criarContratos = false → bloqueia sempre.
   //   status = "bloqueado" → bloqueia sempre.
+  //   plan === "pro" → ilimitado (nunca bloqueia por limite).
+  const ehPro = plan === "pro";
   const limiteContratos = limites.contratos;
   const limiteAtingido =
     !loadingDono &&
+    !ehPro &&
     statusDono !== "bloqueado" &&
     permissoes.criarContratos !== false &&
     limiteContratos > 0 &&

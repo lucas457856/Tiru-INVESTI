@@ -62,6 +62,13 @@ const DEFAULT_STATUS = "ativo";
 const FREQ_VALIDAS = ["Diária", "Semanal", "Quinzenal", "Mensal"];
 const TIPO_JUROS_VALIDOS = ["parcela", "total", null];
 
+// Plano: aceita apenas "pro". Qualquer outro valor (incluindo
+// ausente) é tratado como "free". Mantém compatibilidade com donos
+// antigos que não têm o campo `plan` no Firestore.
+function ehPro(perfil) {
+  return perfil?.plan === "pro";
+}
+
 function bad(res, status, erro) {
   console.error(`[admin/criar-contrato] ${status} ${erro}`);
   return res.status(status).json({ ok: false, erro });
@@ -320,7 +327,13 @@ export default async function handler(req, res) {
   }
 
   // 9) Limite de CONTRATOS do DONO
-  if (limites.contratos > 0) {
+  // EXCEÇÃO: se o DONO estiver no plano PRO, o limite do DONO é
+  // ignorado (ilimitado). Os limites FREE permanecem salvos no
+  // Firestore para serem reativados se o DONO voltar para FREE.
+  // O limite individual do funcionário (acima) NÃO é afetado pelo
+  // plano do DONO — ele é uma configuração por funcionário.
+  // Permissões e status continuam sendo validados normalmente.
+  if (!ehPro(perfilDono) && limites.contratos > 0) {
     try {
       const contSnap = await dbAdmin
         .collection("usuarios")
