@@ -117,7 +117,6 @@ export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
 
     const hoje = hojeISO();
     let verificadas = 0;
-    let disparadas = 0;
 
     // Itera cada contrato ATIVO. Falha isolada em 1 contrato NÃO afeta
     // os outros (try/catch por contrato).
@@ -244,18 +243,7 @@ export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
     }
 
     statsRef.current.verificadas += verificadas;
-    if (verificadas > 0) {
-      // Log único por ciclo de detecção, para diagnóstico.
-      console.log(
-        "[notif-venc] ciclo de detecção:",
-        "verificadas=",
-        verificadas,
-        "disparadas_neste_ciclo=",
-        disparadas,
-        "data_hoje=",
-        hoje,
-      );
-    }
+    // Ciclo de detecção encerrado — silencioso (sem console.log por ciclo).
   }, [contratosAtivos, ownerUid]);
 
   // Retorno só para conveniência de debug em testes; não usar em render.

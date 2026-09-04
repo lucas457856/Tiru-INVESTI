@@ -75,12 +75,6 @@ export default function AuthProvider({ children }) {
             return;
           }
           const data = snap.data() || {};
-          console.log("[AUTH]", {
-            authUid: user.uid,
-            role: data.role ?? "(ausente — DONO)",
-            ownerUid: data.ownerUid ?? null,
-            funcionarioId: data.funcionarioId ?? null,
-          });
           if (data.role === "funcionario" && data.ownerUid) {
             setRole("funcionario");
             setOwnerUid(data.ownerUid);

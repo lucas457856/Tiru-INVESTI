@@ -24,7 +24,6 @@ export function useEffectiveUid() {
   const { usuario, role, roleResolvido, ownerUid } = useAuth();
   if (!usuario) return null;
   if (!roleResolvido) {
-    console.log("[EFFECTIVE UID] aguardando role resolver (current: " + role + ")");
     return null;
   }
   if (role === "funcionario") {
@@ -32,11 +31,9 @@ export function useEffectiveUid() {
       console.error("[EFFECTIVE UID] funcionário sem ownerUid — perfil corrompido");
       return null;
     }
-    console.log("[EFFECTIVE UID] effectiveUid:", ownerUid, "(funcionário → dono)");
     return ownerUid;
   }
   if (role === "dono") {
-    console.log("[EFFECTIVE UID] effectiveUid:", usuario.uid, "(dono)");
     return usuario.uid;
   }
   // sem-perfil: bloqueia

@@ -155,11 +155,8 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
             ? import.meta.env.VITE_FIREBASE_VAPID_KEY || ""
             : "";
           const vapidConfigured = typeof vapidKey === "string" && vapidKey.length > 0;
-          console.log(FCM_PREFIX, "vapidConfigured=" + (vapidConfigured ? "true" : "false"));
-          if (vapidConfigured) console.log(FCM_PREFIX, "vapidLength=" + vapidKey.length);
-          console.log(FCM_PREFIX, "permission=" + permission);
           if (!vapidConfigured) {
-            console.log(FCM_PREFIX, "tokenObtained=false (VAPID ausente)");
+            // silencioso: VAPID ausente — fluxo FCM fica desativado, sem ruído no console
           } else {
             // getToken exige que o SW esteja controlando a pagina.
             // Aguarda readiness uma vez (idempotente). Se o SW ja
@@ -175,16 +172,13 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
                 && navigator.serviceWorker
                 && typeof navigator.serviceWorker.ready !== "undefined") {
                 serviceWorkerRegistration = await navigator.serviceWorker.ready;
-                console.log(FCM_PREFIX, "serviceWorkerReady=true");
               } else {
-                console.log(FCM_PREFIX, "serviceWorkerReady=false");
+                // SW não disponível — sem ruído
               }
-            } catch (swErr) {
-              const swMsg = swErr && swErr.message;
-              console.log(FCM_PREFIX, "serviceWorkerReady=false (" + (swMsg || "erro") + ")");
+            } catch {
+              // SW falhou — silencioso (console.error seria excessivo)
             }
             const messaging = getMessagingFn();
-            console.log(FCM_PREFIX, "messagingInit=" + (messaging ? "true" : "false"));
             // API modular do Firebase v12: getToken(messaging, options) e
             // uma FUNCAO importada de firebase/messaging, NAO um metodo
             // da instancia de Messaging. Chamar messaging.getToken(...)
@@ -199,12 +193,6 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
               getTokenOptions.serviceWorkerRegistration = serviceWorkerRegistration;
             }
             fcmToken = await getToken(messaging, getTokenOptions);
-            if (fcmToken && typeof fcmToken === "string") {
-              console.log(FCM_PREFIX, "tokenObtained=true");
-              console.log(FCM_PREFIX, "tokenLength=" + fcmToken.length);
-            } else {
-              console.log(FCM_PREFIX, "tokenObtained=false");
-            }
           }
         } catch (err) {
           const code = err && err.code;
@@ -222,10 +210,8 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
         notificationsEnabled: enabled,
       });
       if (res && res.ok === true) {
-        console.log(FCM_PREFIX, "deviceRegistered=true");
-        console.log(FCM_PREFIX, "registerStatus=" + (res.status || 200));
+        // registro ok — silencioso
       } else {
-        console.log(FCM_PREFIX, "deviceRegistered=false");
         console.warn(LOG_PREFIX, "register-device falhou:", res && res.erro);
       }
       return res;
@@ -289,7 +275,6 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
         const perm = (typeof Notification !== "undefined")
           ? Notification.permission
           : "default";
-        console.log(FCM_PREFIX, "permissionChange=" + perm);
         currentPermissionRef.current = perm;
         const u = currentUserRef.current;
         if (perm === "granted" && u) {
