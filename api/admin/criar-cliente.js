@@ -250,6 +250,77 @@ export default async function handler(req, res) {
     }
   }
 
+  // 8.5) Validação do `deviceId` de origem (Fase A — notificações sincronizadas).
+  //
+  // O `deviceId` é OBRIGATÓRIO para toda chamada autenticada por
+  // idToken (frontend). Não aceitamos `deviceId` ausente nem vazio,
+  // e nem `sourceDeviceId: null` como fallback — esta endpoint é
+  // exclusiva de chamadas do frontend; chamadas internas (cron, admin)
+  // devem usar outros endpoints dedicados.
+  //
+  // Validações (todas antes do addDoc do cliente):
+  //   1. String não-vazia (até 200 chars).
+  //   2. Existe em `usuarios/{chamadorUid}/devices/{deviceId}` —
+  //      dispositivo REGISTRADO para o chamador.
+  //   3. O doc do device tem `ownerUid === donoUid` (não pode ser
+  //      device de outro dono).
+  //   4. O doc do device tem `userRole` compatível com o chamador
+  //      (`owner` ou `funcionario` conforme `criadoPorFuncionario`).
+  //
+  // Se inválido, retornamos 400/403 ANTES de criar o cliente.
+  const deviceIdRaw = typeof body.deviceId === "string" ? body.deviceId.trim() : "";
+  if (!deviceIdRaw) {
+    return bad(
+      res,
+      400,
+      "deviceId é obrigatório para registrar a origem do evento. Atualize a página para registrar este dispositivo antes de continuar.",
+    );
+  }
+  if (deviceIdRaw.length > 200) {
+    return bad(res, 400, "deviceId inválido (até 200 chars).");
+  }
+  let deviceSnap;
+  try {
+    deviceSnap = await dbAdmin
+      .collection("usuarios")
+      .doc(chamadorUid)
+      .collection("devices")
+      .doc(deviceIdRaw)
+      .get();
+  } catch (err) {
+    console.error("[admin/criar-cliente] Leitura do device falhou:", err?.message);
+    return bad(res, 500, "Não foi possível validar o dispositivo de origem.");
+  }
+  if (!deviceSnap.exists) {
+    return bad(
+      res,
+      400,
+      "Dispositivo de origem não registrado. Atualize a página para registrar este dispositivo antes de continuar.",
+    );
+  }
+  const deviceData = deviceSnap.data() || {};
+  if (deviceData.ownerUid !== donoUid) {
+    console.error(
+      "[admin/criar-cliente] deviceId com ownerUid divergente:",
+      "chamador=" + chamadorUid,
+      "donoUid=" + donoUid,
+      "device.ownerUid=" + deviceData.ownerUid,
+      "deviceId=" + deviceIdRaw,
+    );
+    return bad(res, 403, "Dispositivo de origem não pertence a este proprietário.");
+  }
+  const expectedRole = criadoPorFuncionario ? "funcionario" : "owner";
+  if (deviceData.userRole && deviceData.userRole !== expectedRole) {
+    console.error(
+      "[admin/criar-cliente] deviceId com userRole divergente:",
+      "expected=" + expectedRole,
+      "device.userRole=" + deviceData.userRole,
+      "deviceId=" + deviceIdRaw,
+    );
+    return bad(res, 403, "Dispositivo de origem incompatível com o perfil do chamador.");
+  }
+  const sourceDeviceId = deviceIdRaw;
+
   // 9) Cria o cliente
   const clientesRef = dbAdmin.collection("clientes");
   const novoDoc = {
@@ -274,9 +345,57 @@ export default async function handler(req, res) {
     return bad(res, 500, "Não foi possível salvar o cliente. Tente novamente.");
   }
 
+  // 10) Evento central (Fase A — notificações sincronizadas).
+  //
+  // Gera um `eventId` server-side e grava o evento em
+  // `usuarios/{ownerId}/notificationEvents/{eventId}`. O `dispatch`
+  // (envio FCM) é responsabilidade do CLIENTE, chamado após esta
+  // resposta via /api/notifications/dispatch.
+  //
+  // `sourceDeviceId` foi validado no passo 8.5 (sempre presente, nunca
+  // null). Falha aqui NÃO bloqueia o fluxo principal.
+  const eventId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : "evt-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  try {
+    await dbAdmin
+      .collection("usuarios")
+      .doc(donoUid)
+      .collection("notificationEvents")
+      .doc(eventId)
+      .set({
+        eventId,
+        type: "CLIENT_CREATED",
+        title: "Novo cliente cadastrado",
+        body: nomeCompleto + " foi adicionado à sua base de clientes.",
+        data: {
+          clienteId: docRef.id,
+          clienteNome: nomeCompleto,
+        },
+        sourceDeviceId,
+        ownerId: donoUid,
+        createdBy: { uid: chamadorUid, role: criadoPorFuncionario ? "funcionario" : "owner" },
+        createdAt: FieldValue.serverTimestamp(),
+        status: "created",
+        dispatchedAt: null,
+      });
+    console.log(
+      "[admin/criar-cliente] evento criado:",
+      "eventId=" + eventId,
+      "type=CLIENT_CREATED",
+      "ownerId=" + donoUid,
+      "clienteId=" + docRef.id,
+      "sourceDevice=" + sourceDeviceId,
+    );
+  } catch (err) {
+    console.error("[admin/criar-cliente] criar evento falhou:", err?.code, err?.message);
+    // Não bloqueia o fluxo principal.
+  }
+
   return res.status(201).json({
     ok: true,
     id: docRef.id,
     cliente: { id: docRef.id, ...novoDoc, createdBy: criadoPorFuncionario ? "funcionario" : "dono" },
+    eventId,
   });
 }

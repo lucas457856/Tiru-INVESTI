@@ -1,12 +1,13 @@
-// Camada de deduplicação para notificações de parcelas (vencendo / vencida).
+// Camada de deduplicação para notificações.
 //
-// OBJETIVO: garantir que o MESMO evento (mesma parcela, mesmo vencimento)
-// gere no máximo UMA notificação (Firestore + nativa), mesmo quando:
+// OBJETIVO: garantir que o MESMO evento gere no máximo UMA notificação
+// (Firestore + nativa) POR DISPOSITIVO, mesmo quando:
 //   - o React re-renderiza várias vezes no mesmo mount;
 //   - o `onSnapshot` re-emite a cada reconexão / update;
 //   - o usuário navega entre páginas e volta;
 //   - o usuário dá F5 / recarrega a aba;
-//   - o hook é remontado por HMR em dev.
+//   - o hook é remontado por HMR em dev;
+//   - dois devices diferentes recebem o mesmo FCM e o SW processa duas vezes.
 //
 // ESTRATÉGIA — 3 camadas:
 //
@@ -14,7 +15,7 @@
 //      cache O(1) compartilhado entre TODOS os hooks/componentes da aba.
 //      Limpa em F5 (a própria JS heap é recriada).
 //
-//   2. `localStorage` (chave `jurex:notif:<tipo>:<contratoId>:<parcelaNumero>:<vencimentoISO>`):
+//   2. `localStorage` (chave `jurex:notif:...`):
 //      persiste entre F5, logout/login, fechamento/reabertura de aba.
 //      Padrão `jurex-*` consistente com `ThemeProvider.jsx:1-32`.
 //
@@ -22,20 +23,27 @@
 //      dedup no nível do browser — segundo toast com mesma tag substitui o
 //      primeiro em vez de empilhar. Definido em `utils/notifications.js`.
 //
-// ESTABILIDADE DA CHAVE: o `<vencimentoISO>` é a data ORIGINAL de vencimento
-// da parcela (vem de `parcelasDoContrato`, que respeita `parcelasCustom` e
-// `vencimentosCustom`). Enquanto a parcela não for renegociada, a chave é a
-// mesma para sempre — não há re-disparo "no dia seguinte".
+// CHAVES SUPORTADAS:
+//   A) Legado (por tipo+contrato+parcela+vencimento): usado pelo
+//      `useNotificadorVencimentos` para parcela_vencendo / parcela_atrasada.
+//      Mantido para não quebrar o trigger existente.
+//   B) Por `eventId` (UUID v4 gerado pelo cliente que originou o evento):
+//      usado por TODOS os novos triggers (CONTRACT_CREATED,
+//      PAYMENT_REGISTERED, etc.). É a fonte de verdade da
+//      deduplicação — `eventId` é único por evento, gerado uma vez
+//      no call site (ex: api/admin/criar-contrato.js) e propagado
+//      para in-app notif + push FCM.
 //
-// Se o usuário renegociar a parcela com NOVO vencimento, a chave muda — e a
-// notificação volta a aparecer (consistente com a definição de "evento novo").
+// ESTABILIDADE: o `eventId` é imutável enquanto o evento existir no
+// Firestore (`notificationEvents/{eventId}`). O backend rejeita criar
+// 2 eventos com o mesmo `eventId` (idempotência server-side).
 //
-// SEM TTL: a chave é estável para sempre enquanto a parcela não for
-// renegociada. O `localStorage` acomoda 12k chaves × ~80 bytes ≈ 1 MB,
-// bem dentro do limite de 5-10 MB dos browsers. Não vamos poluir a
-// implementação com limpeza periódica.
+// SEM TTL: ambas as chaves são estáveis enquanto o evento não mudar
+// de significado. O `localStorage` acomoda 12k chaves × ~80 bytes ≈ 1 MB,
+// bem dentro do limite de 5-10 MB dos browsers.
 
 const PREFIXO = "jurex:notif";
+const PREFIXO_EVENTO = "jurex:notif:event";
 
 /**
  * Constrói a chave estável que identifica um evento de notificação.
@@ -109,4 +117,43 @@ export function eventoJaNotificado(chave) {
     return true;
   }
   return false;
+}
+
+/**
+ * Constrói a chave estável por `eventId` (UUID v4).
+ * Esta é a fonte de verdade para deduplicação de notificações
+ * centralizadas (Fase B) — `eventId` é único por evento no servidor
+ * (ver `api/notifications/register-event.js`, idempotente).
+ *
+ * Convenção: `jurex:notif:event:<eventId>`
+ *
+ * @param {string} eventId
+ * @returns {string}
+ */
+export function chavePorEventId(eventId) {
+  return `${PREFIXO_EVENTO}:${eventId}`;
+}
+
+/**
+ * Versão por-`eventId` do `eventoJaNotificado`.
+ * Reutiliza o Set em memória e o mesmo padrão de `localStorage` da
+ * chave legada. Idempotente.
+ *
+ * @param {string} eventId
+ * @returns {boolean} true se já notificado, false se é novo
+ */
+export function eventoJaNotificadoPorEventId(eventId) {
+  if (!eventId) return false;
+  return eventoJaNotificado(chavePorEventId(eventId));
+}
+
+/**
+ * Versão por-`eventId` do `marcarNotificado`.
+ * Idempotente — chamar 2x com o mesmo `eventId` é seguro.
+ *
+ * @param {string} eventId
+ */
+export function marcarNotificadoPorEventId(eventId) {
+  if (!eventId) return;
+  marcarNotificado(chavePorEventId(eventId));
 }

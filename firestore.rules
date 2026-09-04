@@ -137,6 +137,50 @@ service cloud.firestore {
         allow read, write: if ehDonoOuFuncionario(uid);
       }
 
+      // Eventos centrais de notificação (Fase A/B/C): gravados pelo
+      // backend via /api/notifications/register-event e gerenciados
+      // (update, list) por /api/notifications/dispatch. Tambem
+      // gravados por /api/admin/criar-contrato e /api/admin/criar-cliente.
+      //
+      // O client SDK NAO tem acesso a esta subcolecao. Razoes:
+      //   1. O evento e a fonte de verdade para deduplicacao entre
+      //      devices e para o dispatch FCM. Escrita pelo client
+      //      permitiria a um usuario forjar eventos em nome do
+      //      proprio uid (e o backend, ao re-despachar, enviaria
+      //      push falsos).
+      //   2. Leitura pelo client permitiria enumerar eventos de
+      //      outros uids (atualmente o caminho do Firestore ja
+      //      protege por design, mas a regra explicita elimina
+      //      ambiguidade).
+      //   3. Toda escrita/leitura passa pelo backend com
+      //      verifyIdToken + checagem de role (dono/funcionario).
+      //
+      // O Admin SDK ignora esta regra (bypass total), portanto o
+      // backend continua gravando normalmente.
+      match /notificationEvents/{eventId} {
+        allow read, write: if false;
+      }
+
+      // Dispositivos do usuario (Fase B/C): gravados pelo backend
+      // via /api/notifications/register-device (com fcmToken) e
+      // limpos/gerenciados por /api/notifications/dispatch
+      // (cleanup de tokens invalidos; listagem para envio FCM).
+      //
+      // O client SDK NAO tem acesso a esta subcolecao. Razoes:
+      //   1. Cada device contem o `fcmToken` - vazaria o token de
+      //      push de outros uids se a leitura fosse aberta.
+      //   2. Permitir escrita pelo client permitiria a um usuario
+      //      A alterar `fcmToken` do deviceId compartilhado de um
+      //      usuario B (cenario: mesmo browser, logins diferentes).
+      //   3. O fluxo legitimo ja passa pelo endpoint, que valida
+      //      token FCM e normaliza campos.
+      //
+      // O Admin SDK ignora esta regra (bypass total), portanto o
+      // backend continua gravando normalmente.
+      match /devices/{deviceId} {
+        allow read, write: if false;
+      }
+
       // Clientes (subcoleção legada, usada por BackupDados)
       // - Dono: CRUD total
       // - Funcionário: não tem acesso (a fonte canônica é a coleção

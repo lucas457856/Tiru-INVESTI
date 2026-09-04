@@ -7,6 +7,12 @@ import { calculateInterest, calculatePenalty, calculateInstallmentValue, calcula
 import { registrarPagamento as registrarHistorico } from "./paymentHistoryService";
 import { registrarJurosRecebido as registrarJuros } from "./jurosRecebidosService";
 import { criarNotificacao } from "./notificationsService";
+import {
+  criarNotificationEvent,
+  dispatchNotificationEvent,
+  obterDeviceIdLocal,
+} from "./notificationEvents";
+import { EVENT_TYPES } from "../utils/notificationEventTypes";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { formatarMoeda } from "../utils/formatadores";
 
@@ -706,17 +712,60 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
   const nomeCliente = contrato?.clienteNome || contrato?.nome || "cliente";
   const valorNotif = modalidade === "juros_apenas" ? jurosRecebidos : totalRecebido;
   const descricaoNotif = `${nomeCliente} · parcela ${parcela?.numero} · ${formatarMoeda(valorNotif)}`;
-  const notifId = await criarNotificacao(usuario.uid, {
+
+  // === FASE C: evento central + dispatch (best-effort) ===
+  // Gera eventId uma vez por pagamento. Disparado ANTES do criarNotificacao
+  // legado (sino) para que a in-app notif ja carregue o eventId e o
+  // dispatch FCM rode em paralelo. Falha de qualquer passo do fluxo
+  // central NAO quebra o pagamento.
+  const eventId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : "evt-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  const sourceDeviceId = obterDeviceIdLocal();
+  const eventData = {
+    contratoId: contrato.id,
+    parcelaNumero: parcela?.numero ?? null,
+    valor: valorNotif,
+    modalidade,
+    clienteNome: nomeCliente,
+  };
+  try {
+    await criarNotificationEvent({
+      eventId,
+      type: EVENT_TYPES.PAYMENT_REGISTERED,
+      ownerId: usuario.uid,
+      sourceDeviceId,
+      data: eventData,
+      title: titulo,
+      body: descricaoNotif,
+    });
+  } catch (err) {
+    console.warn("[contract-svc] criarNotificationEvent falhou (ignorado):", err && err.message);
+  }
+  try {
+    await dispatchNotificationEvent({
+      eventId,
+      sourceDeviceId,
+    });
+  } catch (err) {
+    console.warn("[contract-svc] dispatchNotificationEvent falhou (ignorado):", err && err.message);
+  }
+
+  // Notificacao legada (sino). Mantem o tipo legado "pagamento_recebido"
+  // para nao quebrar UI do sino. Propaga eventId para dedup server-side
+  // caso a chamada seja repetida (refresh rapido / onSnapshot re-emit).
+  const notifResultado = await criarNotificacao(usuario.uid, {
     tipo: "pagamento_recebido",
     titulo,
     descricao: descricaoNotif,
     contratoId: contrato.id,
     parcelaNumero: parcela?.numero,
     valor: valorNotif,
+    eventId,
   });
   console.log(
     "[notif] pagamento_recebido criada:",
-    notifId,
+    typeof notifResultado === "string" ? notifResultado : "(skipped)",
     "uid=",
     usuario?.uid,
     "contratoId=",
@@ -725,6 +774,8 @@ export async function processarPagamento(usuario, contrato, parcela, modalidade,
     parcela?.numero,
     "valor=",
     valorNotif,
+    "eventId=",
+    eventId,
   );
 
   // Notificação NATIVA do navegador (Windows/Chrome toast).
@@ -761,6 +812,39 @@ export async function registrarPagamento(usuario, contrato, valorPago, dataPagam
 // Remove um contrato (apenas para o proprietário)
 export async function excluirContrato(usuario, contratoId) {
   if (!usuario || !contratoId) throw new Error("Contexto inválido");
+
+  // === FASE C: evento central + dispatch ANTES do delete ===
+  // Gera eventId para o delete. Disparado antes do deleteDoc para que
+  // o evento central fique registrado mesmo se o deleteDoc falhar
+  // parcialmente (o dispatch falha → status fica pending, mas o evento
+  // existe para retry futuro). Best-effort: try/catch com log.
+  // Nao cria notificacao in-app legada (codigo original nao criava).
+  const eventId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : "evt-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  const sourceDeviceId = obterDeviceIdLocal();
+  try {
+    await criarNotificationEvent({
+      eventId,
+      type: EVENT_TYPES.CONTRACT_DELETED,
+      ownerId: usuario.uid,
+      sourceDeviceId,
+      data: { contratoId },
+      title: "Contrato excluído",
+      body: "Um contrato foi excluído.",
+    });
+  } catch (err) {
+    console.warn("[contract-svc] criarNotificationEvent(delete) falhou (ignorado):", err && err.message);
+  }
+  try {
+    await dispatchNotificationEvent({
+      eventId,
+      sourceDeviceId,
+    });
+  } catch (err) {
+    console.warn("[contract-svc] dispatchNotificationEvent(delete) falhou (ignorado):", err && err.message);
+  }
+
   await deleteDoc(doc(db, "usuarios", usuario.uid, "contratos", contratoId));
 }
 

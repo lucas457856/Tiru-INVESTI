@@ -38,6 +38,12 @@
 import { useEffect, useRef } from "react";
 import { parcelasDoContrato } from "../services/contractService";
 import { criarNotificacao } from "../services/notificationsService";
+import {
+  criarNotificationEvent,
+  dispatchNotificationEvent,
+  obterDeviceIdLocal,
+} from "../services/notificationEvents";
+import { EVENT_TYPES } from "../utils/notificationEventTypes";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
 import { formatarMoeda } from "../utils/formatadores";
 import {
@@ -167,11 +173,50 @@ export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
         const nomeCliente = c?.clienteNome || c?.nome || "cliente";
         const descricao = `${nomeCliente} · parcela ${p.numero} · ${formatarMoeda(valor)}`;
 
-        // Mesma sequência dos outros 2 eventos:
-        //   1) criarNotificacao (Firestore) — fire-and-forget
-        //   2) NA success branch: mostrarNotificacaoNativa (best-effort)
-        // Falha do (1) NÃO dispara o (2). Falha do (2) é silenciada
-        // internamente por `mostrarNotificacaoNativa`.
+        // === FASE C: evento central + dispatch (best-effort) ===
+        // Gera eventId uma vez por deteccao. O tipo canonico
+        // (INSTALLMENT_DUE_TODAY / INSTALLMENT_OVERDUE) e o que vai para
+        // o sistema central. O tipo legado ("parcela_vencendo" /
+        // "parcela_atrasada") permanece no criarNotificacao para manter
+        // o sino igual.
+        const eventId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+          ? crypto.randomUUID()
+          : "evt-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+        const sourceDeviceId = obterDeviceIdLocal();
+        const canonicalType = tipo === "parcela_vencendo"
+          ? EVENT_TYPES.INSTALLMENT_DUE_TODAY
+          : EVENT_TYPES.INSTALLMENT_OVERDUE;
+
+        // Central event + dispatch: best-effort, nao bloqueia o sino legado.
+        // Falha de qualquer um so e logada.
+        criarNotificationEvent({
+          eventId,
+          type: canonicalType,
+          ownerId: ownerUid,
+          sourceDeviceId,
+          data: {
+            contratoId: c.id,
+            parcelaNumero: p.numero,
+            valor,
+            vencimentoISO: vStr,
+            clienteNome: nomeCliente,
+          },
+          title: titulo,
+          body: descricao,
+        })
+          .then(() =>
+            dispatchNotificationEvent({
+              eventId,
+              sourceDeviceId,
+            }).catch((err) => {
+              console.warn("[notif-venc] dispatchNotificationEvent falhou (ignorado):", err && err.message);
+            }),
+          )
+          .catch((err) => {
+            console.warn("[notif-venc] criarNotificationEvent falhou (ignorado):", err && err.message);
+          });
+
+        // Notificacao legada (sino). Propaga eventId para dedup server-side.
         criarNotificacao(ownerUid, {
           tipo,
           titulo,
@@ -179,6 +224,7 @@ export function useNotificadorVencimentos(contratosAtivos, ownerUid) {
           contratoId: c.id,
           parcelaNumero: p.numero,
           valor,
+          eventId,
         })
           .then(() => {
             mostrarNotificacaoNativa(titulo, descricao, {

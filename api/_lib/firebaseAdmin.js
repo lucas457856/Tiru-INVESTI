@@ -15,6 +15,7 @@
 // para que o SDK consiga parsear a chave PEM.
 
 import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 
 let cachedApp = null;
 
@@ -53,4 +54,18 @@ export function getFirebaseAdmin() {
     }),
   });
   return cachedApp;
+}
+
+// Retorna a instância do Firebase Cloud Messaging (Admin).
+// Lazily inicializado: só faz `getMessaging(...)` na primeira chamada,
+// reaproveitando o app já cacheado em `getFirebaseAdmin()`.
+//
+// Falha de forma explícita se o Admin SDK não estiver configurado
+// (mesma flag que `getFirebaseAdmin()` lança). Chamadas que dependem
+// de FCM (api/notifications/dispatch.js) devem envolver o uso deste
+// getter em try/catch para que uma ausência de credenciais NÃO
+// derrube a operação principal (ex: criar contrato).
+export function getFirebaseMessaging() {
+  const app = getFirebaseAdmin();
+  return getMessaging(app);
 }

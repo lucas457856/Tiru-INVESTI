@@ -12,6 +12,7 @@ import NovaSenha from "../pages/NovaSenha";
 import AcessoBloqueado from "../pages/AcessoBloqueado";
 import RotaProtegida from "../components/RotaProtegida";
 import RotaDono from "../components/RotaDono";
+import NotificationSystem from "../components/NotificationSystem";
 
 import Dashboard from "../pages/Dashboard";
 import Calendario from "../pages/Calendario";
@@ -57,6 +58,7 @@ export default function AppRoutes() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <NotificationSystem />
         <BrowserRouter>
         <Routes>
 

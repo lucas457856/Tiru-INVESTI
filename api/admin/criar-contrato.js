@@ -371,6 +371,84 @@ export default async function handler(req, res) {
     return bad(res, 403, "Cliente não pertence ao proprietário.");
   }
 
+  // 10b) Validação do `deviceId` de origem (Fase A — notificações sincronizadas).
+  //
+  // O frontend envia no body o `deviceId` do dispositivo que originou a
+  // ação (UUID v4 persistido no localStorage). Aqui validamos que:
+  //   1. O `deviceId` é uma string não-vazia (até 200 chars).
+  //   2. Existe um doc em `usuarios/{chamadorUid}/devices/{deviceId}` —
+  //      ou seja, o dispositivo ESTÁ REGISTRADO para o chamador.
+  //   3. O doc do device aponta para o mesmo `ownerUid` (não pode ser
+  //      um device de outro dono).
+  //   4. O `userRole` do doc do device bate com o perfil do chamador
+  //      (defesa em profundidade: não dá pra usar um device de
+  //      funcionário logado como dono, nem vice-versa).
+  //
+  // Por que essa validação é importante:
+  //   O `sourceDeviceId` é gravado no evento e usado pelo `dispatch`
+  //   para EXCLUIR esse device do envio FCM (evita tripla notificação:
+  //   in-app + FCM + nativa local). Se aceitássemos qualquer string
+  //   como `sourceDeviceId`, um client malicioso poderia fazer com que
+  //   outros devices NÃO recebessem o push.
+  //
+  // Quando `deviceId` é omitido (chamada puramente server-side: cron,
+  // admin, import), o evento é gravado com `sourceDeviceId: null` e
+  // o dispatch envia FCM para todos os devices elegíveis.
+  const deviceIdRaw = typeof body.deviceId === "string" ? body.deviceId.trim() : "";
+  let sourceDeviceId = null;
+  if (deviceIdRaw) {
+    if (deviceIdRaw.length > 200) {
+      return bad(res, 400, "deviceId inválido (até 200 chars).");
+    }
+    let deviceSnap;
+    try {
+      deviceSnap = await dbAdmin
+        .collection("usuarios")
+        .doc(chamadorUid)
+        .collection("devices")
+        .doc(deviceIdRaw)
+        .get();
+    } catch (err) {
+      console.error("[admin/criar-contrato] Leitura do device falhou:", err?.message);
+      return bad(res, 500, "Não foi possível validar o dispositivo de origem.");
+    }
+    if (!deviceSnap.exists) {
+      return bad(
+        res,
+        400,
+        "Dispositivo de origem não registrado. Atualize a página para registrar este dispositivo antes de continuar.",
+      );
+    }
+    const deviceData = deviceSnap.data() || {};
+    // Defesa em profundidade: o path já garante que o device é do chamador,
+    // mas o Admin SDK bypassa as rules, então validamos explicitamente.
+    if (deviceData.ownerUid !== donoUid) {
+      console.error(
+        "[admin/criar-contrato] deviceId com ownerUid divergente:",
+        `chamador=${chamadorUid}`,
+        `donoUid=${donoUid}`,
+        `device.ownerUid=${deviceData.ownerUid}`,
+        `deviceId=${deviceIdRaw}`,
+      );
+      return bad(res, 403, "Dispositivo de origem não pertence a este proprietário.");
+    }
+    // Consistência de papel: se o chamador é dono, o device deve ser de
+    // dono; se é funcionário, deve ser de funcionário. Isso evita que
+    // um device compartilhado entre papéis (cenário improvável mas
+    // possível em testes/HMR) seja aceito como origem.
+    const expectedRole = ehFuncionario ? "funcionario" : "owner";
+    if (deviceData.userRole && deviceData.userRole !== expectedRole) {
+      console.error(
+        "[admin/criar-contrato] deviceId com userRole divergente:",
+        `expected=${expectedRole}`,
+        `device.userRole=${deviceData.userRole}`,
+        `deviceId=${deviceIdRaw}`,
+      );
+      return bad(res, 403, "Dispositivo de origem incompatível com o perfil do chamador.");
+    }
+    sourceDeviceId = deviceIdRaw;
+  }
+
   // 11) Cria o contrato
   const resumo = calcularParcelas({ valorEmprestado, numeroParcelas, juros, tipoJuros });
   const novoContrato = {
@@ -434,9 +512,70 @@ export default async function handler(req, res) {
     console.error("[admin/criar-contrato] criarNotificacao falhou:", err?.code, err?.message);
   }
 
+  // 13) Evento central (Fase A — arquitetura de notificações sincronizadas).
+  //
+  // Gera um `eventId` server-side e grava o evento em
+  // `usuarios/{ownerId}/notificationEvents/{eventId}`. O `dispatch`
+  // (envio FCM para os devices) é responsabilidade do CLIENTE
+  // (`src/services/notificationEvents.js` chama /api/notifications/dispatch
+  // após receber este id). Razão: separar a gravação do evento do envio
+  // FCM permite que uma falha de FCM não impeça a notificação in-app.
+  //
+  // `sourceDeviceId` foi validado no passo 10b — o device precisa
+  // existir em `usuarios/{chamadorUid}/devices/{deviceId}` e apontar
+  // para o mesmo `ownerUid` e `userRole` do chamador. Se o chamador
+  // omitiu o `deviceId` (chamada server-side pura), o evento é
+  // gravado com `sourceDeviceId: null` e o dispatch envia FCM para
+  // todos os devices elegíveis.
+  //
+  // Falha aqui NÃO bloqueia o fluxo principal (a criação do contrato
+  // já está commitada no Firestore). O cliente recebe `eventId` apenas
+  // se a gravação teve sucesso.
+  let eventId = null;
+  try {
+    eventId = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    await dbAdmin
+      .collection("usuarios")
+      .doc(donoUid)
+      .collection("notificationEvents")
+      .doc(eventId)
+      .set({
+        eventId,
+        type: "CONTRACT_CREATED",
+        title: "Novo contrato criado",
+        body: `Contrato de R$ ${valorEmprestado.toFixed(2).replace(".", ",")} com ${clienteDoc.nomeCompleto || clienteDoc.nome || "cliente"}`,
+        data: {
+          contratoId: docRef.id,
+          clienteId,
+          clienteNome: clienteDoc.nomeCompleto || clienteDoc.nome || "",
+          valor: valorEmprestado,
+        },
+        sourceDeviceId,
+        ownerId: donoUid,
+        createdBy: { uid: chamadorUid, role: ehFuncionario ? "funcionario" : "owner" },
+        createdAt: FieldValue.serverTimestamp(),
+        status: "created",
+        dispatchedAt: null,
+      });
+    console.log(
+      "[admin/criar-contrato] evento criado:",
+      `eventId=${eventId}`,
+      `type=CONTRACT_CREATED`,
+      `ownerId=${donoUid}`,
+      `contratoId=${docRef.id}`,
+      `sourceDevice=${sourceDeviceId || "(server-side)"}`,
+    );
+  } catch (err) {
+    console.error("[admin/criar-contrato] criar evento falhou:", err?.code, err?.message);
+    // Não bloqueia o fluxo. O cliente pode re-tentar via /api/notifications/register-event.
+  }
+
   return res.status(201).json({
     ok: true,
     id: docRef.id,
     contrato: { id: docRef.id, ...novoContrato },
+    eventId,
   });
 }

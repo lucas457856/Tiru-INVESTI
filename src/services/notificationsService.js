@@ -89,6 +89,16 @@ export function observarNotificacoes(uid, cb, onError) {
 /**
  * Cria uma nova notificação para o usuário.
  *
+ * FASE C: aceita `dados.eventId` (string) opcional. Quando informado,
+ * verifica se ja existe documento com o mesmo eventId em
+ * `usuarios/{uid}/notificacoes`. Se sim, retorna
+ * `{ skipped: true, reason: "duplicate_eventId", id }` SEM criar novo.
+ * Se nao, cria normalmente e persiste o eventId no documento para
+ * que futuras chamadas deduplicem contra o mesmo evento.
+ *
+ * Quando `eventId` nao e informado, o comportamento e identico ao
+ * anterior (criarNotificacao legado) — sem query extra, sem campo novo.
+ *
  * @param {string} uid
  * @param {{
  *   tipo: string,
@@ -97,14 +107,40 @@ export function observarNotificacoes(uid, cb, onError) {
  *   contratoId?: string,
  *   parcelaNumero?: number,
  *   valor?: number,
+ *   eventId?: string,
  * }} dados
- * @returns {Promise<string>} id da notificação criada
+ * @returns {Promise<string | { skipped: true, reason: "duplicate_eventId", id: string }>}
+ *   - string: id do doc criado (fluxo normal, ou quando eventId nao foi passado)
+ *   - { skipped, reason, id }: ja existia doc com mesmo eventId (dedup Fase C)
  */
 export async function criarNotificacao(uid, dados) {
   if (!uid) throw new Error("criarNotificacao: uid obrigatório");
   if (!dados || !dados.tipo || !dados.titulo) {
     throw new Error("criarNotificacao: tipo e titulo são obrigatórios");
   }
+  const eventId = typeof dados.eventId === "string" && dados.eventId.length > 0
+    ? dados.eventId
+    : null;
+
+  // Dedup por eventId (Fase C): se ja existe doc com mesmo eventId,
+  // nao cria segundo. Reaproveita o id existente.
+  if (eventId) {
+    try {
+      const dupQuery = query(
+        collection(db, "usuarios", uid, "notificacoes"),
+        where("eventId", "==", eventId),
+        limit(1)
+      );
+      const dupSnap = await getDocs(dupQuery);
+      if (!dupSnap.empty) {
+        return { skipped: true, reason: "duplicate_eventId", id: dupSnap.docs[0].id };
+      }
+    } catch (err) {
+      // Falha de query nao bloqueia a criacao - logamos e seguimos.
+      console.warn("[notif-svc] dedup query falhou:", err && err.message);
+    }
+  }
+
   const ref = await addDoc(collection(db, "usuarios", uid, "notificacoes"), {
     tipo: dados.tipo,
     titulo: dados.titulo,
@@ -112,6 +148,7 @@ export async function criarNotificacao(uid, dados) {
     contratoId: dados.contratoId || null,
     parcelaNumero: dados.parcelaNumero ?? null,
     valor: typeof dados.valor === "number" ? dados.valor : null,
+    eventId,
     lida: false,
     criadaEm: serverTimestamp(),
   });
