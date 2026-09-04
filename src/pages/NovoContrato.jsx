@@ -20,7 +20,8 @@ import { useAuth } from "../context/useAuth";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { useDonoAdmin } from "../hooks/useDonoAdmin";
 import { db } from "../services/firebase";
-import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { useContratos } from "../hooks/useContratos";
 import { formatarMoeda, formatarData } from "../utils/formatadores";
 import { buscarContrato, statusContrato, parcelasDoContrato, excluirContrato } from "../services/contractService";
 import { mostrarNotificacaoNativa } from "../utils/notifications";
@@ -63,12 +64,12 @@ export default function NovoContrato() {
   // /api/admin/criar-contrato, que valida o limite no Admin SDK
   // e o Firestore Rules nega create direto do client SDK.
   const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
-  // Contagem atual de contratos do escopo efetivo. Mantida em
-  // tempo real pelo onSnapshot para detectar "limite atingido"
-  // entre o momento em que o usuário abriu a página e o
-  // instante do submit. No modo edição, a checagem do limite
-  // não se aplica (editar não cria novo documento).
-  const [qtdContratos, setQtdContratos] = useState(0);
+  // Contagem atual de contratos do escopo efetivo. Vem da fonte única
+  // (useContratos / SyncManager) — 1 listener de `usuarios/{uid}/contratos`
+  // por sessão, compartilhado com o resto do app. No modo edição, a
+  // checagem do limite não se aplica (editar não cria novo documento).
+  const { data: listaContratos } = useContratos();
+  const qtdContratos = listaContratos.length;
 
   // Formulário
   const [valor, setValor] = useState("");
@@ -129,20 +130,6 @@ export default function NovoContrato() {
       setClientes(lista);
       setCarregandoClientes(false);
     }).catch(() => setCarregandoClientes(false));
-  }, [effectiveUid]);
-
-  // Acompanha a contagem atual de contratos do escopo efetivo
-  // em tempo real. Quando não há effectiveUid, o estado
-  // permanece em 0 (default) e nenhum listener é aberto —
-  // sem setState dentro do effect. Usado para checar
-  // "limite de contratos atingido" no momento do submit.
-  useEffect(() => {
-    if (!effectiveUid) return undefined;
-    const q = query(
-      collection(db, "usuarios", effectiveUid, "contratos")
-    );
-    const unsub = onSnapshot(q, (snap) => setQtdContratos(snap.size));
-    return unsub;
   }, [effectiveUid]);
 
   // Regra de bloqueio (espelha Emprestimos.jsx). limite.contratos

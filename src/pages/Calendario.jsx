@@ -7,10 +7,11 @@ import {
   CalendarDays,
   LoaderCircle,
 } from "lucide-react";
-import { collection, doc, getDoc, onSnapshot, query } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import { db } from "../services/firebase";
 import { parcelasDoContrato } from "../services/contractService";
 import { calculatePenalty } from "../services/paymentCalculations";
@@ -90,34 +91,15 @@ export default function Calendario() {
   const effectiveUid = useEffectiveUid();
 
   // ---- Estados de dados (idênticos ao padrão de Dashboard.jsx / Parcelas.jsx)
-  const [contratos, setContratos] = useState([]);
+  // Contratos via fonte única (useContratos / SyncManager) — compartilhado
+  // com Dashboard/Emprestimos/Parcelas/Relatorios/BackupDados. 1 listener
+  // de `usuarios/{uid}/contratos` por sessão, independente da página.
+  // `carregando`/`erro` derivados do hook preservam o comportamento original
+  // (primeiro snapshot → carregando=false; falha → string de erro amigável).
+  const { data: contratos, loading: hookLoading, error: hookError } = useContratos();
   const [clientes, setClientes] = useState({}); // clienteId -> cliente
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState(null);
-
-  // ---- Carrega contratos do escopo efetivo em tempo real
-  // MESMA assinatura de Dashboard.jsx:147-157 e Parcelas.jsx:328-344:
-  //   collection(db,"usuarios",effectiveUid,"contratos") via onSnapshot.
-  useEffect(() => {
-    if (!effectiveUid) return undefined;
-    const unsub = onSnapshot(
-      query(collection(db, "usuarios", effectiveUid, "contratos")),
-      (snap) => {
-        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setCarregando(false);
-        setErro(null);
-      },
-      (err) => {
-        console.error("[CALENDARIO] erro ao carregar contratos:", {
-          code: err?.code,
-          message: err?.message,
-        });
-        setErro("Não foi possível carregar suas cobranças.");
-        setCarregando(false);
-      }
-    );
-    return unsub;
-  }, [effectiveUid]);
+  const carregando = hookLoading;
+  const erro = hookError ? "Não foi possível carregar suas cobranças." : null;
 
   // ---- Carrega clientes REFERENCIADOS pelos contratos (em lote, com cache).
   // Estratégia idêntica a Parcelas.jsx:350-385: getDoc em paralelo apenas

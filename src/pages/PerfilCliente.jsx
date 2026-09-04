@@ -14,15 +14,14 @@ import {
   X,
 } from "lucide-react";
 import {
-  collection,
   deleteDoc,
   doc,
   getDoc,
-  onSnapshot,
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import { db } from "../services/firebase";
 import {
   formatarMoeda,
@@ -66,7 +65,13 @@ export default function PerfilCliente() {
   const [cliente, setCliente] = useState(null);
   // carregando | pronto | nao-encontrado | erro
   const [estado, setEstado] = useState("carregando");
-  const [contratos, setContratos] = useState([]);
+  // Todos os contratos do escopo efetivo, em tempo real, compartilhados
+  // com o resto do app via SyncManager (Fase 1). Mesmo formato `{ id, ...data }`.
+  // `contratos` (vinculados a este cliente) é derivado abaixo por filtro
+  // client-side — antes era o callback do `onSnapshot` (linhas 113-131 da
+  // versão anterior). Preserva-se o filtro exato: `c.clienteId === cliente.id`
+  // OU fallback `(sem clienteId) && c.nome === cliente.nomeCompleto`.
+  const { data: todosContratos } = useContratos();
   const [excluindo, setExcluindo] = useState(false);
   const [docAberto, setDocAberto] = useState(null); // documento no modal
 
@@ -110,25 +115,19 @@ export default function PerfilCliente() {
     };
   }, [effectiveUid, id]);
 
-  // Escuta os contratos do escopo efetivo e filtra os vinculados a este cliente
-  useEffect(() => {
-    if (!effectiveUid || !cliente) return;
-    const unsub = onSnapshot(
-      collection(db, "usuarios", effectiveUid, "contratos"),
-      (snap) => {
-        const vinculados = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter(
-            (c) =>
-              c.clienteId === cliente.id ||
-              (!c.clienteId && c.nome === cliente.nomeCompleto)
-          );
-        setContratos(vinculados);
-      },
-      (err) => console.error("Erro ao ouvir contratos:", err)
+  // Filtra os contratos do escopo efetivo, vinculados a este cliente.
+  // Equivalente exato ao filtro do `onSnapshot` antigo (linhas 113-131 da
+  // versão anterior): `c.clienteId === cliente.id` OU (sem `clienteId` E
+  // `c.nome === cliente.nomeCompleto`). Quando o `cliente` ainda não
+  // carregou, retorna `[]` — idêntico ao `if (!effectiveUid || !cliente) return;`.
+  const contratos = useMemo(() => {
+    if (!cliente) return [];
+    return todosContratos.filter(
+      (c) =>
+        c.clienteId === cliente.id ||
+        (!c.clienteId && c.nome === cliente.nomeCompleto)
     );
-    return unsub;
-  }, [effectiveUid, cliente]);
+  }, [todosContratos, cliente]);
 
   // Totais calculados a partir dos contratos vinculados (sem valores fixos)
   const totais = useMemo(() => {

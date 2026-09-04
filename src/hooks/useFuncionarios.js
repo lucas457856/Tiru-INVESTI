@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   onSnapshot,
@@ -6,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useEffectiveUid } from "./useEffectiveUid";
+import { useContratos } from "./useContratos";
 
 // Hook que observa:
 //   1. A subcoleção /usuarios/{donoUid}/funcionarios (tempo real)
@@ -26,8 +27,13 @@ import { useEffectiveUid } from "./useEffectiveUid";
 export function useFuncionarios() {
   const ownerUid = useEffectiveUid();
   const [funcionarios, setFuncionarios] = useState([]);
-  const [contagemPorAuthUid, setContagemPorAuthUid] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // Contratos do escopo efetivo, em tempo real, compartilhados com o
+  // resto do app via SyncManager (Fase 1). Mesmo formato `{ id, ...data }`.
+  // Substitui o `onSnapshot` próprio de `usuarios/{ownerUid}/contratos`
+  // que existia nas linhas 55-79 da versão anterior (Fase 2.5).
+  const { data: contratos } = useContratos();
 
   // 1) Lista de funcionários
   useEffect(() => {
@@ -52,31 +58,24 @@ export function useFuncionarios() {
     return unsub;
   }, [ownerUid]);
 
-  // 2) Contagem de contratos por authUid (createdBy)
-  useEffect(() => {
-    if (!ownerUid) {
-      setContagemPorAuthUid({});
-      return;
+  // 2) Contagem de contratos por authUid (createdBy) — derivado dos
+  // contratos acima (sem listener próprio). Mesma lógica do effect
+  // antigo: conta APENAS contratos com `createdBy` definido
+  // (contratos antigos sem `createdBy` são ignorados).
+  //
+  // Quando `ownerUid` é `null`, `useContratos().data` é `[]`, e o
+  // `useMemo` itera array vazio → `{}` (idêntico ao
+  // `setContagemPorAuthUid({})` do effect antigo).
+  const contagemPorAuthUid = useMemo(() => {
+    const cont = {};
+    for (const c of contratos) {
+      const cBy = c.createdBy;
+      if (cBy) {
+        cont[cBy] = (cont[cBy] || 0) + 1;
+      }
     }
-    const unsub = onSnapshot(
-      collection(db, "usuarios", ownerUid, "contratos"),
-      (snap) => {
-        const cont = {};
-        for (const d of snap.docs) {
-          const data = d.data() || {};
-          const cBy = data.createdBy;
-          // Conta APENAS contratos com createdBy definido (criados
-          // explicitamente por alguém — pode ser o dono ou um func).
-          // Contratos antigos sem createdBy são ignorados aqui.
-          if (cBy) {
-            cont[cBy] = (cont[cBy] || 0) + 1;
-          }
-        }
-        setContagemPorAuthUid(cont);
-      },
-    );
-    return unsub;
-  }, [ownerUid]);
+    return cont;
+  }, [contratos]);
 
   return { funcionarios, contagemPorAuthUid, loading };
 }

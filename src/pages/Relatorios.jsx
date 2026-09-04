@@ -34,10 +34,11 @@ import {
   ListChecks,
   CalendarDays,
 } from "lucide-react";
-import { collection, getDocs, onSnapshot } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import NotificationBellButton from "../components/NotificationBellButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import { db } from "../services/firebase";
 import {
   parcelasDoContrato,
@@ -122,8 +123,12 @@ export default function Relatorios() {
   const effectiveUid = useEffectiveUid();
 
   // ---- Estados
-  const [contratos, setContratos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  // Contratos do escopo efetivo, em tempo real, compartilhados com o
+  // resto do app via SyncManager (Fase 1). Mesmo formato `{ id, ...data }`.
+  // `carregando` é derivado do hook — o `setCarregando(true)` do início
+  // do effect antigo é absorvido pelo estado inicial `loading: true` do
+  // `useContratos()` (ausência de cache na primeira carga).
+  const { data: contratos, loading: carregando } = useContratos();
   const [aba, setAba] = useState("Todos");
   const [periodo, setPeriodo] = useState("Este mês");
   const [tipo, setTipo] = useState("Todos");
@@ -136,24 +141,6 @@ export default function Relatorios() {
   const [graficoFiltro, setGraficoFiltro] = useState("Últimos 6 meses");
   const [grafDataIni, setGrafDataIni] = useState("");
   const [grafDataFim, setGrafDataFim] = useState("");
-
-  // ---- Carrega contratos em tempo real
-  useEffect(() => {
-    if (!effectiveUid) return undefined;
-    setCarregando(true);
-    const unsub = onSnapshot(
-      collection(db, "usuarios", effectiveUid, "contratos"),
-      (snap) => {
-        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setCarregando(false);
-      },
-      (err) => {
-        console.error("Erro ao carregar contratos (Relatórios):", err);
-        setCarregando(false);
-      }
-    );
-    return unsub;
-  }, [effectiveUid]);
 
   // ---- Carrega TODOS os pagamentos do escopo efetivo (fontes reais).
   // Estrutura Firestore: usuarios/{uid}/contratos/{cid}/pagamentos/{pid}.

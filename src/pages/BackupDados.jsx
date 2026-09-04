@@ -11,6 +11,7 @@ import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import { db } from "../services/firebase";
 
 const STATUS = ["Todos", "Ativos", "Quitados"];
@@ -36,22 +37,22 @@ export default function BackupDados() {
   const [status, setStatus] = useState("Todos");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
-  const [contratos, setContratos] = useState([]);
+  // Contratos: fonte única via useContratos() (SyncManager compartilhado
+  // com Dashboard/Emprestimos/Parcelas/Relatorios). Apenas `data` é
+  // consumido; loading/error/fromCache são responsabilidade do hook.
+  // Clientes permanecem com onSnapshot local (escopo da Fase 2.6 = só contratos).
+  const { data: contratos } = useContratos();
   const [clientes, setClientes] = useState([]);
   const [gerando, setGerando] = useState(false);
 
-  // Escuta contratos e clientes em tempo real
+  // Escuta clientes em tempo real
   useEffect(() => {
     if (!effectiveUid) return;
-    const unsubC = onSnapshot(
-      query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "asc")),
-      (snap) => setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
     const unsubL = onSnapshot(
       query(collection(db, "usuarios", effectiveUid, "clientes"), orderBy("nome", "asc")),
       (snap) => setClientes(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
-    return () => { unsubC(); unsubL(); };
+    return () => { unsubL(); };
   }, [effectiveUid]);
 
   const filtrados = useMemo(() => {

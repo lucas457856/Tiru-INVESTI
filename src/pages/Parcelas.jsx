@@ -31,14 +31,12 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import {
-  collection,
-  onSnapshot,
-  query,
   doc,
   getDoc,
 } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import { useEffectiveUid } from "../hooks/useEffectiveUid";
+import { useContratos } from "../hooks/useContratos";
 import { db } from "../services/firebase";
 import { parcelasDoContrato } from "../services/contractService";
 import {
@@ -275,10 +273,17 @@ export default function Parcelas() {
   const [searchParams] = useSearchParams();
 
   // Estados de UI / dados
-  const [contratos, setContratos] = useState([]);
+  // Contratos do escopo efetivo, em tempo real, compartilhados com o
+  // resto do app via SyncManager (Fase 1). Mesmo formato `{ id, ...data }`.
+  // `carregando` e `erro` são derivados do hook para preservar a UI atual
+  // (a string de erro é a mesma do effect antigo).
+  const {
+    data: contratos,
+    loading: carregando,
+    error: erroHook,
+  } = useContratos();
+  const erro = erroHook ? "Não foi possível carregar suas parcelas." : null;
   const [clientes, setClientes] = useState({}); // mapa clienteId -> cliente
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState(null);
   // Filtro inicial pode vir via query string (ex: /parcelas?filtro=atrasadas),
   // permitindo links diretos como o indicador de atraso do Dashboard.
   // Aceita apenas IDs válidos do array FILTROS — caso contrário cai em "hoje".
@@ -323,25 +328,6 @@ export default function Parcelas() {
       document.removeEventListener("keydown", onKey);
     };
   }, [dataPickerAberto]);
-
-  // ---- Carrega contratos do escopo efetivo (tempo real)
-  useEffect(() => {
-    if (!effectiveUid) return;
-    const unsub = onSnapshot(
-      query(collection(db, "usuarios", effectiveUid, "contratos")),
-      (snap) => {
-        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setCarregando(false);
-        setErro(null);
-      },
-      (err) => {
-        console.error("Erro ao carregar contratos (Parcelas):", err);
-        setErro("Não foi possível carregar suas parcelas.");
-        setCarregando(false);
-      }
-    );
-    return unsub;
-  }, [effectiveUid]);
 
   // ---- Carrega clientes REFERENCIADOS pelos contratos.
   // Estratégia em lote: coleta clienteId únicos e faz getDoc em paralelo

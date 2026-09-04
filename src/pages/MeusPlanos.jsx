@@ -29,6 +29,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { useContratos } from "../hooks/useContratos";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
@@ -52,10 +53,13 @@ export default function MeusPlanos() {
 
   // Contadores em tempo real. Mantemos em estado separado (em vez de
   // guardar a lista inteira) porque a página só precisa do tamanho.
+  // Contratos via fonte única (useContratos / SyncManager) — 1 listener
+  // de `usuarios/{uid}/contratos` por sessão, compartilhado com o
+  // restante do app. Só precisamos do tamanho (data.length).
   const [qtdClientes, setQtdClientes] = useState(0);
-  const [qtdContratos, setQtdContratos] = useState(0);
   const [carregandoClientes, setCarregandoClientes] = useState(true);
-  const [carregandoContratos, setCarregandoContratos] = useState(true);
+  const { data: listaContratos, loading: carregandoContratos } = useContratos();
+  const qtdContratos = listaContratos.length;
 
   // Clientes: query por ownerId (mesmo filtro usado em Clientes.jsx
   // e em NovoContrato.jsx). Funcionários herdam o ownerUid via
@@ -73,23 +77,6 @@ export default function MeusPlanos() {
         setCarregandoClientes(false);
       },
       () => setCarregandoClientes(false),
-    );
-    return unsub;
-  }, [effectiveUid]);
-
-  // Contratos: subcoleção por usuário, mesmo padrão de
-  // Emprestimos.jsx e NovoContrato.jsx. Não precisa de filtro
-  // adicional porque o Firestore Rules + path já isolam por dono.
-  useEffect(() => {
-    if (!effectiveUid) return undefined;
-    const q = query(collection(db, "usuarios", effectiveUid, "contratos"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setQtdContratos(snap.size);
-        setCarregandoContratos(false);
-      },
-      () => setCarregandoContratos(false),
     );
     return unsub;
   }, [effectiveUid]);

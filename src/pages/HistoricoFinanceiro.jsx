@@ -46,6 +46,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { useContratos } from "../hooks/useContratos";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import { db } from "../services/firebase";
@@ -161,19 +162,35 @@ export default function HistoricoFinanceiro() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
 
+  // Lista de contratos via fonte única (useContratos / SyncManager) —
+  // 1 listener de `usuarios/{uid}/contratos` por sessão, compartilhado
+  // com o resto do app. Sub-coleções filhas (pagamentos, jurosRecebidos)
+  // continuam via getDocs one-shot por contrato no useEffect abaixo.
+  const { data: contratos, loading: contratosLoading, error: contratosError } = useContratos();
+
+  // Variável derivada para apresentação: prioriza erro do hook (snapshot
+  // falhou) sobre o estado local (erro das sub-coleções no useEffect).
+  // NÃO usa setErro dentro de useEffect — apenas consome o erro do hook
+  // no render. `erro` (useState) continua controlado localmente pelo
+  // fluxo de carregamento das sub-coleções.
+  const erroExibicao = contratosError?.message || erro;
+
   useEffect(() => {
     if (!effectiveUid) return undefined;
+    // Espera o snapshot de contratos chegar (sem cache OU com cache
+    // ainda não confirmado pelo Firestore). Se já temos `data` válido,
+    // `contratosLoading` é false e prosseguimos.
+    if (contratosLoading) return undefined;
     let cancelado = false;
 
     async function carregar() {
       setCarregando(true);
       setErro(null);
       try {
-        // 1) Todos os contratos do escopo efetivo (sem slice/limit).
-        const contratosSnap = await getDocs(
-          query(collection(db, "usuarios", effectiveUid, "contratos"))
-        );
-        const contratos = contratosSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // 1) Contratos vêm do useContratos() (fonte única).
+        //    Sub-coleções filhas (pagamentos, jurosRecebidos)
+        //    continuam via getDocs one-shot por contrato.
+
 
         // 2) Para cada contrato, busca pagamentos e jurosRecebidos em paralelo.
         //    Erros em subcoleções individuais NÃO derrubam o histórico inteiro:
@@ -303,7 +320,7 @@ export default function HistoricoFinanceiro() {
     return () => {
       cancelado = true;
     };
-  }, [effectiveUid]);
+  }, [effectiveUid, contratos, contratosLoading]);
 
   const totalEventos = useMemo(() => eventos.length, [eventos]);
 
@@ -338,7 +355,7 @@ export default function HistoricoFinanceiro() {
           )}
 
           {/* Erro */}
-          {!carregando && erro && (
+          {!carregando && erroExibicao && (
             <div className="rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-5 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
@@ -346,14 +363,14 @@ export default function HistoricoFinanceiro() {
                   Não foi possível carregar o histórico
                 </p>
                 <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-300/80">
-                  {erro}
+                  {erroExibicao}
                 </p>
               </div>
             </div>
           )}
 
           {/* Vazio */}
-          {!carregando && !erro && totalEventos === 0 && (
+          {!carregando && !erroExibicao && totalEventos === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
               <Inbox className="w-10 h-10" />
               <p className="mt-3 text-sm font-semibold">
@@ -363,7 +380,7 @@ export default function HistoricoFinanceiro() {
           )}
 
           {/* Timeline */}
-          {!carregando && !erro && totalEventos > 0 && (
+          {!carregando && !erroExibicao && totalEventos > 0 && (
             <div className="relative pl-12 sm:pl-14">
               <div className="absolute left-5 sm:left-6 top-3 bottom-3 w-px bg-slate-200 dark:bg-slate-800" />
 

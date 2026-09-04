@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -6,14 +6,12 @@ import {
   FileText,
   Lock,
 } from "lucide-react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import NotificationBellButton from "../components/NotificationBellButton";
-import { useEffectiveUid } from "../hooks/useEffectiveUid";
 import { useDonoAdmin } from "../hooks/useDonoAdmin";
-import { db } from "../services/firebase";
+import { useContratos } from "../hooks/useContratos";
 import { numeroCurto } from "../utils/formatadores";
 import { calculateDebtRemaining, calcularStatusContrato } from "../services/paymentCalculations";
 
@@ -40,7 +38,6 @@ function statusContrato(c, hoje) {
 
 export default function Emprestimos() {
   const navigate = useNavigate();
-  const effectiveUid = useEffectiveUid();
   // Limites, permissões e status do DONO (defaults permissivos
   // aplicados automaticamente — ver useDonoAdmin). Usado para
   // desabilitar o botão "Novo contrato" quando o limite é atingido,
@@ -50,7 +47,9 @@ export default function Emprestimos() {
   // e o Firestore Rules nega create direto do client SDK.
   const { permissoes, limites, status: statusDono, plan, loading: loadingDono } = useDonoAdmin();
 
-  const [contratos, setContratos] = useState([]);
+  // Contratos do escopo efetivo, em tempo real, compartilhados com o
+  // resto do app via SyncManager (Fase 1). Mesmo formato `{ id, ...data }`.
+  const { data: contratos } = useContratos();
   const [status, setStatus] = useState("Todos");
   const [busca, setBusca] = useState("");
 
@@ -80,25 +79,6 @@ export default function Emprestimos() {
     if (cadastroBloqueado) return;
     navigate("/contratos/novo");
   }
-
-  // Escuta os contratos do escopo efetivo em tempo real
-  useEffect(() => {
-    if (!effectiveUid) return;
-    const unsub = onSnapshot(
-      query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "desc")),
-      (snap) => {
-        setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      },
-      (err) => {
-        console.error("[CONTRATOS] erro:", {
-          code: err.code,
-          message: err.message,
-          effectiveUid,
-        });
-      }
-    );
-    return unsub;
-  }, [effectiveUid]);
 
   // Filtra por status real e busca
   const filtrados = useMemo(() => {
