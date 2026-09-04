@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
   FileText,
@@ -71,12 +71,6 @@ const SUB_CONFIG = [
 export default function EmprestimoDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
-  // `location` (e `location.search`) é usado como dependência extra
-  // do useEffect abaixo: após Editar → Salvar, o `NovoContrato`
-  // redireciona com `?t=Date.now()` para a MESMA URL. Sem essa
-  // dependência o React não re-executaria o effect (a :id é a
-  // mesma), e o bloco "OBSERVAÇÃO" não atualizaria imediatamente.
-  const location = useLocation();
   const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
@@ -133,7 +127,7 @@ export default function EmprestimoDetalhes() {
       });
 
     return () => { ativo = false; };
-  }, [effectiveUid, id, location.search]);
+  }, [effectiveUid, id]);
 
   // Carrega os recebimentos de juros do contrato (subcoleção Firestore dedicada).
   // Necessário para exibir o badge "Juros da semana recebido" nas parcelas
@@ -766,24 +760,6 @@ export default function EmprestimoDetalhes() {
               )}
             </div>
 
-            {/* Observação do contrato.
-                O campo `observacao` é gravado em
-                `usuarios/{uid}/contratos/{id}.observacao` (string livre,
-                trimada, máx 1000 caracteres no backend). Mostra o bloco
-                apenas quando existir texto não vazio — contratos antigos
-                sem o campo simplesmente não exibem este card, mantendo
-                compatibilidade retroativa. Atualiza em tempo real porque
-                `recarregar()` é chamado após edição/pagamento. */}
-            {typeof contrato.observacao === "string" && contrato.observacao.trim() !== "" && (
-              <div className="mt-4 rounded-[16px] border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-800/60 px-4 py-3.5">
-                <p className="text-[9px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                  Observação
-                </p>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap break-words">
-                  {contrato.observacao}
-                </p>
-              </div>
-            )}
           </section>
 
           {/* Botões de ação — 4 em uma linha */}
@@ -822,6 +798,30 @@ export default function EmprestimoDetalhes() {
               Excluir
             </button>
           </div>
+
+          {/* Observação do contrato.
+              POSIÇÃO: abaixo dos 4 botões de ação e antes de "PARCELAS"
+              (conforme layout solicitado no print).
+              DADO: `contrato.observacao` é uma string lida direto do
+              Firestore (subcoleção usuarios/{uid}/contratos/{id}.observacao).
+              Foi gravada pelo backend em api/admin/criar-contrato.js
+              (linha 396) e por NovoContrato.jsx no updateDoc de edição
+              (linha 484). Aparece quando o texto existir e for não vazio.
+              Contratos antigos sem o campo simplesmente não renderizam
+              este bloco (typeof === "string" falha). */}
+          {typeof contrato.observacao === "string" && contrato.observacao.trim() !== "" && (
+            <div className="mt-6 rounded-[16px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 sm:px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center gap-2">
+                <FileText className="w-[18px] h-[18px] text-jurex shrink-0" strokeWidth={2} />
+                <p className="text-[12px] font-bold tracking-[0.08em] text-slate-500 dark:text-slate-400 uppercase">
+                  Observação
+                </p>
+              </div>
+              <p className="mt-2 text-[14px] leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap break-words">
+                {contrato.observacao}
+              </p>
+            </div>
+          )}
 
           {/* Parcelas */}
           <section className="mt-10 mb-12">
