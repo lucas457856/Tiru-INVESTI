@@ -275,16 +275,8 @@ window.previewMigrationDryRun = async function (
   // Se UID nao informado, tenta detectar automaticamente
   if (!targetUid) {
     const user = auth.currentUser;
-    if (user) {
-      console.log(`Usuario autenticado detectado: ${user.email} (${user.uid})`);
-      console.log("Execute:");
-      console.log(`  await window.previewMigrationDryRun("${user.uid}")`);
-    } else {
-      console.log("Nenhum usuario autenticado.");
-      console.log("Faca login na aplicacao antes de executar o DRY RUN.");
-      console.log("Verifique: window.getMigrationPreviewUser()");
-    }
-    return;
+    if (!user) return;
+    targetUid = user.uid;
   }
 
   // Valida autenticacao
@@ -450,9 +442,10 @@ window.applyMigration = async function (
   if (!targetUid) {
     const user = auth.currentUser;
     if (user) {
-      console.log("Execute: await window.applyMigration(window.getMigrationPreviewUser().uid)");
+      targetUid = user.uid;
+    } else {
+      return;
     }
-    return;
   }
 
   const user = auth.currentUser;

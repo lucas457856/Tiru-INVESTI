@@ -84,12 +84,9 @@ export default function Emprestimos() {
   // Escuta os contratos do escopo efetivo em tempo real
   useEffect(() => {
     if (!effectiveUid) return;
-    const path = `usuarios/${effectiveUid}/contratos`;
-    console.log("[CONTRATOS] query path:", path);
     const unsub = onSnapshot(
       query(collection(db, "usuarios", effectiveUid, "contratos"), orderBy("criadoEm", "desc")),
       (snap) => {
-        console.log("[CONTRATOS] snap recebido, docs:", snap.size);
         setContratos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       },
       (err) => {

@@ -59,11 +59,9 @@ export default function Clientes() {
   useEffect(() => {
     if (!effectiveUid) return;
     const q = query(collection(db, "clientes"), where("ownerId", "==", effectiveUid));
-    console.log("[CLIENTES] query:", "clientes where ownerId ==", effectiveUid);
     const unsub = onSnapshot(
       q,
       (snap) => {
-        console.log("[CLIENTES] snap recebido, docs:", snap.size);
         const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         // Timestamp do Firestore → segundos; ISO string → epoch ms; ausente → 0
         const chave = (c) =>

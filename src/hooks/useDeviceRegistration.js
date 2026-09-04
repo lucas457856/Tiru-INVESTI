@@ -194,12 +194,8 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
             }
             fcmToken = await getToken(messaging, getTokenOptions);
           }
-        } catch (err) {
-          const code = err && err.code;
-          const msg = err && err.message;
-          console.warn(FCM_PREFIX, "tokenObtained=false",
-            "code=" + (code || "unknown"),
-            "message=" + (msg || "unknown"));
+        } catch {
+          // getToken falhou — silencioso (mantém fallback para fcmToken=null)
         }
       }
       const res = await registrarMeuDevice({
@@ -211,9 +207,9 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
       });
       if (res && res.ok === true) {
         // registro ok — silencioso
-      } else {
-        console.warn(LOG_PREFIX, "register-device falhou:", res && res.erro);
       }
+      // Falha no register-device: silenciosa. O usuário não precisa ver no console;
+      // o backend já registra o motivo. Mantém fluxo intacto.
       return res;
     };
 

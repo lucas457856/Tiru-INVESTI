@@ -136,10 +136,6 @@ export async function esqueciSenha(email) {
       return { ok: false, erro: "Informe um e-mail válido." };
     }
     const actionSettings = actionCodeSettingsReset();
-    // Log do payload enviado para o Firebase — ajuda a diagnosticar
-    // problemas com `continueUrl` (auth/unauthorized-continue-uri-domain
-    // ou auth/invalid-continue-uri).
-    console.log("[esqueciSenha] actionCodeSettings enviado:", actionSettings);
     await sendPasswordResetEmail(auth, e, actionSettings);
     return { ok: true };
   } catch (erro) {
