@@ -507,7 +507,11 @@ export default function NovoContrato() {
       // bloqueado (as Firestore Rules negam create em
       // /usuarios/{uid}/contratos para o client SDK — apenas
       // Admin SDK cria).
-      const descricaoContrato = `Contrato de ${formatarMoeda(valorNumero)} com ${clienteSel.nomeCompleto}`;
+      // Texto curto usado na notificação nativa do originador
+      // (mostrarNotificacaoNativa) e em nada mais. Mantém o padrão
+      // "Nx" exigido pelo visual da notificação (sem nome de
+      // cliente nem valor — apenas a quantidade de parcelas).
+      const descricaoContrato = `${parcelasNumero}x`;
       const resp = await criarContratoApi({
         clienteId: clienteSel.id,
         valorEmprestado: valorNumero,

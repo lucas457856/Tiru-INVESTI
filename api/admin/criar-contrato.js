@@ -502,7 +502,7 @@ export default async function handler(req, res) {
       .add({
         tipo: "contrato_criado",
         titulo: "Novo contrato criado",
-        descricao: `Contrato de R$ ${valorEmprestado.toFixed(2).replace(".", ",")} com ${clienteDoc.nomeCompleto || clienteDoc.nome || "cliente"}`,
+        descricao: `${numeroParcelas}x`,
         contratoId: docRef.id,
         valor: valorEmprestado,
         lida: false,
@@ -545,7 +545,7 @@ export default async function handler(req, res) {
         eventId,
         type: "CONTRACT_CREATED",
         title: "Novo contrato criado",
-        body: `Contrato de R$ ${valorEmprestado.toFixed(2).replace(".", ",")} com ${clienteDoc.nomeCompleto || clienteDoc.nome || "cliente"}`,
+        body: `${numeroParcelas}x`,
         data: {
           contratoId: docRef.id,
           clienteId,
