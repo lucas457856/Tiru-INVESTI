@@ -34,6 +34,7 @@ import {
   Briefcase,
   FileText,
   Sparkles,
+  Check,
 } from "lucide-react";
 
 function fmtNum(n) {
@@ -350,56 +351,90 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
             </p>
           </section>
 
-          {/* Limites */}
-          <section>
-            <h3 className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Limites de uso
-            </h3>
-            <div className="mt-3 grid grid-cols-1 gap-4">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-purple-500" />
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    Contratos
-                  </p>
+          {/* Limites — alterna dinamicamente:
+                - FREE: mostra os inputs de limite e a barra de uso
+                  (valores salvos ficam preservados no estado
+                  `limites` o tempo todo).
+                - PRO: oculta os inputs de limite e mostra apenas
+                  "Recursos ilimitados". Os valores FREE permanecem
+                  intactos em `limites` e voltam a aparecer quando o
+                  admin alterna de volta para FREE. Nada é apagado
+                  nem substituído por sentinelas. */}
+          {plano === "pro" ? (
+            <section>
+              <h3 className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+                Recursos ilimitados
+              </h3>
+              <ul className="mt-3 space-y-2.5 rounded-xl border border-emerald-500/30 dark:border-emerald-500/20 bg-emerald-50/60 dark:bg-emerald-500/10 p-3">
+                {[
+                  "Contratos ilimitados",
+                  "Clientes ilimitados",
+                  "Funcionários ilimitados",
+                ].map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200"
+                  >
+                    <Check className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Os limites FREE configurados anteriormente permanecem salvos e voltam a valer ao retornar para Free.
+              </p>
+            </section>
+          ) : (
+            <section>
+              <h3 className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+                Limites de uso
+              </h3>
+              <div className="mt-3 grid grid-cols-1 gap-4">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-500" />
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Contratos
+                    </p>
+                  </div>
+                  <InputLimite
+                    rotulo="Limite"
+                    valor={limites.contratos}
+                    onChange={(v) => setLimites((l) => ({ ...l, contratos: v }))}
+                  />
+                  <BarraUso usado={dono.contContratos} limite={limites.contratos} />
                 </div>
-                <InputLimite
-                  rotulo="Limite"
-                  valor={limites.contratos}
-                  onChange={(v) => setLimites((l) => ({ ...l, contratos: v }))}
-                />
-                <BarraUso usado={dono.contContratos} limite={limites.contratos} />
-              </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-amber-500" />
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    Clientes
-                  </p>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-amber-500" />
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Clientes
+                    </p>
+                  </div>
+                  <InputLimite
+                    rotulo="Limite"
+                    valor={limites.clientes}
+                    onChange={(v) => setLimites((l) => ({ ...l, clientes: v }))}
+                  />
+                  <BarraUso usado={dono.contClientes} limite={limites.clientes} />
                 </div>
-                <InputLimite
-                  rotulo="Limite"
-                  valor={limites.clientes}
-                  onChange={(v) => setLimites((l) => ({ ...l, clientes: v }))}
-                />
-                <BarraUso usado={dono.contClientes} limite={limites.clientes} />
-              </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-500" />
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    Funcionários
-                  </p>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-500" />
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Funcionários
+                    </p>
+                  </div>
+                  <InputLimite
+                    rotulo="Limite"
+                    valor={limites.funcionarios}
+                    onChange={(v) => setLimites((l) => ({ ...l, funcionarios: v }))}
+                  />
+                  <BarraUso usado={dono.contFuncionarios} limite={limites.funcionarios} />
                 </div>
-                <InputLimite
-                  rotulo="Limite"
-                  valor={limites.funcionarios}
-                  onChange={(v) => setLimites((l) => ({ ...l, funcionarios: v }))}
-                />
-                <BarraUso usado={dono.contFuncionarios} limite={limites.funcionarios} />
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* Permissões */}
           <section>
