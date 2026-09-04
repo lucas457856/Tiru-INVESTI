@@ -149,3 +149,32 @@ export async function criarContrato(payload) {
     body: payload || {},
   });
 }
+
+// Exclui DEFINITIVAMENTE um DONO e todos os dados vinculados
+// (clientes, contratos, funcionários, sub-coleções, contas Auth).
+// Apenas a conta ADMIN_UID pode chamar — qualquer outro uid recebe
+// 403 imediato do servidor.
+//
+// IMPORTANTE: o servidor também recusa excluir o próprio ADMIN_UID
+// (defesa contra autoexclusão). O frontend não duplica essa validação:
+// deixa o servidor ser a fonte de verdade.
+//
+// Toda a exclusão passa pelo Admin SDK no servidor (nenhuma permissão
+// extra é dada ao frontend). Retorna
+// { ok, donoUid, clientesExcluidos, contratosExcluidos,
+//   funcionariosExcluidos, subDocsExcluidos, authsExcluidos,
+//   includesAuthDono } em caso de sucesso. Em caso de erro,
+// retorna { ok: false, erro, ... } pelo mesmo formato padrão do
+// `requisitar`.
+export async function excluirDono(donoUid) {
+  if (!donoUid) return { ok: false, erro: "donoUid ausente." };
+  const token = await getToken();
+  return requisitar("/api/admin/delete-owner", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: { donoUid },
+  });
+}

@@ -28,11 +28,13 @@ import {
   Activity,
   Settings,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import BackButton from "../components/BackButton";
 import HomeButton from "../components/HomeButton";
 import DonoGerenciarDrawer from "../components/DonoGerenciarDrawer";
+import DonoExcluirDefinitivoModal from "../components/DonoExcluirDefinitivoModal";
 import { useAuth } from "../context/useAuth";
 import { ADMIN_UID, isAdminUid } from "../config/adminConfig";
 import { buscarOverview, salvarDono } from "../services/adminService";
@@ -87,6 +89,10 @@ export default function PainelAdmin() {
   // Dono selecionado para edição no drawer.
   const [donoSelecionado, setDonoSelecionado] = useState(null);
   const [erroDrawer, setErroDrawer] = useState(null);
+  // Dono selecionado para exclusão definitiva (modal).
+  const [donoExcluir, setDonoExcluir] = useState(null);
+  // Toast de sucesso após exclusão (auto-dismiss simples).
+  const [sucessoExcluir, setSucessoExcluir] = useState(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -119,6 +125,22 @@ export default function PainelAdmin() {
   function fecharGerenciar() {
     setDonoSelecionado(null);
     setErroDrawer(null);
+  }
+
+  function abrirExcluirDono(dono) {
+    setDonoExcluir(dono);
+  }
+
+  function fecharExcluirDono() {
+    setDonoExcluir(null);
+  }
+
+  // Chamado pelo DonoExcluirDefinitivoModal após sucesso do backend.
+  // Fecha o modal, recarrega o overview e mostra toast verde.
+  function handleDonoExcluidoSucesso() {
+    setDonoExcluir(null);
+    setSucessoExcluir("Dono excluído com sucesso.");
+    carregar();
   }
 
   // Persiste as alterações do drawer. Devolve { ok, erro? } para o
@@ -344,6 +366,7 @@ export default function PainelAdmin() {
                 <ListaDonos
                   donos={dados?.donos || []}
                   aoGerenciar={abrirGerenciar}
+                  aoExcluir={abrirExcluirDono}
                 />
               ) : (
                 <ListaFuncionarios funcionarios={dados?.funcionarios || []} />
@@ -370,11 +393,37 @@ export default function PainelAdmin() {
           {erroDrawer.erro || "Falha ao salvar."}
         </div>
       )}
+
+      {/* Modal de exclusão definitiva do dono.
+          A `key` faz o React remontar o componente quando o `dono` muda,
+          resetando o estado interno (campo de confirmação, erro). */}
+      <DonoExcluirDefinitivoModal
+        key={donoExcluir?.uid || "vazio"}
+        aberto={!!donoExcluir}
+        dono={donoExcluir}
+        aoFechar={fecharExcluirDono}
+        aoSucesso={handleDonoExcluidoSucesso}
+      />
+
+      {/* Toast de sucesso após exclusão (verde) */}
+      {sucessoExcluir && (
+        <div className="fixed bottom-4 right-4 z-[60] max-w-sm rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-white dark:bg-slate-900 shadow-xl p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSucessoExcluir(null)}
+            aria-label="Fechar notificação"
+            className="shrink-0 rounded-md p-0.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
+          >
+            <span aria-hidden>×</span>
+          </button>
+          <span className="flex-1">{sucessoExcluir}</span>
+        </div>
+      )}
     </AppLayout>
   );
 }
 
-function ListaDonos({ donos, aoGerenciar }) {
+function ListaDonos({ donos, aoGerenciar, aoExcluir }) {
   if (donos.length === 0) {
     return <EstadoVazio mensagem="Nenhum dono cadastrado ainda." />;
   }
@@ -394,7 +443,12 @@ function ListaDonos({ donos, aoGerenciar }) {
         </thead>
         <tbody>
           {donos.map((d) => (
-            <LinhaDono key={d.uid} dono={d} aoGerenciar={aoGerenciar} />
+            <LinhaDono
+              key={d.uid}
+              dono={d}
+              aoGerenciar={aoGerenciar}
+              aoExcluir={aoExcluir}
+            />
           ))}
         </tbody>
       </table>
@@ -402,7 +456,7 @@ function ListaDonos({ donos, aoGerenciar }) {
   );
 }
 
-function LinhaDono({ dono, aoGerenciar }) {
+function LinhaDono({ dono, aoGerenciar, aoExcluir }) {
   const bloqueado = dono.status === "bloqueado";
   return (
     <tr className="border-t border-slate-100 dark:border-slate-800">
@@ -467,14 +521,25 @@ function LinhaDono({ dono, aoGerenciar }) {
         <ResumoUso dono={dono} />
       </td>
       <td className="px-5 py-3.5 text-right">
-        <button
-          type="button"
-          onClick={() => aoGerenciar?.(dono)}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-jurex hover:text-jurex transition"
-        >
-          <Settings className="w-3.5 h-3.5" />
-          Gerenciar
-        </button>
+        <div className="inline-flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => aoGerenciar?.(dono)}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-jurex hover:text-jurex transition"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Gerenciar
+          </button>
+          <button
+            type="button"
+            onClick={() => aoExcluir?.(dono)}
+            aria-label={`Excluir dono ${dono.nome || dono.uid}`}
+            title="Excluir dono"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/40 dark:hover:text-red-400 transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </td>
     </tr>
   );
