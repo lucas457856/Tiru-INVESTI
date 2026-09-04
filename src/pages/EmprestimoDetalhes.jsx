@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Send,
   FileText,
@@ -71,6 +71,12 @@ const SUB_CONFIG = [
 export default function EmprestimoDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // `location` (e `location.search`) é usado como dependência extra
+  // do useEffect abaixo: após Editar → Salvar, o `NovoContrato`
+  // redireciona com `?t=Date.now()` para a MESMA URL. Sem essa
+  // dependência o React não re-executaria o effect (a :id é a
+  // mesma), e o bloco "OBSERVAÇÃO" não atualizaria imediatamente.
+  const location = useLocation();
   const effectiveUid = useEffectiveUid();
 
   // carregando | pronto | nao-encontrado | erro
@@ -127,7 +133,7 @@ export default function EmprestimoDetalhes() {
       });
 
     return () => { ativo = false; };
-  }, [effectiveUid, id]);
+  }, [effectiveUid, id, location.search]);
 
   // Carrega os recebimentos de juros do contrato (subcoleção Firestore dedicada).
   // Necessário para exibir o badge "Juros da semana recebido" nas parcelas
@@ -759,6 +765,25 @@ export default function EmprestimoDetalhes() {
                 </p>
               )}
             </div>
+
+            {/* Observação do contrato.
+                O campo `observacao` é gravado em
+                `usuarios/{uid}/contratos/{id}.observacao` (string livre,
+                trimada, máx 1000 caracteres no backend). Mostra o bloco
+                apenas quando existir texto não vazio — contratos antigos
+                sem o campo simplesmente não exibem este card, mantendo
+                compatibilidade retroativa. Atualiza em tempo real porque
+                `recarregar()` é chamado após edição/pagamento. */}
+            {typeof contrato.observacao === "string" && contrato.observacao.trim() !== "" && (
+              <div className="mt-4 rounded-[16px] border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-800/60 px-4 py-3.5">
+                <p className="text-[9px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  Observação
+                </p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap break-words">
+                  {contrato.observacao}
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Botões de ação — 4 em uma linha */}

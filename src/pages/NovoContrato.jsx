@@ -487,7 +487,13 @@ export default function NovoContrato() {
         // Após salvar: volta para a tela de detalhes do MESMO contrato.
         // `replace: true` evita empilhar histórico de navegação
         // (Detalhes → Editar → Detalhes, em vez de 2x Detalhes no back).
-        navigate(`/emprestimos/${idEdicao}`, { replace: true });
+        // `t=Date.now()` força o `useEffect` de EmprestimoDetalhes a
+        // re-buscar o contrato no Firestore (a :id é a mesma, então sem
+        // esse sinal o componente remontaria/rebuscaria? não — React
+        // não remonta em navigate para a mesma rota). O timestamp
+        // garante que `location.search` muda, o effect refetch e o
+        // bloco "OBSERVAÇÃO" (e demais campos) atualiza imediatamente.
+        navigate(`/emprestimos/${idEdicao}?t=${Date.now()}`, { replace: true });
         return;
       }
 
