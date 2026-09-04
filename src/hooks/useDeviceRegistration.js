@@ -163,12 +163,18 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
           } else {
             // getToken exige que o SW esteja controlando a pagina.
             // Aguarda readiness uma vez (idempotente). Se o SW ja
-            // estiver pronto, resolve imediato.
+            // estiver pronto, resolve imediato. Guardamos a referencia
+            // do ServiceWorkerRegistration retornado por `.ready` para
+            // passar explicitamente ao getToken() abaixo - isso impede
+            // que o SDK tente registrar o SW padrao do Firebase
+            // (`/firebase-messaging-sw.js`, que NAO existe no projeto)
+            // e dispare `messaging/failed-service-worker-registration`.
+            let serviceWorkerRegistration = null;
             try {
               if (typeof navigator !== "undefined"
                 && navigator.serviceWorker
                 && typeof navigator.serviceWorker.ready !== "undefined") {
-                await navigator.serviceWorker.ready;
+                serviceWorkerRegistration = await navigator.serviceWorker.ready;
                 console.log(FCM_PREFIX, "serviceWorkerReady=true");
               } else {
                 console.log(FCM_PREFIX, "serviceWorkerReady=false");
@@ -183,7 +189,16 @@ export function useDeviceRegistration({ auth, getMessagingFn, onAuthChange }) {
             // uma FUNCAO importada de firebase/messaging, NAO um metodo
             // da instancia de Messaging. Chamar messaging.getToken(...)
             // resulta em "e.getToken is not a function".
-            fcmToken = await getToken(messaging, { vapidKey });
+            //
+            // Passamos `serviceWorkerRegistration` (o SW do projeto,
+            // registrado em src/main.jsx como `/sw.js?v=jurex-sw-v3`)
+            // para impedir que o SDK procure/registre o SW padrao do
+            // Firebase em `/firebase-messaging-sw.js`.
+            const getTokenOptions = { vapidKey };
+            if (serviceWorkerRegistration) {
+              getTokenOptions.serviceWorkerRegistration = serviceWorkerRegistration;
+            }
+            fcmToken = await getToken(messaging, getTokenOptions);
             if (fcmToken && typeof fcmToken === "string") {
               console.log(FCM_PREFIX, "tokenObtained=true");
               console.log(FCM_PREFIX, "tokenLength=" + fcmToken.length);
