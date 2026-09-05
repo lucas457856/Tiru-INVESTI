@@ -1,7 +1,8 @@
 {
   "framework": "vite",
   "functions": {
-    "api/notifications/[...slug].js": { "maxDuration": 30 }
+    "api/notifications/[...slug].js": { "maxDuration": 30 },
+    "api/admin/[...slug].js": { "maxDuration": 30 }
   },
   "rewrites": [
     {
