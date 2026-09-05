@@ -1,4 +1,6 @@
-// API: POST /api/admin/update-owner
+// Sub-handler: POST /api/admin/update-owner
+//
+// Disparado por api/admin/[...slug].js quando slug === "update-owner".
 //
 // Atualiza os CAMPOS ADMINISTRATIVOS de um DONO (usuarios/{donoUid}):
 //   - status: "ativo" | "bloqueado"
@@ -33,19 +35,10 @@
 //   }
 
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth } from "../../_lib/dono.js";
 
-function bad(res, status, erro, extra = {}) {
-  console.error(`[admin/update-owner] ${status} ${erro}`, extra);
-  return res.status(status).json({ ok: false, erro, ...extra });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
+const PREFIX = "admin/update-owner";
 
 // Valida o body e retorna { ok, update, error }. update é um objeto
 // pronto para ser passado a updateDoc (campos validados e normalizados).
@@ -131,18 +124,13 @@ function validarBody(body) {
   return { ok: true, donoUid, update };
 }
 
-export default async function handler(req, res) {
+export async function updateOwnerHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) ADMIN_UID (env var)
   const adminUid = process.env.ADMIN_UID;
   if (!adminUid) {
-    return bad(res, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.", {
+    return bad(res, PREFIX, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.", {
       variavel: "ADMIN_UID",
     });
   }
@@ -150,50 +138,29 @@ export default async function handler(req, res) {
   // 2) Bearer token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 3) Firebase Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch {
-    const missing = [];
-    if (!process.env.FIREBASE_PROJECT_ID) missing.push("FIREBASE_PROJECT_ID");
-    if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push("FIREBASE_CLIENT_EMAIL");
-    if (!process.env.FIREBASE_PRIVATE_KEY) missing.push("FIREBASE_PRIVATE_KEY");
-    return bad(
-      res,
-      500,
-      missing.length
-        ? `Firebase Admin não configurado no servidor. Faltam: ${missing.join(", ")}.`
-        : "Não foi possível inicializar o Firebase Admin.",
-      { variavel: missing[0] || null },
-    );
-  }
-  const authAdmin = (await import("firebase-admin/auth")).getAuth(admin);
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
+  const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Verifica identidade
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[admin/update-owner] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) BLOQUEIO PRINCIPAL
   if (chamadorUid !== adminUid) {
-    return bad(res, 403, "Acesso restrito ao administrador do sistema.");
+    return bad(res, PREFIX, 403, "Acesso restrito ao administrador do sistema.");
   }
 
   // 6) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const validacao = validarBody(body);
   if (!validacao.ok) {
-    return bad(res, 400, validacao.erro);
+    return bad(res, PREFIX, 400, validacao.erro);
   }
   const { donoUid, update } = validacao;
 
@@ -205,11 +172,11 @@ export default async function handler(req, res) {
     const snap = await donoRef.get();
     existe = snap.exists;
   } catch (err) {
-    console.error("[admin/update-owner] get dono falhou:", err?.message);
-    return bad(res, 500, "Não foi possível ler o perfil do dono.");
+    console.error(`[${PREFIX}] get dono falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível ler o perfil do dono.");
   }
   if (!existe) {
-    return bad(res, 404, "Dono não encontrado.");
+    return bad(res, PREFIX, 404, "Dono não encontrado.");
   }
 
   // 8) Aplica o update com merge. Admin SDK ignora as Firestore Rules.
@@ -218,8 +185,8 @@ export default async function handler(req, res) {
   try {
     await donoRef.update(updateFinal);
   } catch (err) {
-    console.error("[admin/update-owner] updateDoc falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível atualizar o dono.");
+    console.error(`[${PREFIX}] updateDoc falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível atualizar o dono.");
   }
 
   return res.status(200).json({

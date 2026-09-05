@@ -1,4 +1,6 @@
-// API: POST /api/admin/delete-owner
+// Sub-handler: POST /api/admin/delete-owner
+//
+// Disparado por api/admin/[...slug].js quando slug === "delete-owner".
 //
 // Exclusão DEFINITIVA de um DONO e de TODOS os dados a ele vinculados
 // (clientes, contratos, funcionários, sub-coleções, contas Auth, etc.).
@@ -41,9 +43,8 @@
 //     tentar restaurar dados já apagados. O admin pode repetir (a
 //     operação é idempotente: docs já apagados são silenciosamente
 //     ignorados).
-//   - Helper `excluirSubcolecoesRecursivo` foi DUPLICADO de
-//     api/auth/delete-employee.js (intencionalmente, para não tocar
-//     naquele arquivo nesta fase). Lógica idêntica.
+//   - Helper `excluirSubcolecoesRecursivo` é importado de _lib/tree.js
+//     (compartilhado com delete-employee).
 //
 // Segurança:
 //   - ADMIN_UID via process.env (Vercel env var).
@@ -51,55 +52,18 @@
 //   - Admin SDK ignora Firestore Rules — toda a exclusão passa pelo
 //     servidor. Frontend não ganha permissão extra.
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { excluirSubcolecoesRecursivo } from "../../_lib/tree.js";
+import { getAuth } from "../../_lib/dono.js";
+
+const PREFIX = "admin/delete-owner";
 
 // Limite por operação. Acima disso, a operação precisa ser repetida.
 // Admin SDK tem limite de 500 writes por batch — processamos em
 // batches internamente. Este limite é apenas um teto de segurança
 // contra loop eterno.
 const MAX_ITENS_POR_OPERACAO = 5000;
-
-function bad(res, status, erro) {
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-// Exclui recursivamente todas as subcoleções de um documento.
-// COPIADO de api/auth/delete-employee.js para evitar alterar aquele
-// arquivo. Lógica idêntica: lista coleções via listCollections() e
-// apaga documentos em batches de 500 (limite do Firestore). Recursão
-// limitada em profundidade=5 como defesa contra ciclos.
-async function excluirSubcolecoesRecursivo(dbAdmin, docRef, profundidade = 0) {
-  if (profundidade > 5) return 0;
-  const collections = await docRef.listCollections();
-  let total = 0;
-  for (const coll of collections) {
-    const snap = await coll.limit(MAX_ITENS_POR_OPERACAO).get();
-    if (snap.empty) continue;
-    for (const subDoc of snap.docs) {
-      total += await excluirSubcolecoesRecursivo(dbAdmin, subDoc.ref, profundidade + 1);
-    }
-    const docs = snap.docs;
-    for (let i = 0; i < docs.length; i += 500) {
-      const batch = dbAdmin.batch();
-      const fatia = docs.slice(i, i + 500);
-      for (const d of fatia) {
-        batch.delete(d.ref);
-      }
-      await batch.commit();
-      total += fatia.length;
-    }
-  }
-  return total;
-}
 
 // Exclui os clientes e contratos CRIADOS por um funcionário específico
 // do dono. Replica o comportamento de api/auth/delete-employee.js, mas
@@ -136,65 +100,49 @@ async function excluirDadosDoFuncionario(dbAdmin, donoUid, funcionarioAuthUid, s
   }
 }
 
-export default async function handler(req, res) {
+export async function deleteOwnerHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const donoUid = typeof body.donoUid === "string" ? body.donoUid.trim() : "";
   if (!donoUid) {
-    return bad(res, 400, "Informe o identificador do dono.");
+    return bad(res, PREFIX, 400, "Informe o identificador do dono.");
   }
   if (donoUid.length > 256) {
-    return bad(res, 400, "Identificador do dono inválido (excede 256 caracteres).");
+    return bad(res, PREFIX, 400, "Identificador do dono inválido (excede 256 caracteres).");
   }
 
   // 2) Token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 3) Firebase Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[admin/delete-owner] Falha ao inicializar Firebase Admin:", err?.code || err?.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[admin/delete-owner] verifyIdToken falhou:", err?.code || err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) ADMIN_UID (env var)
   const adminUid = process.env.ADMIN_UID;
   if (!adminUid) {
-    return bad(res, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.");
+    return bad(res, PREFIX, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.");
   }
 
   // 6) Bloqueio principal
   if (chamadorUid !== adminUid) {
-    return bad(res, 403, "Acesso restrito ao administrador do sistema.");
+    return bad(res, PREFIX, 403, "Acesso restrito ao administrador do sistema.");
   }
 
   // 7) Defesa extra: o admin NÃO pode se autoexcluir
   if (donoUid === adminUid) {
-    return bad(res, 403, "A conta administrativa principal não pode ser excluída.");
+    return bad(res, PREFIX, 403, "A conta administrativa principal não pode ser excluída.");
   }
 
   // 8) Confirma que o doc do dono existe
@@ -203,11 +151,11 @@ export default async function handler(req, res) {
   try {
     donoSnap = await donoRef.get();
   } catch (err) {
-    console.error("[admin/delete-owner] get dono falhou:", err?.message);
-    return bad(res, 500, "Não foi possível ler o perfil do dono.");
+    console.error(`[${PREFIX}] get dono falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível ler o perfil do dono.");
   }
   if (!donoSnap.exists) {
-    return bad(res, 404, "Dono não encontrado.");
+    return bad(res, PREFIX, 404, "Dono não encontrado.");
   }
 
   // Estatísticas para auditoria
@@ -229,8 +177,8 @@ export default async function handler(req, res) {
       .get();
     funcionarios = funcSnap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
   } catch (err) {
-    console.error("[admin/delete-owner] listagem de funcionários falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível listar os funcionários do dono.");
+    console.error(`[${PREFIX}] listagem de funcionários falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível listar os funcionários do dono.");
   }
 
   // 10a) Exclui sub-coleções de cada contrato + o contrato
@@ -245,9 +193,10 @@ export default async function handler(req, res) {
       stats.contratosExcluidos += 1;
     }
   } catch (err) {
-    console.error("[admin/delete-owner] exclusão de contratos falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] exclusão de contratos falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível excluir os contratos: ${err?.message || "erro desconhecido"}.`,
     );
@@ -266,9 +215,10 @@ export default async function handler(req, res) {
       stats.clientesExcluidos += 1;
     }
   } catch (err) {
-    console.error("[admin/delete-owner] exclusão de clientes top-level falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] exclusão de clientes top-level falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível excluir os clientes: ${err?.message || "erro desconhecido"}.`,
     );
@@ -283,9 +233,10 @@ export default async function handler(req, res) {
       0,
     );
   } catch (err) {
-    console.error("[admin/delete-owner] exclusão de clientes legados falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] exclusão de clientes legados falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível excluir a subcoleção legada de clientes: ${err?.message || "erro"}.`,
     );
@@ -302,9 +253,10 @@ export default async function handler(req, res) {
         await excluirDadosDoFuncionario(dbAdmin, donoUid, funcAuthUid, stats);
       }
     } catch (err) {
-      console.error("[admin/delete-owner] exclusão de dados do funcionário falhou:", err?.code, err?.message);
+      console.error(`[${PREFIX}] exclusão de dados do funcionário falhou:`, err?.code, err?.message);
       return bad(
         res,
+        PREFIX,
         500,
         `Não foi possível excluir os dados vinculados ao funcionário: ${err?.message || "erro"}.`,
       );
@@ -314,9 +266,10 @@ export default async function handler(req, res) {
       await funcRef.delete();
       stats.funcionariosExcluidos += 1;
     } catch (err) {
-      console.error("[admin/delete-owner] exclusão do funcionarios/{id} falhou:", err?.code, err?.message);
+      console.error(`[${PREFIX}] exclusão do funcionarios/{id} falhou:`, err?.code, err?.message);
       return bad(
         res,
+        PREFIX,
         500,
         `Não foi possível remover o cadastro do funcionário: ${err?.message || "erro"}.`,
       );
@@ -329,9 +282,10 @@ export default async function handler(req, res) {
       } catch (err) {
         // Se o perfil não existe, não é erro — prossegue para Auth.
         if (err?.code !== 5 && err?.code !== "NOT_FOUND") {
-          console.error("[admin/delete-owner] exclusão do perfil do funcionário falhou:", err?.code, err?.message);
+          console.error(`[${PREFIX}] exclusão do perfil do funcionário falhou:`, err?.code, err?.message);
           return bad(
             res,
+            PREFIX,
             500,
             `Não foi possível remover o perfil do funcionário: ${err?.message || "erro"}.`,
           );
@@ -345,9 +299,10 @@ export default async function handler(req, res) {
         if (err?.code === "auth/user-not-found") {
           stats.authsExcluidos += 1; // já não existia — mesmo resultado
         } else {
-          console.error("[admin/delete-owner] deleteUser (funcionário) falhou:", err?.code, err?.message);
+          console.error(`[${PREFIX}] deleteUser (funcionário) falhou:`, err?.code, err?.message);
           return bad(
             res,
+            PREFIX,
             500,
             `Funcionário removido dos dados, mas a conta de autenticação não pôde ser excluída: ${err?.message || "erro"}.`,
           );
@@ -364,9 +319,10 @@ export default async function handler(req, res) {
   try {
     stats.subDocsExcluidos += await excluirSubcolecoesRecursivo(dbAdmin, donoRef, 0);
   } catch (err) {
-    console.error("[admin/delete-owner] exclusão de sub-coleções restantes falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] exclusão de sub-coleções restantes falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível remover as sub-coleções restantes: ${err?.message || "erro"}.`,
     );
@@ -376,9 +332,10 @@ export default async function handler(req, res) {
   try {
     await donoRef.delete();
   } catch (err) {
-    console.error("[admin/delete-owner] exclusão do doc raiz do dono falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] exclusão do doc raiz do dono falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível remover o perfil do dono: ${err?.message || "erro"}.`,
     );
@@ -394,9 +351,10 @@ export default async function handler(req, res) {
       stats.authsExcluidos += 1;
       stats.includesAuthDono = true; // já não existia — mesmo resultado
     } else {
-      console.error("[admin/delete-owner] deleteUser (dono) falhou:", err?.code, err?.message);
+      console.error(`[${PREFIX}] deleteUser (dono) falhou:`, err?.code, err?.message);
       return bad(
         res,
+        PREFIX,
         500,
         `Dados do dono removidos, mas a conta de autenticação não pôde ser excluída: ${err?.message || "erro"}.`,
       );

@@ -1,4 +1,6 @@
-// API: POST /api/admin/criar-cliente
+// Sub-handler: POST /api/admin/criar-cliente
+//
+// Disparado por api/admin/[...slug].js quando slug === "criar-cliente".
 //
 // Cria um cliente para o DONO autenticado (ou para o DONO ao qual o
 // FUNCIONÁRIO autenticado está vinculado). Valida token, status,
@@ -35,17 +37,27 @@
 //     endereco?: string,
 //     scoreCredito?: string,
 //     fotoUrl?: string,
-//     documentos?: array
+//     documentos?: array,
+//     deviceId?: string (obrigatório para chamadas autenticadas do front)
 //   }
 // O server preenche automaticamente:
 //   - ownerId: uid do DONO (request.auth.uid para o DONO; meuPerfil.ownerUid para o FUNCIONÁRIO)
 //   - createdBy: uid do autor (request.auth.uid)
 //   - createdAt, updatedAt: serverTimestamp
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import {
+  ehPro,
+  getAuth,
+  normalizarLimites,
+  normalizarPermissoes,
+  normalizarStatus,
+  resolverDonoEfetivo,
+  validarSourceDeviceId,
+} from "../../_lib/dono.js";
 
+const PREFIX = "admin/criar-cliente";
 const NOME_MIN = 2;
 const NOME_MAX = 200;
 const CPF_MAX = 20;
@@ -53,76 +65,15 @@ const TELEFONE_MAX = 30;
 const EMAIL_MAX = 200;
 const ENDERECO_MAX = 400;
 const SCORES = ["Baixo", "Médio", "Alto"];
-const DEFAULT_LIMITES = { contratos: 5, clientes: 5, funcionarios: 5 };
-const DEFAULT_PERMISSOES = { criarContratos: true, criarClientes: true, criarFuncionarios: false };
-const DEFAULT_STATUS = "ativo";
 
-// Plano: aceita apenas "pro". Qualquer outro valor (incluindo
-// ausente, null, string vazia, "free", "PRO" em maiúsculas) é
-// tratado como "free". Mantém compatibilidade com donos antigos
-// que não têm o campo `plan` no Firestore.
-function ehPro(perfil) {
-  return perfil?.plan === "pro";
-}
-
-function bad(res, status, erro) {
-  console.error(`[admin/criar-cliente] ${status} ${erro}`);
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-function normalizarLimites(perfil) {
-  const l = perfil?.limites;
-  if (!l || typeof l !== "object") return { ...DEFAULT_LIMITES };
-  return {
-    contratos:
-      l.contratos !== undefined && l.contratos !== null && Number.isFinite(Number(l.contratos))
-        ? Number(l.contratos)
-        : DEFAULT_LIMITES.contratos,
-    clientes:
-      l.clientes !== undefined && l.clientes !== null && Number.isFinite(Number(l.clientes))
-        ? Number(l.clientes)
-        : DEFAULT_LIMITES.clientes,
-    funcionarios:
-      l.funcionarios !== undefined && l.funcionarios !== null && Number.isFinite(Number(l.funcionarios))
-        ? Number(l.funcionarios)
-        : DEFAULT_LIMITES.funcionarios,
-  };
-}
-
-function normalizarPermissoes(perfil) {
-  const p = perfil?.permissoes;
-  if (!p || typeof p !== "object") return { ...DEFAULT_PERMISSOES };
-  return {
-    criarContratos: p.criarContratos === true,
-    criarClientes: p.criarClientes === true,
-    criarFuncionarios: p.criarFuncionarios === true,
-  };
-}
-
-function normalizarStatus(perfil) {
-  return perfil?.status === "bloqueado" ? "bloqueado" : DEFAULT_STATUS;
-}
-
-export default async function handler(req, res) {
+export async function criarClienteHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const nomeCompleto = typeof body.nomeCompleto === "string" ? body.nomeCompleto.trim() : "";
   if (!nomeCompleto || nomeCompleto.length < NOME_MIN || nomeCompleto.length > NOME_MAX) {
-    return bad(res, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
+    return bad(res, PREFIX, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
   }
   const cpf = typeof body.cpf === "string" ? body.cpf.replace(/\D/g, "").slice(0, CPF_MAX) : "";
   const telefone = typeof body.telefone === "string" ? body.telefone.replace(/\D/g, "").slice(0, TELEFONE_MAX) : "";
@@ -135,78 +86,58 @@ export default async function handler(req, res) {
   // 2) Token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 3) Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[admin/criar-cliente] Firebase Admin indisponível:", err?.code, err?.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Identidade
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[admin/criar-cliente] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) Perfil do chamador
   let perfilChamador;
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil do chamador não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil do chamador não encontrado.");
     }
     perfilChamador = snap.data() || {};
   } catch (err) {
-    console.error("[admin/criar-cliente] Leitura do perfil falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] Leitura do perfil falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
 
-  // 6) Resolve o DONO efetivo:
-  //   - DONO: ele mesmo
-  //   - FUNCIONARIO: o ownerUid dele
-  //   - Sem role ou sem ownerUid: bloqueia.
-  let donoUid;
-  let criadoPorFuncionario = false;
-  if (perfilChamador.role === "funcionario") {
-    if (!perfilChamador.ownerUid) {
-      return bad(res, 403, "Funcionário sem vínculo de proprietário.");
-    }
-    donoUid = perfilChamador.ownerUid;
-    criadoPorFuncionario = true;
-  } else if (perfilChamador.ownerUid) {
-    return bad(res, 403, "Perfil inválido para criação.");
-  } else {
-    donoUid = chamadorUid;
+  // 6) Resolve o DONO efetivo (helper compartilhado em _lib/dono.js)
+  const r = resolverDonoEfetivo(perfilChamador, chamadorUid);
+  if (!r.ok) {
+    return bad(res, PREFIX, r.code, r.msg);
   }
+  const { donoUid, ehFuncionario, roleChamador } = r;
+  const criadoPorFuncionario = ehFuncionario;
 
   // 7) Perfil do DONO (validação de status, permissoes, limites)
   let perfilDono;
   try {
     const snap = await dbAdmin.collection("usuarios").doc(donoUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Proprietário não encontrado.");
+      return bad(res, PREFIX, 403, "Proprietário não encontrado.");
     }
     perfilDono = snap.data() || {};
   } catch (err) {
-    console.error("[admin/criar-cliente] Leitura do perfil do dono falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o proprietário.");
+    console.error(`[${PREFIX}] Leitura do perfil do dono falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o proprietário.");
   }
 
   const status = normalizarStatus(perfilDono);
   if (status === "bloqueado") {
     return bad(
       res,
+      PREFIX,
       403,
       "Conta bloqueada pelo administrador. Não é possível cadastrar clientes.",
     );
@@ -216,6 +147,7 @@ export default async function handler(req, res) {
   if (!permissoes.criarClientes) {
     return bad(
       res,
+      PREFIX,
       403,
       "A criação de clientes foi bloqueada pelo administrador.",
     );
@@ -240,13 +172,14 @@ export default async function handler(req, res) {
       if (cont >= limites.clientes) {
         return bad(
           res,
+          PREFIX,
           403,
           `Limite de clientes atingido (${cont}/${limites.clientes}). Entre em contato com o administrador para aumentar seu limite.`,
         );
       }
     } catch (err) {
-      console.error("[admin/criar-cliente] Contagem de clientes falhou:", err?.code, err?.message);
-      return bad(res, 500, "Não foi possível validar o limite de clientes.");
+      console.error(`[${PREFIX}] Contagem de clientes falhou:`, err?.code, err?.message);
+      return bad(res, PREFIX, 500, "Não foi possível validar o limite de clientes.");
     }
   }
 
@@ -272,54 +205,26 @@ export default async function handler(req, res) {
   if (!deviceIdRaw) {
     return bad(
       res,
+      PREFIX,
       400,
       "deviceId é obrigatório para registrar a origem do evento. Atualize a página para registrar este dispositivo antes de continuar.",
     );
   }
   if (deviceIdRaw.length > 200) {
-    return bad(res, 400, "deviceId inválido (até 200 chars).");
+    return bad(res, PREFIX, 400, "deviceId inválido (até 200 chars).");
   }
-  let deviceSnap;
-  try {
-    deviceSnap = await dbAdmin
-      .collection("usuarios")
-      .doc(chamadorUid)
-      .collection("devices")
-      .doc(deviceIdRaw)
-      .get();
-  } catch (err) {
-    console.error("[admin/criar-cliente] Leitura do device falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o dispositivo de origem.");
+  const validacaoDevice = await validarSourceDeviceId({
+    dbAdmin,
+    chamadorUid,
+    donoUid,
+    roleChamador,
+    sourceDeviceId: deviceIdRaw,
+    prefix: PREFIX,
+  });
+  if (!validacaoDevice.ok) {
+    return bad(res, PREFIX, validacaoDevice.code, validacaoDevice.msg);
   }
-  if (!deviceSnap.exists) {
-    return bad(
-      res,
-      400,
-      "Dispositivo de origem não registrado. Atualize a página para registrar este dispositivo antes de continuar.",
-    );
-  }
-  const deviceData = deviceSnap.data() || {};
-  if (deviceData.ownerUid !== donoUid) {
-    console.error(
-      "[admin/criar-cliente] deviceId com ownerUid divergente:",
-      "chamador=" + chamadorUid,
-      "donoUid=" + donoUid,
-      "device.ownerUid=" + deviceData.ownerUid,
-      "deviceId=" + deviceIdRaw,
-    );
-    return bad(res, 403, "Dispositivo de origem não pertence a este proprietário.");
-  }
-  const expectedRole = criadoPorFuncionario ? "funcionario" : "owner";
-  if (deviceData.userRole && deviceData.userRole !== expectedRole) {
-    console.error(
-      "[admin/criar-cliente] deviceId com userRole divergente:",
-      "expected=" + expectedRole,
-      "device.userRole=" + deviceData.userRole,
-      "deviceId=" + deviceIdRaw,
-    );
-    return bad(res, 403, "Dispositivo de origem incompatível com o perfil do chamador.");
-  }
-  const sourceDeviceId = deviceIdRaw;
+  const sourceDeviceId = validacaoDevice.sourceDeviceId;
 
   // 9) Cria o cliente
   const clientesRef = dbAdmin.collection("clientes");
@@ -341,8 +246,8 @@ export default async function handler(req, res) {
   try {
     docRef = await clientesRef.add(novoDoc);
   } catch (err) {
-    console.error("[admin/criar-cliente] addDoc falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível salvar o cliente. Tente novamente.");
+    console.error(`[${PREFIX}] addDoc falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível salvar o cliente. Tente novamente.");
   }
 
   // 10) Evento central (Fase A — notificações sincronizadas).
@@ -380,15 +285,15 @@ export default async function handler(req, res) {
         dispatchedAt: null,
       });
     console.log(
-      "[admin/criar-cliente] evento criado:",
-      "eventId=" + eventId,
-      "type=CLIENT_CREATED",
-      "ownerId=" + donoUid,
-      "clienteId=" + docRef.id,
-      "sourceDevice=" + sourceDeviceId,
+      `[${PREFIX}] evento criado:`,
+      `eventId=${eventId}`,
+      `type=CLIENT_CREATED`,
+      `ownerId=${donoUid}`,
+      `clienteId=${docRef.id}`,
+      `sourceDevice=${sourceDeviceId}`,
     );
   } catch (err) {
-    console.error("[admin/criar-cliente] criar evento falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] criar evento falhou:`, err?.code, err?.message);
     // Não bloqueia o fluxo principal.
   }
 

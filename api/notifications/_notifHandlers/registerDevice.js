@@ -1,4 +1,6 @@
-// API: POST /api/notifications/register-device
+// Sub-handler: POST /api/notifications/register-device
+//
+// Disparado por api/notifications/[...slug].js quando slug === "register-device".
 //
 // Grava/atualiza o dispositivo do usuário em
 // `usuarios/{uid}/devices/{deviceId}`.
@@ -26,31 +28,15 @@
 // Resposta (200 OK):
 //   { ok: true, deviceId: "..." }
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth } from "../../_lib/dono.js";
 
+const PREFIX = "notifications/register-device";
 const DEVICE_TYPES_VALIDOS = new Set(["desktop", "mobile", "tablet", "other"]);
 
-function bad(res, status, erro) {
-  console.error(`[notifications/register-device] ${status} ${erro}`);
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-export default async function handler(req, res) {
+export async function registerDeviceHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -62,44 +48,33 @@ export default async function handler(req, res) {
 
   // 2) Validação
   if (!deviceId || deviceId.length > 200) {
-    return bad(res, 400, "deviceId é obrigatório (string até 200 chars).");
+    return bad(res, PREFIX, 400, "deviceId é obrigatório (string até 200 chars).");
   }
   if (!DEVICE_TYPES_VALIDOS.has(type)) {
-    return bad(res, 400, `type deve ser um de: ${Array.from(DEVICE_TYPES_VALIDOS).join(", ")}.`);
+    return bad(res, PREFIX, 400, `type deve ser um de: ${Array.from(DEVICE_TYPES_VALIDOS).join(", ")}.`);
   }
   // fcmToken pode ser null (logout intencional) ou string (até ~200 chars
   // para tokens web-push; tokens nativos costumam ser maiores, então
   // permitimos até 4096).
   if (fcmToken !== null && fcmToken !== undefined && (typeof fcmToken !== "string" || fcmToken.length > 4096)) {
-    return bad(res, 400, "fcmToken inválido (string até 4096 chars ou null).");
+    return bad(res, PREFIX, 400, "fcmToken inválido (string até 4096 chars ou null).");
   }
 
   // 3) Token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 4) Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[notifications/register-device] Firebase Admin indisponível:", err?.code, err?.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 5) Identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[notifications/register-device] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 6) Resolve o DONO efetivo + papel do chamador.
   //    Para DEVICES, o `uid` do path é o PRÓPRIO chamador (cada device
@@ -114,18 +89,18 @@ export default async function handler(req, res) {
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil do chamador não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil do chamador não encontrado.");
     }
     const data = snap.data() || {};
     if (data.role === "funcionario" && data.ownerUid) {
       userRole = "funcionario";
       ownerUid = data.ownerUid;
     } else if (data.ownerUid) {
-      return bad(res, 403, "Perfil inválido.");
+      return bad(res, PREFIX, 403, "Perfil inválido.");
     }
   } catch (err) {
-    console.error("[notifications/register-device] leitura do perfil falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] leitura do perfil falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
 
   // 7) Upsert do device. setDoc com merge preserva campos que não
@@ -155,12 +130,12 @@ export default async function handler(req, res) {
     }
     await deviceRef.set(deviceDoc, { merge: true });
   } catch (err) {
-    console.error("[notifications/register-device] set device falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível registrar o dispositivo.");
+    console.error(`[${PREFIX}] set device falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível registrar o dispositivo.");
   }
 
   console.log(
-    "[notifications/register-device] device upsert:",
+    `[${PREFIX}] device upsert:`,
     `uid=${chamadorUid}`,
     `deviceId=${deviceId}`,
     `type=${type}`,

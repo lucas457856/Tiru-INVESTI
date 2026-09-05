@@ -1,4 +1,6 @@
-// API: POST /api/auth/create-employee
+// Sub-handler: POST /api/auth/create-employee
+//
+// Disparado por api/auth/[...slug].js quando slug === "create-employee".
 //
 // Fluxo (chamado pelo DONO autenticado):
 //   1. Recebe { nome, email, senha, limiteContratos } do cliente.
@@ -28,10 +30,11 @@
 //   - O e-mail é normalizado (lowercase, trim) antes de comparar e gravar.
 //   - Validações de payload: tipo, comprimento mínimo, regex e-mail.
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { ehPro, getAuth } from "../../_lib/dono.js";
 
+const PREFIX = "auth/create-employee";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOME_MIN = 2;
 const NOME_MAX = 80;
@@ -40,31 +43,8 @@ const SENHA_MAX = 128;
 const LIMITE_MIN = 0;
 const LIMITE_MAX = 100000;
 
-// Plano: aceita apenas "pro". Qualquer outro valor (incluindo
-// ausente) é tratado como "free". Mantém compatibilidade com donos
-// antigos que não têm o campo `plan` no Firestore.
-function ehPro(perfil) {
-  return perfil?.plan === "pro";
-}
-
-function bad(res, status, erro) {
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-export default async function handler(req, res) {
+export async function createEmployeeHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -74,13 +54,13 @@ export default async function handler(req, res) {
   const limiteRaw = body.limiteContratos;
 
   if (!nome || nome.length < NOME_MIN || nome.length > NOME_MAX) {
-    return bad(res, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
+    return bad(res, PREFIX, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
   }
   if (!email || !EMAIL_REGEX.test(email)) {
-    return bad(res, 400, "E-mail inválido.");
+    return bad(res, PREFIX, 400, "E-mail inválido.");
   }
   if (!senha || senha.length < SENHA_MIN || senha.length > SENHA_MAX) {
-    return bad(res, 400, `A senha deve ter entre ${SENHA_MIN} e ${SENHA_MAX} caracteres.`);
+    return bad(res, PREFIX, 400, `A senha deve ter entre ${SENHA_MIN} e ${SENHA_MAX} caracteres.`);
   }
   const limiteNumero = Number(limiteRaw);
   if (
@@ -91,35 +71,24 @@ export default async function handler(req, res) {
     limiteNumero < LIMITE_MIN ||
     limiteNumero > LIMITE_MAX
   ) {
-    return bad(res, 400, `Limite de contratos inválido (${LIMITE_MIN} a ${LIMITE_MAX}).`);
+    return bad(res, PREFIX, 400, `Limite de contratos inválido (${LIMITE_MIN} a ${LIMITE_MAX}).`);
   }
 
   // 2) Token do chamador
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 3) Firebase Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("Falha ao inicializar Firebase Admin:", err.code || err.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Verifica identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("verifyIdToken falhou:", err?.code || err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) Confirma que o chamador é DONO: /usuarios/{uid} existe e não
   //    tem role/ownerUid (perfis de funcionário têm ambos).
@@ -127,16 +96,17 @@ export default async function handler(req, res) {
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil de dono não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil de dono não encontrado.");
     }
     perfilChamador = snap.data() || {};
   } catch (err) {
-    console.error("Leitura do perfil do chamador falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] Leitura do perfil do chamador falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
   if (perfilChamador.role || perfilChamador.ownerUid) {
     return bad(
       res,
+      PREFIX,
       403,
       "Apenas o proprietário da conta pode cadastrar funcionários.",
     );
@@ -153,6 +123,7 @@ export default async function handler(req, res) {
   if (perfilChamador.status === "bloqueado") {
     return bad(
       res,
+      PREFIX,
       403,
       "Conta bloqueada pelo administrador. Não é possível cadastrar funcionários.",
     );
@@ -160,6 +131,7 @@ export default async function handler(req, res) {
   if (perfilChamador.permissoes?.criarFuncionarios === false) {
     return bad(
       res,
+      PREFIX,
       403,
       "A criação de funcionários foi bloqueada pelo administrador.",
     );
@@ -181,13 +153,14 @@ export default async function handler(req, res) {
       if (cont >= limiteFuncionarios) {
         return bad(
           res,
+          PREFIX,
           403,
           `Limite de funcionários atingido (${cont}/${limiteFuncionarios}). Entre em contato com o administrador.`,
         );
       }
     } catch (err) {
-      console.error("Contagem de funcionários falhou:", err?.message);
-      return bad(res, 500, "Não foi possível validar o limite de funcionários.");
+      console.error(`[${PREFIX}] Contagem de funcionários falhou:`, err?.message);
+      return bad(res, PREFIX, 500, "Não foi possível validar o limite de funcionários.");
     }
   }
 
@@ -203,11 +176,11 @@ export default async function handler(req, res) {
       .limit(1)
       .get();
     if (!dupQuery.empty) {
-      return bad(res, 409, "Já existe um funcionário com este e-mail.");
+      return bad(res, PREFIX, 409, "Já existe um funcionário com este e-mail.");
     }
   } catch (err) {
-    console.error("Verificação de duplicidade falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o e-mail.");
+    console.error(`[${PREFIX}] Verificação de duplicidade falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o e-mail.");
   }
 
   // 7) Cria usuário no Firebase Auth (server-side, sem afetar sessão
@@ -222,16 +195,16 @@ export default async function handler(req, res) {
     funcionarioAuthUid = userRecord.uid;
   } catch (err) {
     if (err?.code === "auth/email-already-in-use") {
-      return bad(res, 409, "Este e-mail já está cadastrado no Firebase Authentication.");
+      return bad(res, PREFIX, 409, "Este e-mail já está cadastrado no Firebase Authentication.");
     }
     if (err?.code === "auth/invalid-email") {
-      return bad(res, 400, "E-mail inválido.");
+      return bad(res, PREFIX, 400, "E-mail inválido.");
     }
     if (err?.code === "auth/weak-password") {
-      return bad(res, 400, "A senha é muito fraca. Use pelo menos 6 caracteres.");
+      return bad(res, PREFIX, 400, "A senha é muito fraca. Use pelo menos 6 caracteres.");
     }
-    console.error("createUser falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível criar a conta de autenticação.");
+    console.error(`[${PREFIX}] createUser falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível criar a conta de autenticação.");
   }
 
   // 8) Persiste os 2 docs Firestore. Se QUALQUER um falhar, rollback
@@ -265,13 +238,13 @@ export default async function handler(req, res) {
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (err) {
-    console.error("Persistência Firestore falhou — iniciando rollback:", err?.message);
+    console.error(`[${PREFIX}] Persistência Firestore falhou — iniciando rollback:`, err?.message);
     try {
       await authAdmin.deleteUser(funcionarioAuthUid);
     } catch (rbErr) {
-      console.error("Rollback deleteUser falhou:", rbErr?.code, rbErr?.message);
+      console.error(`[${PREFIX}] Rollback deleteUser falhou:`, rbErr?.code, rbErr?.message);
     }
-    return bad(res, 500, "Não foi possível cadastrar o funcionário. Tente novamente.");
+    return bad(res, PREFIX, 500, "Não foi possível cadastrar o funcionário. Tente novamente.");
   }
 
   return res.status(201).json({

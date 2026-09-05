@@ -1,4 +1,6 @@
-// API: GET /api/admin/overview
+// Sub-handler: GET /api/admin/overview
+//
+// Disparado por api/admin/[...slug].js quando slug === "overview".
 //
 // Retorna a visão geral do sistema para o Painel Administrativo.
 // Apenas a conta ADMIN_UID pode chamar — qualquer outro uid recebe
@@ -19,9 +21,11 @@
 //     no painel da Vercel).
 //   - Nenhuma regra do Firestore foi enfraquecida.
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth, normalizarPermissoes, normalizarStatus } from "../../_lib/dono.js";
+
+const PREFIX = "admin/overview";
 
 // Defaults aplicados quando o doc do dono não tem os campos
 // administrativos. Novas contas começam com limites de 5/5/5 e com
@@ -33,8 +37,6 @@ import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 // os valores que lá estão. Os defaults só são aplicados quando o
 // campo está AUSENTE no doc.
 const LIMITES_PADRAO = { contratos: 5, clientes: 5, funcionarios: 5 };
-const PERMISSOES_PADRAO = { criarContratos: true, criarClientes: true, criarFuncionarios: false };
-const STATUS_PADRAO = "ativo";
 const PLANO_PADRAO = "free";
 
 // Normaliza o campo `plan`. Aceita apenas "free" ou "pro" — qualquer
@@ -42,18 +44,6 @@ const PLANO_PADRAO = "free";
 // o campo continuam funcionando sem migração destrutiva.
 function normalizarPlano(data) {
   return data?.plan === "pro" ? "pro" : PLANO_PADRAO;
-}
-
-function bad(res, status, erro, extra = {}) {
-  console.error(`[admin/overview] ${status} ${erro}`, extra);
-  return res.status(status).json({ ok: false, erro, ...extra });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
 }
 
 async function contarSubcolecao(dbAdmin, docRef, collName) {
@@ -80,22 +70,10 @@ async function contarClientesPorDono(dbAdmin, donoUid) {
   }
 }
 
-// Lê uma permissão do Firestore respeitando o default:
-//   - `true` ou `false`  → usa o valor persistido.
-//   - `undefined` (ausente) ou outro tipo → usa o default.
-// Coerção explícita: garante que o retorno seja sempre boolean.
-function lerPermissao(valor, padrao) {
-  if (valor === true || valor === false) return valor;
-  return padrao;
-}
-
 // Normaliza os campos administrativos aplicando defaults permissivos
 // quando ausentes. Garante que o front sempre recebe o objeto completo.
-function normalizarAdmin(data) {
-  const status = (data?.status === "bloqueado" || data?.status === "ativo")
-    ? data.status
-    : STATUS_PADRAO;
-  const limites = {
+function normalizarLimitesLocal(data) {
+  return {
     // `!= null` + `Number.isFinite` (não `||`) para preservar 0
     // quando o limite está presente mas vale 0 (zero é válido:
     // significa "sem limite").
@@ -112,21 +90,10 @@ function normalizarAdmin(data) {
         ? Number(data.limites.funcionarios)
         : LIMITES_PADRAO.funcionarios,
   };
-  const permissoes = {
-    criarContratos: lerPermissao(data?.permissoes?.criarContratos, PERMISSOES_PADRAO.criarContratos),
-    criarClientes: lerPermissao(data?.permissoes?.criarClientes, PERMISSOES_PADRAO.criarClientes),
-    criarFuncionarios: lerPermissao(data?.permissoes?.criarFuncionarios, PERMISSOES_PADRAO.criarFuncionarios),
-  };
-  return { status, limites, permissoes };
 }
 
-export default async function handler(req, res) {
+export async function overviewHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) ADMIN_UID (env var)
   const adminUid = process.env.ADMIN_UID;
@@ -134,7 +101,7 @@ export default async function handler(req, res) {
     console.error(
       "[admin/overview] ADMIN_UID não configurado. Defina no painel da Vercel (Production, Preview e Development) com o valor: hzfrWIuTXYgeasOTPD7pmKNxt1P2",
     );
-    return bad(res, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.", {
+    return bad(res, PREFIX, 500, "Configuração do servidor ausente. ADMIN_UID não foi definido no servidor.", {
       variavel: "ADMIN_UID",
     });
   }
@@ -142,44 +109,22 @@ export default async function handler(req, res) {
   // 2) Token do chamador
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória. Envie o Firebase ID Token no header Authorization: Bearer <token>.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória. Envie o Firebase ID Token no header Authorization: Bearer <token>.");
   }
 
   // 3) Inicializa Firebase Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[admin/overview] Falha ao inicializar Firebase Admin:", err?.code, err?.message);
-    const missing = [];
-    if (!process.env.FIREBASE_PROJECT_ID) missing.push("FIREBASE_PROJECT_ID");
-    if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push("FIREBASE_CLIENT_EMAIL");
-    if (!process.env.FIREBASE_PRIVATE_KEY) missing.push("FIREBASE_PRIVATE_KEY");
-    return bad(
-      res,
-      500,
-      missing.length
-        ? `Firebase Admin não configurado no servidor. Faltam: ${missing.join(", ")}.`
-        : "Não foi possível inicializar o Firebase Admin.",
-      { variavel: missing[0] || null },
-    );
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Verifica identidade
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[admin/overview] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) BLOQUEIO PRINCIPAL: só ADMIN_UID
   if (chamadorUid !== adminUid) {
-    return bad(res, 403, "Acesso restrito ao administrador do sistema.");
+    return bad(res, PREFIX, 403, "Acesso restrito ao administrador do sistema.");
   }
 
   // 6) Agrega dados
@@ -214,7 +159,10 @@ export default async function handler(req, res) {
         contarClientesPorDono(dbAdmin, uid),
       ]);
 
-      const adminFields = normalizarAdmin(data);
+      // Normalização dos campos administrativos (mantém defaults permissivos).
+      const status = normalizarStatus(data);
+      const limites = normalizarLimitesLocal(data);
+      const permissoes = normalizarPermissoes(data);
 
       donos.push({
         uid,
@@ -225,10 +173,10 @@ export default async function handler(req, res) {
         contFuncionarios,
         contContratos,
         contClientes,
-        status: adminFields.status,
+        status,
         plano: normalizarPlano(data),
-        limites: adminFields.limites,
-        permissoes: adminFields.permissoes,
+        limites,
+        permissoes,
       });
       totalContratos += contContratos;
     }
@@ -256,7 +204,7 @@ export default async function handler(req, res) {
       geradoEm: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[admin/overview] Agregação falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível agregar os dados do Firestore.");
+    console.error(`[${PREFIX}] Agregação falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível agregar os dados do Firestore.");
   }
 }

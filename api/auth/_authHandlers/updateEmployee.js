@@ -1,4 +1,6 @@
-// API: POST /api/auth/update-employee
+// Sub-handler: POST /api/auth/update-employee
+//
+// Disparado por api/auth/[...slug].js quando slug === "update-employee".
 //
 // Fluxo (chamado pelo DONO autenticado):
 //   1. Recebe { funcionarioId, action? | status?, nome?, limiteContratos? }.
@@ -20,10 +22,11 @@
 //     exclusiva de /api/auth/create-employee; troca é via
 //     /api/auth/reset-password + /esqueci-senha).
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth } from "../../_lib/dono.js";
 
+const PREFIX = "auth/update-employee";
 const NOME_MIN = 2;
 const NOME_MAX = 80;
 const LIMITE_MIN = 0;
@@ -38,24 +41,8 @@ const ACTION_TO_STATUS = {
 };
 const STATUSES = ["ativo", "inativo"];
 
-function bad(res, status, erro) {
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-export default async function handler(req, res) {
+export async function updateEmployeeHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const funcionarioId = typeof body.funcionarioId === "string" ? body.funcionarioId.trim() : "";
@@ -65,17 +52,17 @@ export default async function handler(req, res) {
   const querMudarStatus = Object.prototype.hasOwnProperty.call(body, "status");
 
   if (!funcionarioId) {
-    return bad(res, 400, "Informe o identificador do funcionário.");
+    return bad(res, PREFIX, 400, "Informe o identificador do funcionário.");
   }
   if (!querMudarNome && !querMudarLimite && !querMudarAction && !querMudarStatus) {
-    return bad(res, 400, "Nenhum campo para atualizar foi informado.");
+    return bad(res, PREFIX, 400, "Nenhum campo para atualizar foi informado.");
   }
 
   let nome;
   if (querMudarNome) {
     nome = typeof body.nome === "string" ? body.nome.trim() : "";
     if (!nome || nome.length < NOME_MIN || nome.length > NOME_MAX) {
-      return bad(res, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
+      return bad(res, PREFIX, 400, `Informe um nome entre ${NOME_MIN} e ${NOME_MAX} caracteres.`);
     }
   }
 
@@ -89,7 +76,7 @@ export default async function handler(req, res) {
       limiteNumero < LIMITE_MIN ||
       limiteNumero > LIMITE_MAX
     ) {
-      return bad(res, 400, `Limite de contratos inválido (${LIMITE_MIN} a ${LIMITE_MAX}).`);
+      return bad(res, PREFIX, 400, `Limite de contratos inválido (${LIMITE_MIN} a ${LIMITE_MAX}).`);
     }
   }
 
@@ -98,13 +85,13 @@ export default async function handler(req, res) {
   let querMudarStatusFinal = false;
   if (querMudarAction) {
     if (typeof body.action !== "string" || !ACTION_TO_STATUS[body.action]) {
-      return bad(res, 400, "Ação inválida. Use 'ativar' ou 'inativar'.");
+      return bad(res, PREFIX, 400, "Ação inválida. Use 'ativar' ou 'inativar'.");
     }
     novoStatus = ACTION_TO_STATUS[body.action];
     querMudarStatusFinal = true;
   } else if (querMudarStatus) {
     if (typeof body.status !== "string" || !STATUSES.includes(body.status)) {
-      return bad(res, 400, "Status inválido. Use 'ativo' ou 'inativo'.");
+      return bad(res, PREFIX, 400, "Status inválido. Use 'ativo' ou 'inativo'.");
     }
     novoStatus = body.status;
     querMudarStatusFinal = true;
@@ -112,41 +99,30 @@ export default async function handler(req, res) {
 
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("Falha ao inicializar Firebase Admin:", err.code || err.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("verifyIdToken falhou:", err?.code || err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   let perfilChamador;
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil de dono não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil de dono não encontrado.");
     }
     perfilChamador = snap.data() || {};
   } catch (err) {
-    console.error("Leitura do perfil do chamador falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] Leitura do perfil do chamador falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
   if (perfilChamador.role || perfilChamador.ownerUid) {
-    return bad(res, 403, "Apenas o proprietário da conta pode editar funcionários.");
+    return bad(res, PREFIX, 403, "Apenas o proprietário da conta pode editar funcionários.");
   }
 
   const funcRef = dbAdmin
@@ -159,11 +135,11 @@ export default async function handler(req, res) {
   try {
     funcSnap = await funcRef.get();
   } catch (err) {
-    console.error("Leitura do funcionário falhou:", err?.message);
-    return bad(res, 500, "Não foi possível carregar o funcionário.");
+    console.error(`[${PREFIX}] Leitura do funcionário falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível carregar o funcionário.");
   }
   if (!funcSnap.exists) {
-    return bad(res, 404, "Funcionário não encontrado.");
+    return bad(res, PREFIX, 404, "Funcionário não encontrado.");
   }
 
   const update = {
@@ -191,8 +167,8 @@ export default async function handler(req, res) {
     // Repassa a mensagem real do Firestore (sem expor stack interno).
     // Antes estava genérica e escondia o problema; agora conseguimos
     // ver exatamente o motivo (permission-denied, not-found, etc.).
-    console.error("updateDoc funcionário falhou:", err?.code, err?.message);
-    return bad(res, 500, err?.message || "Não foi possível atualizar o funcionário.");
+    console.error(`[${PREFIX}] updateDoc funcionário falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, err?.message || "Não foi possível atualizar o funcionário.");
   }
 
   return res.status(200).json({ ok: true, funcionarioId, status: novoStatus });

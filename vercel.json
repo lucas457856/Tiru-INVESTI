@@ -1,5 +1,8 @@
 {
   "framework": "vite",
+  "functions": {
+    "api/notifications/[...slug].js": { "maxDuration": 30 }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

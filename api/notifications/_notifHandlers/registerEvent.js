@@ -1,4 +1,6 @@
-// API: POST /api/notifications/register-event
+// Sub-handler: POST /api/notifications/register-event
+//
+// Disparado por api/notifications/[...slug].js quando slug === "register-event".
 //
 // Grava o EVENTO CENTRAL de notificação em
 // `usuarios/{ownerId}/notificationEvents/{eventId}`.
@@ -44,9 +46,11 @@
 //     status: "created" | "exists"
 //   }
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth, validarSourceDeviceId } from "../../_lib/dono.js";
+
+const PREFIX = "notifications/register-event";
 
 // Conjunto canônico de tipos de evento. Espelha
 // `src/utils/notificationEventTypes.js` para evitar uma dependência
@@ -74,94 +78,8 @@ const EVENT_TYPES_VALIDOS = new Set([
   "EMPLOYEE_DELETED",
 ]);
 
-function bad(res, status, erro) {
-  console.error(`[notifications/register-event] ${status} ${erro}`);
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-// Valida o `sourceDeviceId` enviado pelo client. Espelha a mesma
-// lógica aplicada em api/admin/criar-contrato.js:397-449 e
-// api/admin/criar-cliente.js:271-321: o deviceId deve (a) existir
-// em `usuarios/{chamadorUid}/devices/{sourceDeviceId}`, (b) ter
-// `ownerUid === donoUid`, e (c) ter `userRole` compatível com o
-// `roleChamador` (defesa em profundidade contra troca de papel).
-//
-// Quando `sourceDeviceId` é string vazia (omitido pelo front ou
-// chamada server-side), retorna `{ ok: true, sourceDeviceId: null }`
-// e o caller grava o evento com `sourceDeviceId: null`
-// (comportamento atual preservado).
-//
-// Retorna:
-//   { ok: true, sourceDeviceId }                    → pode usar
-//   { ok: true, sourceDeviceId: null }              → não enviado, ok
-//   { ok: false, code: 400|403|500, msg }           → erro a retornar
-async function validarSourceDeviceId({ dbAdmin, chamadorUid, donoUid, roleChamador, sourceDeviceId }) {
-  // Sem sourceDeviceId: chamada server-side, comportamento atual.
-  if (!sourceDeviceId) {
-    return { ok: true, sourceDeviceId: null };
-  }
-  if (sourceDeviceId.length > 200) {
-    return { ok: false, code: 400, msg: "sourceDeviceId inválido (até 200 chars)." };
-  }
-  let deviceSnap;
-  try {
-    deviceSnap = await dbAdmin
-      .collection("usuarios")
-      .doc(chamadorUid)
-      .collection("devices")
-      .doc(sourceDeviceId)
-      .get();
-  } catch (err) {
-    console.error("[notifications/register-event] leitura do device falhou:", err?.message);
-    return { ok: false, code: 500, msg: "Não foi possível validar o dispositivo de origem." };
-  }
-  if (!deviceSnap.exists) {
-    return {
-      ok: false,
-      code: 400,
-      msg: "Dispositivo de origem não registrado. Atualize a página para registrar este dispositivo antes de continuar.",
-    };
-  }
-  const deviceData = deviceSnap.data() || {};
-  if (deviceData.ownerUid !== donoUid) {
-    console.error(
-      "[notifications/register-event] sourceDeviceId com ownerUid divergente:",
-      `chamador=${chamadorUid}`,
-      `donoUid=${donoUid}`,
-      `device.ownerUid=${deviceData.ownerUid}`,
-      `sourceDeviceId=${sourceDeviceId}`,
-    );
-    return { ok: false, code: 403, msg: "Dispositivo de origem não pertence a este proprietário." };
-  }
-  // userRole esperado: "owner" se roleChamador==="dono", senão "funcionario".
-  // (a constante no doc é "owner" minúsculo — ver register-device.js:144.)
-  const expectedRole = roleChamador === "funcionario" ? "funcionario" : "owner";
-  if (deviceData.userRole && deviceData.userRole !== expectedRole) {
-    console.error(
-      "[notifications/register-event] sourceDeviceId com userRole divergente:",
-      `expected=${expectedRole}`,
-      `device.userRole=${deviceData.userRole}`,
-      `sourceDeviceId=${sourceDeviceId}`,
-    );
-    return { ok: false, code: 403, msg: "Dispositivo de origem incompatível com o perfil do chamador." };
-  }
-  return { ok: true, sourceDeviceId };
-}
-
-export default async function handler(req, res) {
+export async function registerEventHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -177,47 +95,36 @@ export default async function handler(req, res) {
 
   // 2) Validação
   if (!eventId || eventId.length > 200) {
-    return bad(res, 400, "eventId é obrigatório (string até 200 chars).");
+    return bad(res, PREFIX, 400, "eventId é obrigatório (string até 200 chars).");
   }
   if (!type || !EVENT_TYPES_VALIDOS.has(type)) {
-    return bad(res, 400, `type inválido. Esperado um de: ${Array.from(EVENT_TYPES_VALIDOS).join(", ")}.`);
+    return bad(res, PREFIX, 400, `type inválido. Esperado um de: ${Array.from(EVENT_TYPES_VALIDOS).join(", ")}.`);
   }
   if (!title || title.length > 200) {
-    return bad(res, 400, "title é obrigatório (string até 200 chars).");
+    return bad(res, PREFIX, 400, "title é obrigatório (string até 200 chars).");
   }
   if (!bodyText || bodyText.length > 1000) {
-    return bad(res, 400, "body é obrigatório (string até 1000 chars).");
+    return bad(res, PREFIX, 400, "body é obrigatório (string até 1000 chars).");
   }
   if (sourceDeviceId && sourceDeviceId.length > 200) {
-    return bad(res, 400, "sourceDeviceId inválido (string até 200 chars).");
+    return bad(res, PREFIX, 400, "sourceDeviceId inválido (string até 200 chars).");
   }
 
   // 3) Token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 4) Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[notifications/register-event] Firebase Admin indisponível:", err?.code, err?.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 5) Identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[notifications/register-event] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 6) Resolve o DONO efetivo (dono = ele mesmo; funcionário = ownerUid).
   //    O `ownerId` enviado no body é IGNORADO — sempre derivado do chamador.
@@ -226,24 +133,24 @@ export default async function handler(req, res) {
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil do chamador não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil do chamador não encontrado.");
     }
     const data = snap.data() || {};
     if (data.role === "funcionario" && data.ownerUid) {
       donoUid = data.ownerUid;
       roleChamador = "funcionario";
     } else if (data.ownerUid) {
-      return bad(res, 403, "Perfil inválido.");
+      return bad(res, PREFIX, 403, "Perfil inválido.");
     } else {
       donoUid = chamadorUid;
     }
   } catch (err) {
-    console.error("[notifications/register-event] leitura do perfil falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] leitura do perfil falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
 
   // 6.5) Validação do `sourceDeviceId` (P3 — segurança contra DoS entre
-  // devices do mesmo ownerUid). Espelha api/admin/criar-contrato.js:397-449.
+  // devices do mesmo ownerUid). Helper compartilhado em _lib/dono.js.
   // Se o front enviou um sourceDeviceId, exigimos que o device esteja
   // registrado em `usuarios/{chamadorUid}/devices/{sourceDeviceId}` e
   // que o ownerUid/userRole do doc do device sejam coerentes com o
@@ -257,9 +164,10 @@ export default async function handler(req, res) {
     donoUid,
     roleChamador,
     sourceDeviceId,
+    prefix: PREFIX,
   });
   if (!validacaoDevice.ok) {
-    return bad(res, validacaoDevice.code, validacaoDevice.msg);
+    return bad(res, PREFIX, validacaoDevice.code, validacaoDevice.msg);
   }
   // A partir daqui, `validacaoDevice.sourceDeviceId` é o valor validado
   // (ou `null` se não enviado). Usamos essa variável local em vez do
@@ -278,8 +186,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, eventId, status: "exists" });
     }
   } catch (err) {
-    console.error("[notifications/register-event] leitura do evento falhou:", err?.message);
-    return bad(res, 500, "Não foi possível verificar o evento.");
+    console.error(`[${PREFIX}] leitura do evento falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível verificar o evento.");
   }
 
   // 8) Grava o evento. ServerTimestamp garante ordenação estável.
@@ -299,12 +207,12 @@ export default async function handler(req, res) {
   try {
     await eventoRef.set(evento);
   } catch (err) {
-    console.error("[notifications/register-event] set evento falhou:", err?.code, err?.message);
-    return bad(res, 500, "Não foi possível registrar o evento.");
+    console.error(`[${PREFIX}] set evento falhou:`, err?.code, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível registrar o evento.");
   }
 
   console.log(
-    "[notifications/register-event] evento criado:",
+    `[${PREFIX}] evento criado:`,
     `eventId=${eventId}`,
     `type=${type}`,
     `ownerId=${donoUid}`,

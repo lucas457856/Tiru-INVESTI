@@ -1,4 +1,6 @@
-// API: GET /api/admin/health
+// Sub-handler: GET /api/admin/health
+//
+// Disparado por api/admin/[...slug].js quando slug === "health".
 //
 // Endpoint público (sem auth) usado para diagnóstico. Mostra:
 //   - Se a função serverless está respondendo JSON corretamente
@@ -9,6 +11,8 @@
 // NÃO expõe nenhum secret. Apenas "ok" ou "faltando" para cada var.
 // NÃO faz nenhuma chamada ao Firebase.
 
+const ADMIN_UID_OFICIAL = "hzfrWIuTXYgeasOTPD7pmKNxt1P2";
+
 function listarFaltando() {
   const out = {};
   out.ADMIN_UID = !!process.env.ADMIN_UID;
@@ -18,15 +22,8 @@ function listarFaltando() {
   return out;
 }
 
-const ADMIN_UID_OFICIAL = "hzfrWIuTXYgeasOTPD7pmKNxt1P2";
-
-export default async function handler(req, res) {
+export async function healthHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ ok: false, erro: "Método não permitido." });
-  }
 
   const env = listarFaltando();
   const adminUidConfigurado = !!process.env.ADMIN_UID;

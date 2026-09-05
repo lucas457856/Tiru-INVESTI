@@ -1,4 +1,6 @@
-// API: POST /api/notifications/dispatch
+// Sub-handler: POST /api/notifications/dispatch
+//
+// Disparado por api/notifications/[...slug].js quando slug === "dispatch".
 //
 // Distribui um evento centralizado para os dispositivos do ownerId
 // que devem recebê-lo, via Firebase Cloud Messaging (FCM).
@@ -54,21 +56,12 @@
 //     status: "delivered" | "partial_failure" | "no_targets"
 //   }
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getFirebaseAdmin, getFirebaseMessaging } from "../_lib/firebaseAdmin.js";
+import { getFirebaseMessaging } from "../../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { getAuth } from "../../_lib/dono.js";
 
-function bad(res, status, erro) {
-  console.error(`[notifications/dispatch] ${status} ${erro}`);
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
+const PREFIX = "notifications/dispatch";
 
 // Erros FCM que justificam marcar o token como inválido no doc do device.
 // Lista alinhada com a doc do Firebase Admin SDK:
@@ -79,47 +72,31 @@ const CODIGOS_TOKEN_INVALIDO = new Set([
   "messaging/invalid-argument",
 ]);
 
-export default async function handler(req, res) {
+export async function dispatchHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
   if (!eventId || eventId.length > 200) {
-    return bad(res, 400, "eventId é obrigatório.");
+    return bad(res, PREFIX, 400, "eventId é obrigatório.");
   }
 
   // 2) Token
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
   // 3) Admin
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("[notifications/dispatch] Firebase Admin indisponível:", err?.code, err?.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 4) Identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("[notifications/dispatch] verifyIdToken falhou:", err?.code, err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) Lê o evento. Se não existir, 404 (cliente gerou eventId errado
   //    ou o register-event não foi chamado antes).
@@ -140,44 +117,44 @@ export default async function handler(req, res) {
     try {
       const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
       if (!snap.exists) {
-        return bad(res, 403, "Perfil do chamador não encontrado.");
+        return bad(res, PREFIX, 403, "Perfil do chamador não encontrado.");
       }
       perfilChamador = snap.data() || {};
       if (perfilChamador.role === "funcionario" && perfilChamador.ownerUid === bodyOwnerId) {
         donoUid = bodyOwnerId;
       } else if (perfilChamador.role === "funcionario") {
-        return bad(res, 403, "Funcionário sem acesso a este ownerId.");
+        return bad(res, PREFIX, 403, "Funcionário sem acesso a este ownerId.");
       } else if (!perfilChamador.role && !perfilChamador.ownerUid) {
         // DONO: ele mesmo pode despachar seus próprios eventos
         if (chamadorUid !== bodyOwnerId) {
-          return bad(res, 403, "Dono só pode despachar seus próprios eventos.");
+          return bad(res, PREFIX, 403, "Dono só pode despachar seus próprios eventos.");
         }
         donoUid = bodyOwnerId;
       } else {
-        return bad(res, 403, "Perfil inválido.");
+        return bad(res, PREFIX, 403, "Perfil inválido.");
       }
     } catch (err) {
-      console.error("[notifications/dispatch] leitura do perfil falhou:", err?.message);
-      return bad(res, 500, "Não foi possível validar o chamador.");
+      console.error(`[${PREFIX}] leitura do perfil falhou:`, err?.message);
+      return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
     }
   } else {
     // Sem ownerId no body: deriva do chamador.
     try {
       const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
       if (!snap.exists) {
-        return bad(res, 403, "Perfil do chamador não encontrado.");
+        return bad(res, PREFIX, 403, "Perfil do chamador não encontrado.");
       }
       const data = snap.data() || {};
       if (data.role === "funcionario" && data.ownerUid) {
         donoUid = data.ownerUid;
       } else if (data.ownerUid) {
-        return bad(res, 403, "Perfil inválido.");
+        return bad(res, PREFIX, 403, "Perfil inválido.");
       } else {
         donoUid = chamadorUid;
       }
     } catch (err) {
-      console.error("[notifications/dispatch] leitura do perfil falhou:", err?.message);
-      return bad(res, 500, "Não foi possível validar o chamador.");
+      console.error(`[${PREFIX}] leitura do perfil falhou:`, err?.message);
+      return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
     }
   }
 
@@ -191,11 +168,11 @@ export default async function handler(req, res) {
   try {
     eventoSnap = await eventoRef.get();
   } catch (err) {
-    console.error("[notifications/dispatch] leitura do evento falhou:", err?.message);
-    return bad(res, 500, "Não foi possível ler o evento.");
+    console.error(`[${PREFIX}] leitura do evento falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível ler o evento.");
   }
   if (!eventoSnap.exists) {
-    return bad(res, 404, "Evento não encontrado.");
+    return bad(res, PREFIX, 404, "Evento não encontrado.");
   }
   const evento = eventoSnap.data() || {};
 
@@ -245,7 +222,7 @@ export default async function handler(req, res) {
         );
       } catch (err) {
         console.warn(
-          `[notifications/dispatch] falha ao listar devices do funcionário ${funcData.authUid}:`,
+          `[${PREFIX}] falha ao listar devices do funcionário ${funcData.authUid}:`,
           err?.message,
         );
         // Continua com os outros funcionários.
@@ -254,8 +231,8 @@ export default async function handler(req, res) {
 
     devicesSnap = { docs: allDevices.map((d) => ({ id: d.id, _uid: d.uid, _data: d.data })) };
   } catch (err) {
-    console.error("[notifications/dispatch] listagem de devices falhou:", err?.message);
-    return bad(res, 500, "Não foi possível listar os devices.");
+    console.error(`[${PREFIX}] listagem de devices falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível listar os devices.");
   }
 
   // 8) Filtra devices elegíveis:
@@ -336,7 +313,7 @@ export default async function handler(req, res) {
         },
       });
     } catch (err) {
-      console.warn("[notifications/dispatch] update evento (no_targets) falhou:", err?.message);
+      console.warn(`[${PREFIX}] update evento (no_targets) falhou:`, err?.message);
     }
     return res.status(200).json({
       ok: true,
@@ -354,9 +331,10 @@ export default async function handler(req, res) {
   try {
     messaging = getFirebaseMessaging();
   } catch (err) {
-    console.error("[notifications/dispatch] FCM indisponível:", err?.code, err?.message);
+    console.error(`[${PREFIX}] FCM indisponível:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       "Serviço de push indisponível. Verifique se a Cloud Messaging API (V1) está habilitada.",
     );
@@ -419,7 +397,7 @@ export default async function handler(req, res) {
         });
     } catch (err) {
       console.warn(
-        `[notifications/dispatch] cleanup token falhou (uid=${tr.uid}, device=${tr.deviceId}):`,
+        `[${PREFIX}] cleanup token falhou (uid=${tr.uid}, device=${tr.deviceId}):`,
         err?.message,
       );
     }
@@ -441,7 +419,7 @@ export default async function handler(req, res) {
       },
     });
   } catch (err) {
-    console.warn("[notifications/dispatch] update evento falhou:", err?.message);
+    console.warn(`[${PREFIX}] update evento falhou:`, err?.message);
   }
 
   console.log(

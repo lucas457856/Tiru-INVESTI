@@ -1,4 +1,6 @@
-// API: POST /api/auth/delete-employee
+// Sub-handler: POST /api/auth/delete-employee
+//
+// Disparado por api/auth/[...slug].js quando slug === "delete-employee".
 //
 // Exclusão DEFINITIVA de um funcionário e de TODOS os dados a ele
 // vinculados (clientes e contratos que ele criou). Apenas o DONO
@@ -38,9 +40,12 @@
 //   - O frontend NÃO ganha permissão no Firestore — toda a exclusão
 //     passa por Admin SDK (que bypassa as Rules).
 
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
+import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { excluirSubcolecoesRecursivo } from "../../_lib/tree.js";
+import { getAuth } from "../../_lib/dono.js";
+
+const PREFIX = "auth/delete-employee";
 
 // Limite de contratos/clientes processados por chamada. Se um único
 // funcionário tiver mais que isso, a operação precisa ser repetida.
@@ -48,107 +53,48 @@ import { getFirebaseAdmin } from "../_lib/firebaseAdmin.js";
 // internamente, então este limite é só para evitar loop eterno.
 const MAX_ITENS_POR_OPERACAO = 5000;
 
-function bad(res, status, erro) {
-  return res.status(status).json({ ok: false, erro });
-}
-
-function extrairBearer(req) {
-  const h = req.headers?.authorization || req.headers?.Authorization;
-  if (!h || typeof h !== "string") return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
-  return m ? m[1] : null;
-}
-
-// Exclui recursivamente todas as subcoleções de um documento.
-// O Admin SDK exige que listemos as coleções via `listCollections()` e
-// depois excluamos os documentos em batch. Para garantir que NÃO
-// fiquem documentos órfãos, listamos subcoleções em cada nível.
-async function excluirSubcolecoesRecursivo(dbAdmin, docRef, profundidade = 0) {
-  if (profundidade > 5) return 0; // defesa contra ciclos
-  const collections = await docRef.listCollections();
-  let total = 0;
-  for (const coll of collections) {
-    const snap = await coll.limit(MAX_ITENS_POR_OPERACAO).get();
-    if (snap.empty) continue;
-
-    // Exclui recursivamente sub-subcoleções primeiro
-    for (const subDoc of snap.docs) {
-      total += await excluirSubcolecoesRecursivo(dbAdmin, subDoc.ref, profundidade + 1);
-    }
-
-    // Em batch de 500 (limite do Firestore)
-    const docs = snap.docs;
-    for (let i = 0; i < docs.length; i += 500) {
-      const batch = dbAdmin.batch();
-      const fatia = docs.slice(i, i + 500);
-      for (const d of fatia) {
-        batch.delete(d.ref);
-      }
-      await batch.commit();
-      total += fatia.length;
-    }
-  }
-  return total;
-}
-
-export default async function handler(req, res) {
+export async function deleteEmployeeHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return bad(res, 405, "Método não permitido.");
-  }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const funcionarioId = typeof body.funcionarioId === "string" ? body.funcionarioId.trim() : "";
   const funcionarioAuthUid = typeof body.funcionarioAuthUid === "string" ? body.funcionarioAuthUid.trim() : "";
 
   if (!funcionarioId) {
-    return bad(res, 400, "Informe o identificador do funcionário.");
+    return bad(res, PREFIX, 400, "Informe o identificador do funcionário.");
   }
   if (!funcionarioAuthUid) {
-    return bad(res, 400, "Informe o authUid do funcionário.");
+    return bad(res, PREFIX, 400, "Informe o authUid do funcionário.");
   }
 
   const idToken = extrairBearer(req);
   if (!idToken) {
-    return bad(res, 401, "Autenticação obrigatória.");
+    return bad(res, PREFIX, 401, "Autenticação obrigatória.");
   }
 
-  let admin;
-  try {
-    admin = getFirebaseAdmin();
-  } catch (err) {
-    console.error("Falha ao inicializar Firebase Admin:", err.code || err.message);
-    return bad(res, 500, "Serviço de autenticação indisponível. Tente novamente mais tarde.");
-  }
+  const admin = getAdminSdk(res, PREFIX);
+  if (!admin) return; // getAdminSdk já escreveu a resposta de erro
   const authAdmin = getAuth(admin);
   const dbAdmin = getFirestore(admin);
 
   // 1) Identidade do chamador
-  let chamadorUid;
-  try {
-    const decoded = await authAdmin.verifyIdToken(idToken, true);
-    chamadorUid = decoded.uid;
-  } catch (err) {
-    console.error("verifyIdToken falhou:", err?.code || err?.message);
-    return bad(res, 401, "Sessão inválida. Faça login novamente.");
-  }
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 2) Confirma que o chamador é DONO
   let perfilChamador;
   try {
     const snap = await dbAdmin.collection("usuarios").doc(chamadorUid).get();
     if (!snap.exists) {
-      return bad(res, 403, "Perfil de dono não encontrado.");
+      return bad(res, PREFIX, 403, "Perfil de dono não encontrado.");
     }
     perfilChamador = snap.data() || {};
   } catch (err) {
-    console.error("Leitura do perfil do chamador falhou:", err?.message);
-    return bad(res, 500, "Não foi possível validar o chamador.");
+    console.error(`[${PREFIX}] Leitura do perfil do chamador falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível validar o chamador.");
   }
   if (perfilChamador.role || perfilChamador.ownerUid) {
-    return bad(res, 403, "Apenas o proprietário da conta pode excluir funcionários.");
+    return bad(res, PREFIX, 403, "Apenas o proprietário da conta pode excluir funcionários.");
   }
 
   // 3) Valida o funcionário
@@ -162,17 +108,17 @@ export default async function handler(req, res) {
   try {
     funcSnap = await funcRef.get();
   } catch (err) {
-    console.error("Leitura do funcionário falhou:", err?.message);
-    return bad(res, 500, "Não foi possível carregar o funcionário.");
+    console.error(`[${PREFIX}] Leitura do funcionário falhou:`, err?.message);
+    return bad(res, PREFIX, 500, "Não foi possível carregar o funcionário.");
   }
   if (!funcSnap.exists) {
-    return bad(res, 404, "Funcionário não encontrado.");
+    return bad(res, PREFIX, 404, "Funcionário não encontrado.");
   }
   const funcData = funcSnap.data() || {};
 
   // Defesa: o authUid no doc deve bater com o enviado no body
   if (funcData.authUid !== funcionarioAuthUid) {
-    return bad(res, 400, "Identificador do funcionário inconsistente.");
+    return bad(res, PREFIX, 400, "Identificador do funcionário inconsistente.");
   }
 
   // Defesa extra: confirma perfil do funcionário (vínculo
@@ -182,12 +128,12 @@ export default async function handler(req, res) {
   try {
     perfilFuncSnap = await perfilFuncRef.get();
   } catch (err) {
-    console.error("Leitura do perfil do funcionário falhou:", err?.message);
+    console.error(`[${PREFIX}] Leitura do perfil do funcionário falhou:`, err?.message);
   }
   if (perfilFuncSnap && perfilFuncSnap.exists) {
     const perfilFuncData = perfilFuncSnap.data() || {};
     if (perfilFuncData.ownerUid !== chamadorUid) {
-      return bad(res, 403, "Funcionário não pertence a este proprietário.");
+      return bad(res, PREFIX, 403, "Funcionário não pertence a este proprietário.");
     }
   }
 
@@ -212,16 +158,17 @@ export default async function handler(req, res) {
       .get();
 
     for (const cDoc of contratosSnap.docs) {
-      // Exclui subcoleções recursivamente
+      // Exclui subcoleções recursivamente (helper compartilhado em _lib/tree.js)
       stats.subDocsExcluidos += await excluirSubcolecoesRecursivo(dbAdmin, cDoc.ref);
       // Exclui o contrato em si
       await cDoc.ref.delete();
       stats.contratosExcluidos += 1;
     }
   } catch (err) {
-    console.error("Exclusão de contratos falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] Exclusão de contratos falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível excluir os contratos: ${err?.message || "erro desconhecido"}.`,
     );
@@ -247,9 +194,10 @@ export default async function handler(req, res) {
       stats.clientesExcluidos += 1;
     }
   } catch (err) {
-    console.error("Exclusão de clientes falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] Exclusão de clientes falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível excluir os clientes: ${err?.message || "erro desconhecido"}.`,
     );
@@ -259,9 +207,10 @@ export default async function handler(req, res) {
   try {
     await funcRef.delete();
   } catch (err) {
-    console.error("Exclusão do doc funcionarios/{id} falhou:", err?.code, err?.message);
+    console.error(`[${PREFIX}] Exclusão do doc funcionarios/{id} falhou:`, err?.code, err?.message);
     return bad(
       res,
+      PREFIX,
       500,
       `Não foi possível remover o cadastro do funcionário: ${err?.message || "erro"}.`,
     );
@@ -273,9 +222,10 @@ export default async function handler(req, res) {
   } catch (err) {
     // Se o perfil não existe, não é erro — prossegue para Auth.
     if (err?.code !== 5 && err?.code !== "NOT_FOUND") {
-      console.error("Exclusão do perfil usuarios/{funcUid} falhou:", err?.code, err?.message);
+      console.error(`[${PREFIX}] Exclusão do perfil usuarios/{funcUid} falhou:`, err?.code, err?.message);
       return bad(
         res,
+        PREFIX,
         500,
         `Não foi possível remover o perfil do funcionário: ${err?.message || "erro"}.`,
       );
@@ -291,9 +241,10 @@ export default async function handler(req, res) {
     if (err?.code === "auth/user-not-found") {
       stats.authExcluido = true; // já não existia — mesmo resultado
     } else {
-      console.error("deleteUser Auth falhou:", err?.code, err?.message);
+      console.error(`[${PREFIX}] deleteUser Auth falhou:`, err?.code, err?.message);
       return bad(
         res,
+        PREFIX,
         500,
         `Funcionário removido dos dados, mas a conta de autenticação não pôde ser excluída: ${err?.message || "erro"}.`,
       );
