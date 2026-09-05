@@ -20,10 +20,15 @@
 //   - Nenhuma credencial Admin no front (FIREBASE_PRIVATE_KEY fica
 //     no painel da Vercel).
 //   - Nenhuma regra do Firestore foi enfraquecida.
+//
+// Cada dono no payload inclui `vigencia: { configurado, efetivo,
+// status, inicio, fim }` resolvido por `planoEfetivo(data)`. Donos
+// sem `planVigencia` recebem `vigencia: null` (compat com Free e
+// com Pro antigo que ainda não tem datas).
 
 import { getFirestore } from "firebase-admin/firestore";
 import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
-import { getAuth, normalizarPermissoes, normalizarStatus } from "../../_lib/dono.js";
+import { getAuth, normalizarPermissoes, normalizarStatus, planoEfetivo } from "../../_lib/dono.js";
 
 const PREFIX = "admin/overview";
 
@@ -37,13 +42,20 @@ const PREFIX = "admin/overview";
 // os valores que lá estão. Os defaults só são aplicados quando o
 // campo está AUSENTE no doc.
 const LIMITES_PADRAO = { contratos: 5, clientes: 5, funcionarios: 5 };
-const PLANO_PADRAO = "free";
 
-// Normaliza o campo `plan`. Aceita apenas "free" ou "pro" — qualquer
-// outro valor (ou ausente) é tratado como "free". Donos antigos sem
-// o campo continuam funcionando sem migração destrutiva.
-function normalizarPlano(data) {
-  return data?.plan === "pro" ? "pro" : PLANO_PADRAO;
+// Serializa a vigência para o frontend. Datas Timestamp viram
+// ISO string (sem o sufixo "Z" — o frontend trata como LOCAL).
+// Se um dos campos for inválido, retorna `null` para que o front
+// saiba que não há vigência configurada.
+function serializarVigencia(planoEf) {
+  if (!planoEf.vigenciaInicio || !planoEf.vigenciaFim) return null;
+  return {
+    configurado: planoEf.configurado,
+    efetivo: planoEf.efetivo,
+    status: planoEf.status,
+    inicio: planoEf.vigenciaInicio.toISOString(),
+    fim: planoEf.vigenciaFim.toISOString(),
+  };
 }
 
 async function contarSubcolecao(dbAdmin, docRef, collName) {
@@ -163,6 +175,10 @@ export async function overviewHandler(req, res) {
       const status = normalizarStatus(data);
       const limites = normalizarLimitesLocal(data);
       const permissoes = normalizarPermissoes(data);
+      // Vigência: usa o helper central `planoEfetivo` para resolver
+      // `configurado` vs `efetivo` baseado em `planVigencia.{inicio,fim}`.
+      // Donos sem `planVigencia` recebem `vigencia: null` (compat).
+      const plano = planoEfetivo(data);
 
       donos.push({
         uid,
@@ -174,7 +190,8 @@ export async function overviewHandler(req, res) {
         contContratos,
         contClientes,
         status,
-        plano: normalizarPlano(data),
+        plano: plano.configurado,
+        vigencia: serializarVigencia(plano),
         limites,
         permissoes,
       });

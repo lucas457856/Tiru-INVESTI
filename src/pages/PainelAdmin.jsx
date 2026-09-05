@@ -515,7 +515,7 @@ function LinhaDono({ dono, aoGerenciar, aoExcluir }) {
         </span>
       </td>
       <td className="px-3 py-3.5 text-center">
-        <BadgePlano plano={dono.plano} />
+        <BadgePlano plano={dono.plano} vigencia={dono.vigencia} />
       </td>
       <td className="px-3 py-3.5 text-right">
         <ResumoUso dono={dono} />
@@ -561,10 +561,12 @@ function LinhaDono({ dono, aoGerenciar, aoExcluir }) {
 // re-renderiza imediatamente.
 function ResumoUso({ dono }) {
   const lim = dono.limites || {};
-  // Ausência do campo `plan` é tratada como FREE por `normalizarPlano`
-  // no backend — então esta mesma checagem funciona para donos antigos
-  // sem o campo.
-  const ehPro = dono.plano === "pro";
+  // Compat: se a vigência ainda não chegou (overview antigo), usa
+  // `dono.plano` como fallback. Com a vigência nova, usamos o
+  // PLANO EFETIVO (que respeita `planVigencia` e o relógio).
+  const ehPro = dono.vigencia
+    ? dono.vigencia.efetivo === "pro"
+    : dono.plano === "pro";
   const itens = [
     { rotulo: "C", valor: dono.contContratos, limite: lim.contratos },
     { rotulo: "Cl", valor: dono.contClientes, limite: lim.clientes },
@@ -598,10 +600,66 @@ function ResumoUso({ dono }) {
   );
 }
 
-// Badge do plano na tabela. FREE = discreto, PRO = destacado
-// (mesma paleta de cores usada no card Pro de MeusPlanos).
-function BadgePlano({ plano }) {
-  if (plano === "pro") {
+// Formata ISO string em "dd/MM/yyyy" usando componentes locais
+// (sem UTC). Faz parse local explícito para evitar drift de timezone.
+function fmtDataLocal(iso) {
+  if (!iso || typeof iso !== "string") return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return "";
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+// Badge do plano na tabela. FREE = discreto, PRO = destacado.
+// Com vigência:
+//   - configurado=pro + status=ativo    → "PRO" + "Até dd/MM/yyyy"
+//   - configurado=pro + status=agendado → "PRO" + "Inicia em dd/MM/yyyy"
+//   - configurado=pro + status=expirado → "FREE" (regra do briefing)
+//   - efetivo=free (qualquer caso)      → "FREE" sem data
+//   - configurado=free                  → "FREE" sem data
+// Compat: se `vigencia` não veio, usa o `plano` legado.
+function BadgePlano({ plano, vigencia }) {
+  const v = vigencia || null;
+  const configuradoPro = v ? v.configurado === "pro" : plano === "pro";
+  const efetivoPro = v ? v.efetivo === "pro" : plano === "pro";
+
+  if (configuradoPro && v && v.status === "ativo") {
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-jurex text-white shadow-sm shadow-jurex/30">
+          <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+          PRO
+        </span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+          Até {fmtDataLocal(v.fim)}
+        </span>
+      </span>
+    );
+  }
+  if (configuradoPro && v && v.status === "agendado") {
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-jurex text-white shadow-sm shadow-jurex/30">
+          <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+          PRO
+        </span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+          Inicia em {fmtDataLocal(v.inicio)}
+        </span>
+      </span>
+    );
+  }
+  if (configuradoPro && (efetivoPro === false || (v && v.status === "expirado"))) {
+    // Pro expirado (ou admin configurou Free): aparece como FREE,
+    // sem mostrar a data — a regra do briefing disse que o Pro
+    // expirado deve aparecer como FREE na tabela.
+    return (
+      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+        FREE
+      </span>
+    );
+  }
+  if (configuradoPro && efetivoPro) {
+    // Pro sem vigência configurada (dono antigo): só "PRO".
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-jurex text-white shadow-sm shadow-jurex/30">
         <Sparkles className="w-3 h-3" strokeWidth={2.5} />

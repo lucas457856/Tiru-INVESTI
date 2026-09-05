@@ -99,7 +99,7 @@ export async function buscarOverview() {
 // mesmo depois do admin ativar PRO no Gerenciar.
 export async function salvarDono(
   donoUid,
-  { status, plan, limites, permissoes } = {},
+  { status, plan, limites, permissoes, planVigencia } = {},
 ) {
   if (!donoUid) return { ok: false, erro: "donoUid ausente." };
   const token = await getToken();
@@ -108,6 +108,7 @@ export async function salvarDono(
   if (plan !== undefined) body.plan = plan;
   if (limites !== undefined) body.limites = limites;
   if (permissoes !== undefined) body.permissoes = permissoes;
+  if (planVigencia !== undefined) body.planVigencia = planVigencia;
   return requisitar("/api/admin/update-owner", {
     method: "POST",
     headers: {

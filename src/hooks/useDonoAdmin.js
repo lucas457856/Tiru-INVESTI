@@ -45,6 +45,7 @@ function defaults() {
   return {
     status: "ativo",
     plan: "free",
+    vigencia: null,
     permissoes: PERMISSOES_PADRAO,
     limites: LIMITES_PADRAO,
     carregou: false,
@@ -59,17 +60,81 @@ function lerPermissao(valor, padrao) {
   return padrao;
 }
 
-// Normaliza o campo `plan`. Aceita apenas "pro"; qualquer outro valor
-// (incluindo ausente, null, string vazia) é tratado como "free".
-// Donos antigos sem esse campo continuam funcionando sem migração.
-function normalizarPlan(d) {
-  return d?.plan === "pro" ? "pro" : "free";
+// Espelha o helper backend `planoEfetivo` em `api/_lib/dono.js`.
+// Recebe o doc cru do Firestore (com `plan` e `planVigencia`) e
+// devolve { configurado, efetivo, status, vigenciaInicio, vigenciaFim }.
+// Mantém compatibilidade: donos sem `planVigencia` retornam
+// efetivo === configurado.
+function planoEfetivoCliente(d, agora) {
+  const ref = agora || new Date();
+  const configurado = d?.plan === "pro" ? "pro" : "free";
+  const vigencia = d?.planVigencia;
+  if (configurado !== "pro" || !vigencia || typeof vigencia !== "object") {
+    return {
+      configurado,
+      efetivo: configurado,
+      status: "indefinido",
+      vigenciaInicio: null,
+      vigenciaFim: null,
+    };
+  }
+  // Converte Timestamp (Admin/Client) → Date LOCAL (00:00 do dia).
+  const toLocal = (v) => {
+    if (!v) return null;
+    if (typeof v === "object" && typeof v.toDate === "function") {
+      const dt = v.toDate();
+      return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    }
+    if (v instanceof Date) {
+      return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+    }
+    if (typeof v === "string") {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+    return null;
+  };
+  const inicio = toLocal(vigencia.inicio);
+  const fim = toLocal(vigencia.fim);
+  const hoje = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
+  const tInicio = inicio ? new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime() : null;
+  const tFim = fim ? new Date(fim.getFullYear(), fim.getMonth(), fim.getDate()).getTime() : null;
+  let status = "indefinido";
+  if (tInicio != null && tFim != null) {
+    if (hoje < tInicio) status = "agendado";
+    else if (hoje >= tFim) status = "expirado";
+    else status = "ativo";
+  }
+  return {
+    configurado,
+    efetivo: status === "ativo" ? "pro" : "free",
+    status,
+    vigenciaInicio: inicio,
+    vigenciaFim: fim,
+  };
+}
+
+function serializarVigencia(plano) {
+  if (plano.status === "indefinido" || !plano.vigenciaInicio || !plano.vigenciaFim) {
+    return null;
+  }
+  return {
+    configurado: plano.configurado,
+    efetivo: plano.efetivo,
+    status: plano.status,
+    inicio: plano.vigenciaInicio.toISOString(),
+    fim: plano.vigenciaFim.toISOString(),
+  };
 }
 
 function aplicarDados(d) {
+  const plano = planoEfetivoCliente(d);
+  const ehProEfetivo = plano.efetivo === "pro";
   return {
     status: d?.status === "bloqueado" ? "bloqueado" : "ativo",
-    plan: normalizarPlan(d),
+    plan: plano.configurado, // plano CONFIGURADO (string "free"|"pro")
+    vigencia: serializarVigencia(plano), // objeto {configurado, efetivo, status, inicio, fim} ou null
+    statusPlano: plano.status, // "ativo"|"agendado"|"expirado"|"indefinido"
     permissoes: {
       criarContratos: lerPermissao(d?.permissoes?.criarContratos, PERMISSOES_PADRAO.criarContratos),
       criarClientes: lerPermissao(d?.permissoes?.criarClientes, PERMISSOES_PADRAO.criarClientes),
@@ -78,23 +143,24 @@ function aplicarDados(d) {
     limites: {
       // `??` (não `||`) para preservar limite = 0 quando o campo
       // está presente mas é zero (caso válido: 0 = sem limite).
-      // Quando o plano é "pro", substituímos os limites por 0
+      // Quando o plano EFETIVO é "pro", substituímos os limites por 0
       // (ilimitado) para que o restante do sistema — que já sabe
       // tratar limite = 0 como "sem limite" — bloqueie corretamente.
       // Os limites FREE originais continuam salvos no Firestore
       // (em `limites.contratos/clientes/funcionarios`); basta
-      // alternar `plan: "free"` para que voltem a valer.
-      contratos: normalizarPlan(d) === "pro"
+      // voltar para Free efetivo (configurado=free, ou Pro expirado)
+      // para que voltem a valer.
+      contratos: ehProEfetivo
         ? 0
         : d?.limites?.contratos != null && Number.isFinite(Number(d.limites.contratos))
           ? Number(d.limites.contratos)
           : LIMITES_PADRAO.contratos,
-      clientes: normalizarPlan(d) === "pro"
+      clientes: ehProEfetivo
         ? 0
         : d?.limites?.clientes != null && Number.isFinite(Number(d.limites.clientes))
           ? Number(d.limites.clientes)
           : LIMITES_PADRAO.clientes,
-      funcionarios: normalizarPlan(d) === "pro"
+      funcionarios: ehProEfetivo
         ? 0
         : d?.limites?.funcionarios != null && Number.isFinite(Number(d.limites.funcionarios))
           ? Number(d.limites.funcionarios)
@@ -134,7 +200,9 @@ export function useDonoAdmin() {
 
   return {
     status: dados.status,
-    plan: dados.plan,
+    plan: dados.plan, // "free"|"pro" — plano configurado
+    vigencia: dados.vigencia, // {configurado, efetivo, status, inicio, fim} | null
+    statusPlano: dados.statusPlano, // "ativo"|"agendado"|"expirado"|"indefinido"
     permissoes: dados.permissoes,
     limites: dados.limites,
     loading,

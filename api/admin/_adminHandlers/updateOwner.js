@@ -31,10 +31,16 @@
 //     "status": "ativo" | "bloqueado",
 //     "limites": { "contratos": 5, "clientes": 5, "funcionarios": 5 },
 //     "permissoes": { "criarContratos": true, "criarClientes": true,
-//                     "criarFuncionarios": true }
+//                     "criarFuncionarios": true },
+//     "plan": "free" | "pro",
+//     "planVigencia": { "inicio": "YYYY-MM-DD", "fim": "YYYY-MM-DD" } | null
 //   }
+//
+// planVigencia: datas em meia-noite LOCAL; gravadas como Timestamp.
+// fim >= inicio (senão 400). null = remover vigência. Se omitido,
+// a vigência existente é preservada (compat com Free que volta a Pro).
 
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
 import { getAuth } from "../../_lib/dono.js";
 
@@ -114,10 +120,67 @@ function validarBody(body) {
     update.plan = body.plan;
   }
 
+  // planVigencia: { inicio, fim }. Aceita string "YYYY-MM-DD" ou
+  // Timestamp já existente. Sempre gravamos como Timestamp.fromDate
+  // em meia-noite LOCAL (sem drift de timezone). Validação:
+  //   - inicio e fim são ambos obrigatórios quando planVigencia é enviado.
+  //   - fim >= inicio, senão 400.
+  // Compat: se `plan` não veio, `planVigencia` ainda é aceito (admin
+  // pode atualizar só a vigência de um dono já Pro).
+  if (body.planVigencia !== undefined) {
+    if (body.planVigencia === null) {
+      // Admin explicitamente limpou a vigência (ex: voltou para Free
+      // e quer apagar datas antigas). Permitido; gravamos delete marker.
+      update.planVigencia = FieldValue.delete();
+    } else if (typeof body.planVigencia !== "object") {
+      return { ok: false, erro: "planVigencia deve ser um objeto {inicio, fim} ou null." };
+    } else {
+      const parseDataVigencia = (raw) => {
+        if (raw == null) return null;
+        // Timestamp já existente
+        if (typeof raw === "object" && typeof raw.toDate === "function") {
+          const d = raw.toDate();
+          if (Number.isNaN(d.getTime())) return null;
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        }
+        // Date nativo
+        if (raw instanceof Date) {
+          if (Number.isNaN(raw.getTime())) return null;
+          return new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
+        }
+        // String "YYYY-MM-DD"
+        if (typeof raw === "string") {
+          const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+          if (!m) return null;
+          return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        }
+        return null;
+      };
+      const inicio = parseDataVigencia(body.planVigencia.inicio);
+      const fim = parseDataVigencia(body.planVigencia.fim);
+      if (!inicio || !fim) {
+        return {
+          ok: false,
+          erro: "planVigencia.inicio e planVigencia.fim são obrigatórios (formato 'YYYY-MM-DD').",
+        };
+      }
+      if (fim.getTime() < inicio.getTime()) {
+        return {
+          ok: false,
+          erro: "A data de término não pode ser anterior à data de início.",
+        };
+      }
+      update.planVigencia = {
+        inicio: Timestamp.fromDate(inicio),
+        fim: Timestamp.fromDate(fim),
+      };
+    }
+  }
+
   if (Object.keys(update).length === 0) {
     return {
       ok: false,
-      erro: "Informe pelo menos um campo para atualizar (status, limites, permissoes ou plan).",
+      erro: "Informe pelo menos um campo para atualizar (status, limites, permissoes, plan ou planVigencia).",
     };
   }
 
@@ -196,5 +259,6 @@ export async function updateOwnerHandler(req, res) {
     plano: update.plan ?? null,
     limites: update.limites ?? null,
     permissoes: update.permissoes ?? null,
+    planVigencia: update.planVigencia === undefined ? null : (body.planVigencia === null ? null : { inicio: body.planVigencia.inicio, fim: body.planVigencia.fim }),
   });
 }

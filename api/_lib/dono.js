@@ -3,14 +3,18 @@
 // Centraliza o que estava duplicado em 5+ handlers (overview, update-owner,
 // criar-cliente, criar-contrato, register-event, register-device, ...):
 //   - DEFAULT_LIMITES, DEFAULT_PERMISSOES, DEFAULT_STATUS (constantes)
-//   - ehPro(perfil) — checa se dono está no plano PRO
+//   - planoEfetivo(perfil, agora?) — resolve o plano real baseado em
+//     `plan` + `planVigencia.{inicio,fim}` vs `new Date()` (LOCAL).
+//     Retorna { configurado, efetivo, status, vigenciaInicio, vigenciaFim, agora }
+//   - ehPro(perfil) — atalho: `planoEfetivo(perfil).efetivo === "pro"`
 //   - normalizarLimites(perfil) / normalizarPermissoes(perfil) / normalizarStatus(perfil)
 //   - resolverDonoEfetivo(perfil, chamadorUid) — resolve donoUid a partir do chamador
 //   - isDonoPuro(perfil) — confere se é DONO (sem role/ownerUid)
 //   - validarSourceDeviceId({ ... }) — valida o deviceId de origem (usado em criar-cliente, criar-contrato, register-event)
 //
-// Replica EXATAMENTE o comportamento das implementações originais para
-// não introduzir regressões contratuais.
+// Compatibilidade: donos sem `planVigencia` (todos os antigos) seguem
+// o comportamento binário original (`efetivo === configurado`). Sem
+// migração destrutiva.
 
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -29,16 +33,109 @@ export const DEFAULT_PERMISSOES = { criarContratos: true, criarClientes: true, c
 export const DEFAULT_STATUS = "ativo";
 
 /**
- * Plano: aceita apenas "pro". Qualquer outro valor (incluindo
- * ausente, null, string vazia, "free", "PRO" em maiúsculas) é
- * tratado como "free". Mantém compatibilidade com donos antigos
- * que não têm o campo `plan` no Firestore.
+ * Converte uma data em vários formatos (Timestamp do Admin SDK,
+ * Date, string "YYYY-MM-DD") para um `Date` truncado em DIA LOCAL
+ * (00:00 hora local do servidor). Usado pelo helper `planoEfetivo`
+ * para evitar o drift de timezone que ocorre quando se interpreta
+ * `"YYYY-MM-DD"` via `new Date(str)` (que é UTC) ou quando se usa
+ * `.toDate()` direto (que preserva o instante UTC).
+ *
+ * @param {unknown} valor
+ * @returns {Date | null}
+ */
+function toLocalDate(valor) {
+  if (valor == null) return null;
+  // Firestore Admin SDK Timestamp
+  if (typeof valor === "object" && typeof valor.toDate === "function") {
+    const d = valor.toDate();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  // Date nativo
+  if (valor instanceof Date) {
+    return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+  }
+  // String "YYYY-MM-DD" (saída do <input type="date"> do front)
+  if (typeof valor === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor.trim());
+    if (m) {
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Resolve o plano efetivo do DONO considerando a vigência.
+ *
+ * Regras:
+ *   - configurado = "free" → efetivo = "free" (vigência ignorada)
+ *   - configurado = "pro" e sem `planVigencia` → efetivo = "pro"
+ *     (compat com donos antigos; sem migração destrutiva)
+ *   - configurado = "pro" e inicio <= hoje < fim → efetivo = "pro", status "ativo"
+ *   - configurado = "pro" e hoje < inicio → efetivo = "free", status "agendado"
+ *   - configurado = "pro" e hoje >= fim → efetivo = "free", status "expirado"
+ *
+ * Comparação feita em DIA LOCAL (00:00 do dia) para que a troca de
+ * plano ocorra exatamente à meia-noite do dia de término (no fuso
+ * do servidor). Para evitar drift de timezone, datas Timestamp
+ * armazenadas em UTC são convertidas para o dia local antes da
+ * comparação.
  *
  * @param {object | null | undefined} perfil
+ * @param {Date} [agora] Opcional; para testes. Default = new Date()
+ * @returns {{
+ *   configurado: "free"|"pro",
+ *   efetivo: "free"|"pro",
+ *   status: "ativo"|"agendado"|"expirado"|"indefinido",
+ *   vigenciaInicio: Date|null,
+ *   vigenciaFim: Date|null,
+ *   agora: Date
+ * }}
+ */
+export function planoEfetivo(perfil, agora) {
+  const configurado = perfil?.plan === "pro" ? "pro" : "free";
+  const vigencia = perfil?.planVigencia;
+  const ref = agora || new Date();
+  if (configurado !== "pro" || !vigencia || typeof vigencia !== "object") {
+    return {
+      configurado,
+      efetivo: configurado,
+      status: "indefinido",
+      vigenciaInicio: null,
+      vigenciaFim: null,
+      agora: ref,
+    };
+  }
+  const inicio = toLocalDate(vigencia.inicio);
+  const fim = toLocalDate(vigencia.fim);
+  const hoje = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
+  const tInicio = inicio ? new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime() : null;
+  const tFim = fim ? new Date(fim.getFullYear(), fim.getMonth(), fim.getDate()).getTime() : null;
+  let status = "indefinido";
+  if (tInicio != null && tFim != null) {
+    if (hoje < tInicio) status = "agendado";
+    else if (hoje >= tFim) status = "expirado";
+    else status = "ativo";
+  }
+  const efetivo = status === "ativo" ? "pro" : "free";
+  return { configurado, efetivo, status, vigenciaInicio: inicio, vigenciaFim: fim, agora: ref };
+}
+
+/**
+ * Plano efetivo: aceita apenas "pro" no `planoEfetivo().efetivo`.
+ * Compatibilidade com donos antigos preservada (sem `planVigencia`,
+ * `planoEfetivo` retorna `efetivo === configurado === "pro"`).
+ *
+ * @param {object | null | undefined} perfil
+ * @param {Date} [agora] Opcional; para testes. Default = new Date().
+ *   Propagado para `planoEfetivo` de forma que `ehPro` e
+ *   `planoEfetivo(...).efetivo === "pro"` permaneçam sincronizados
+ *   quando o caller simula uma data.
  * @returns {boolean}
  */
-export function ehPro(perfil) {
-  return perfil?.plan === "pro";
+export function ehPro(perfil, agora) {
+  return planoEfetivo(perfil, agora).efetivo === "pro";
 }
 
 /**

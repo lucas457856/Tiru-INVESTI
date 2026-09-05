@@ -1,9 +1,10 @@
 // Drawer lateral do Painel Administrativo — permite editar os campos
-// administrativos de UM DONO (status, plano, limites, permissoes).
+// administrativos de UM DONO (status, plano, vigência, limites, permissoes).
 //
 // Recebe um objeto `dono` com o shape retornado por /api/admin/overview:
 //   { uid, nome, email, telefone, contClientes, contContratos,
-//     contFuncionarios, status, plano, limites: {contratos, clientes,
+//     contFuncionarios, status, plano, vigencia: {configurado, efetivo,
+//     status, inicio, fim} | null, limites: {contratos, clientes,
 //     funcionarios}, permissoes: {criarContratos, criarClientes,
 //     criarFuncionarios} }
 //
@@ -41,11 +42,58 @@ function fmtNum(n) {
   return Number.isFinite(Number(n)) ? Number(n) : 0;
 }
 
+// Badge de status da vigência (mesmo algoritmo do `planoEfetivoCliente`).
+// Recebe strings "YYYY-MM-DD" do <input type="date">. Retorna null se
+// não há vigência configurada.
+function statusPlanoBadge(inicioStr, fimStr) {
+  if (!inicioStr || !fimStr) {
+    return (
+      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+        Sem vigência
+      </span>
+    );
+  }
+  const ini = new Date(inicioStr + "T00:00:00");
+  const fim = new Date(fimStr + "T00:00:00");
+  if (Number.isNaN(ini.getTime()) || Number.isNaN(fim.getTime())) {
+    return (
+      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+        Sem vigência
+      </span>
+    );
+  }
+  const hoje = new Date();
+  const tHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
+  const tIni = ini.getTime();
+  const tFim = fim.getTime();
+  if (tHoje < tIni) {
+    return (
+      <span className="text-[10px] font-bold tracking-widest text-amber-600 dark:text-amber-400 uppercase">
+        Agendado
+      </span>
+    );
+  }
+  if (tHoje >= tFim) {
+    return (
+      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+        Expirado
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-bold tracking-widest text-jurex dark:text-emerald-400 uppercase">
+      Ativo
+    </span>
+  );
+}
+
 function estadoInicialDeDono(dono) {
   if (!dono) {
     return {
       status: "ativo",
       plano: "free",
+      vigenciaInicio: "",
+      vigenciaFim: "",
       limites: { contratos: 5, clientes: 5, funcionarios: 5 },
       permissoes: {
         criarContratos: true,
@@ -54,9 +102,19 @@ function estadoInicialDeDono(dono) {
       },
     };
   }
+  // Converte ISO string (do overview) → "YYYY-MM-DD" para o <input type="date">.
+  // Faz parse LOCAL explícito para evitar drift de timezone.
+  const isoParaInput = (iso) => {
+    if (!iso || typeof iso !== "string") return "";
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return "";
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  };
   return {
     status: dono.status === "bloqueado" ? "bloqueado" : "ativo",
     plano: dono.plano === "pro" ? "pro" : "free",
+    vigenciaInicio: isoParaInput(dono.vigencia?.inicio),
+    vigenciaFim: isoParaInput(dono.vigencia?.fim),
     limites: {
       contratos: fmtNum(dono.limites?.contratos),
       clientes: fmtNum(dono.limites?.clientes),
@@ -173,6 +231,8 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
   const inicial = useMemo(() => estadoInicialDeDono(dono), [dono]);
   const [status, setStatus] = useState(() => inicial.status);
   const [plano, setPlano] = useState(() => inicial.plano);
+  const [vigenciaInicio, setVigenciaInicio] = useState(() => inicial.vigenciaInicio);
+  const [vigenciaFim, setVigenciaFim] = useState(() => inicial.vigenciaFim);
   const [limites, setLimites] = useState(() => inicial.limites);
   const [permissoes, setPermissoes] = useState(() => inicial.permissoes);
   const [salvando, setSalvando] = useState(false);
@@ -184,6 +244,13 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
     if (!dono) return false;
     if ((dono.status === "bloqueado" ? "bloqueado" : "ativo") !== status) return true;
     if ((dono.plano === "pro" ? "pro" : "free") !== plano) return true;
+    const isoParaInput = (iso) => {
+      if (!iso || typeof iso !== "string") return "";
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+      return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+    };
+    if (isoParaInput(dono.vigencia?.inicio) !== vigenciaInicio) return true;
+    if (isoParaInput(dono.vigencia?.fim) !== vigenciaFim) return true;
     const origLim = {
       contratos: fmtNum(dono.limites?.contratos),
       clientes: fmtNum(dono.limites?.clientes),
@@ -201,12 +268,30 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
     if (origPerm.criarClientes !== permissoes.criarClientes) return true;
     if (origPerm.criarFuncionarios !== permissoes.criarFuncionarios) return true;
     return false;
-  }, [dono, status, plano, limites, permissoes]);
+  }, [dono, status, plano, vigenciaInicio, vigenciaFim, limites, permissoes]);
+
+  // Validação inline de vigência. Só relevante quando o admin
+  // configurou Pro com datas preenchidas.
+  const erroVigencia = useMemo(() => {
+    if (plano !== "pro") return null;
+    if (vigenciaInicio && vigenciaFim) {
+      const ini = new Date(vigenciaInicio + "T00:00:00");
+      const fim = new Date(vigenciaFim + "T00:00:00");
+      if (fim.getTime() < ini.getTime()) {
+        return "A data de término não pode ser anterior à data de início.";
+      }
+    }
+    return null;
+  }, [plano, vigenciaInicio, vigenciaFim]);
 
   if (!aberto || !dono) return null;
 
   async function handleSalvar() {
     if (!dono) return;
+    if (erroVigencia) {
+      setErro({ ok: false, erro: erroVigencia });
+      return;
+    }
     setSalvando(true);
     setErro(null);
     const payload = {
@@ -223,6 +308,15 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
         criarFuncionarios: !!permissoes.criarFuncionarios,
       },
     };
+    // Envia planVigencia SOMENTE se o admin é Pro e preencheu pelo
+    // menos uma data. Se for Free, NÃO envia (preserva a vigência
+    // antiga no Firestore — o admin pode voltar para Pro depois).
+    if (plano === "pro" && (vigenciaInicio || vigenciaFim)) {
+      payload.planVigencia = {
+        inicio: vigenciaInicio || null,
+        fim: vigenciaFim || null,
+      };
+    }
     const resp = await onSalvar(dono.uid, payload);
     setSalvando(false);
     if (resp && resp.ok) {
@@ -349,6 +443,58 @@ export default function DonoGerenciarDrawer({ aberto, dono, onFechar, onSalvar }
                 ? "Contratos, clientes e funcionários ilimitados. Permissões continuam valendo."
                 : "Limites configurados abaixo são aplicados."}
             </p>
+
+            {/* Vigência do plano: visível quando o admin é Pro.
+                Compat: se a vigência antiga existia e o admin voltou
+                para Free, ela permanece no estado — só é apagada se o
+                backend receber planVigencia: null explicitamente. */}
+            {plano === "pro" && (
+              <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                    Vigência do plano
+                  </p>
+                  {statusPlanoBadge(vigenciaInicio, vigenciaFim)}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                      Data de início
+                    </label>
+                    <input
+                      type="date"
+                      value={vigenciaInicio}
+                      onChange={(e) => setVigenciaInicio(e.target.value)}
+                      className="mt-1.5 w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-jurex focus:ring-2 focus:ring-jurex/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                      Data de término
+                    </label>
+                    <input
+                      type="date"
+                      value={vigenciaFim}
+                      onChange={(e) => setVigenciaFim(e.target.value)}
+                      className={`mt-1.5 w-full h-10 px-3 rounded-lg border bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 ${
+                        erroVigencia
+                          ? "border-red-300 dark:border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                          : "border-slate-200 dark:border-slate-700 focus:border-jurex focus:ring-jurex/20"
+                      }`}
+                    />
+                  </div>
+                </div>
+                {erroVigencia && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400">
+                    {erroVigencia}
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  O Pro vale da data de início (inclusive) até a véspera do término. A partir do
+                  dia de término, o plano volta a ser Free automaticamente.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Limites — alterna dinamicamente:
