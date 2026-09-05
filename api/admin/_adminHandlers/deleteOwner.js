@@ -226,12 +226,20 @@ export async function deleteOwnerHandler(req, res) {
 
   // 10c) Exclui a sub-coleção legada usuarios/{donoUid}/clientes
   //      (caso ainda existam docs lá) + sub-coleções filhas.
+  //      Importante: excluirSubcolecoesRecursivo recebe um
+  //      DocumentReference (faz listCollections() no documento), então
+  //      precisamos iterar a coleção legada via get() e passar cada
+  //      documento individualmente.
   try {
-    stats.subDocsExcluidos += await excluirSubcolecoesRecursivo(
-      dbAdmin,
-      donoRef.collection("clientes"),
-      0,
-    );
+    const clientesLegadosSnap = await donoRef
+      .collection("clientes")
+      .limit(MAX_ITENS_POR_OPERACAO)
+      .get();
+    for (const cliDoc of clientesLegadosSnap.docs) {
+      stats.subDocsExcluidos += await excluirSubcolecoesRecursivo(dbAdmin, cliDoc.ref, 0);
+      await cliDoc.ref.delete();
+      stats.clientesExcluidos += 1;
+    }
   } catch (err) {
     console.error(`[${PREFIX}] exclusão de clientes legados falhou:`, err?.code, err?.message);
     return bad(

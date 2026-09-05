@@ -17,10 +17,17 @@
 const MAX_ITENS_POR_OPERACAO = 5000;
 
 /**
- * Exclui recursivamente todas as subcoleções de um documento.
+ * Exclui recursivamente todas as subcoleções filhas de um documento.
+ *
+ * Recebe um DocumentReference do Firebase Admin SDK e chama
+ * `listCollections()` sobre ele. NÃO aceita CollectionReference —
+ * sub-coleções só existem como filhas de um documento, e a API
+ * `listCollections()` é exclusiva de DocumentReference. Para limpar
+ * os documentos de uma coleção (top-level ou sub-coleção), itere-a
+ * via `.get()` e chame o helper em cada `doc.ref`.
  *
  * @param {import("firebase-admin/firestore").Firestore} dbAdmin
- * @param {import("firebase-admin/firestore").DocumentReference | import("firebase-admin/firestore").CollectionReference} docRef
+ * @param {import("firebase-admin/firestore").DocumentReference} docRef
  * @param {number} [profundidade=0] Nível de recursão atual (defesa contra ciclos)
  * @returns {Promise<number>} Total de subdocumentos excluídos
  */
