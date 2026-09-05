@@ -59,6 +59,7 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getFirebaseMessaging } from "../../_lib/firebaseAdmin.js";
 import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { RATE_OPTS_NOTIFICATIONS_DISPATCH } from "../../_lib/rateLimit.js";
 import { getAuth } from "../../_lib/dono.js";
 
 const PREFIX = "notifications/dispatch";
@@ -95,7 +96,13 @@ export async function dispatchHandler(req, res) {
   const dbAdmin = getFirestore(admin);
 
   // 4) Identidade do chamador
-  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  const chamadorUid = await verificarToken(
+    res,
+    PREFIX,
+    authAdmin,
+    idToken,
+    RATE_OPTS_NOTIFICATIONS_DISPATCH,
+  );
   if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) Lê o evento. Se não existir, 404 (cliente gerou eventId errado

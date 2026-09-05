@@ -4,12 +4,14 @@
 //   - bad(res, prefix, status, erro, extra) → resposta JSON de erro padronizada
 //   - extrairBearer(req) → token do header Authorization
 //   - getAdminSdk(res, prefix) → wrapper de getFirebaseAdmin() com 500 padronizado
-//   - verificarToken(res, prefix, authAdmin, idToken) → wrapper de verifyIdToken com 401 padronizado
+//   - verificarToken(res, prefix, authAdmin, idToken, rateOpts?) → wrapper de
+//     verifyIdToken com 401 padronizado + rate limit por UID opcional.
 //
 // O `prefix` é o identificador do handler (ex: "auth/reset-password") e
 // aparece no `console.error` para facilitar a busca em logs.
 
 import { getFirebaseAdmin } from "./firebaseAdmin.js";
+import { checarRateLimit } from "./rateLimit.js";
 
 /**
  * Escreve uma resposta JSON de erro padronizada e loga no console.
@@ -78,19 +80,50 @@ export function getAdminSdk(res, prefix) {
  * Wrapper de `authAdmin.verifyIdToken()` que escreve resposta 401
  * padronizada se a verificação falhar e retorna `null`.
  *
+ * Aceita um parâmetro opcional `rateOpts` para aplicar rate limit por
+ * UID IMEDIATAMENTE após a verificação do token. Isso centraliza em UM
+ * helper a lógica que estaria duplicada em 6+ handlers autenticados.
+ *
  * @param {import("http").ServerResponse} res
  * @param {string} prefix
  * @param {import("firebase-admin/auth").Auth} authAdmin
  * @param {string} idToken
- * @returns {Promise<string | null>} O UID do chamador, ou `null` se a verificação falhou.
+ * @param {{ limite: number, janelaMs: number, bucket: string }} [rateOpts]
+ *   Se passado, aplica rate limit por UID após o verifyIdToken.
+ *   `bucket` isola contadores entre endpoints (ex: "admin", "notifications").
+ * @returns {Promise<string | null>} O UID do chamador, ou `null` se a verificação falhou OU se o rate limit foi excedido (429).
  */
-export async function verificarToken(res, prefix, authAdmin, idToken) {
+export async function verificarToken(res, prefix, authAdmin, idToken, rateOpts) {
+  let uid;
   try {
     const decoded = await authAdmin.verifyIdToken(idToken, true);
-    return decoded.uid;
+    uid = decoded.uid;
   } catch (err) {
     console.error(`[${prefix}] verifyIdToken falhou:`, err?.code || err?.message);
     bad(res, prefix, 401, "Sessão inválida. Faça login novamente.");
     return null;
   }
+  if (
+    rateOpts &&
+    Number.isFinite(rateOpts.limite) &&
+    Number.isFinite(rateOpts.janelaMs)
+  ) {
+    const bucket = rateOpts.bucket || "default";
+    const rl = checarRateLimit({
+      chave: `${bucket}:${uid}`,
+      limite: rateOpts.limite,
+      janelaMs: rateOpts.janelaMs,
+    });
+    if (!rl.ok) {
+      res.setHeader("Retry-After", String(Math.ceil(rl.resetMs / 1000)));
+      bad(
+        res,
+        prefix,
+        429,
+        "Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.",
+      );
+      return null;
+    }
+  }
+  return uid;
 }

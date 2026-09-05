@@ -31,15 +31,43 @@ import { Resend } from "resend";
 import { getFirebaseAdmin } from "../../_lib/firebaseAdmin.js";
 import { renderEmailRedefinicaoSenha } from "../../_lib/emailTemplate.js";
 import { bad } from "../../_lib/http.js";
+import { checarRateLimit, extrairIp } from "../../_lib/rateLimit.js";
 
 const PREFIX = "auth/reset-password";
 const PRODUCAO_ORIGEM = "https://tiru-investi.vercel.app";
 const CONTINUE_URL = `${PRODUCAO_ORIGEM}/nova-senha`;
 
+// Rate limit: 5 tentativas por IP a cada 15 minutos.
+// Defesa contra abuso do envio de e-mail via Resend (custo) e contra
+// enumeração de e-mails cadastrados (o endpoint retorna 200 silencioso
+// para `auth/user-not-found`, mas o envio de e-mail real é caro e
+// deve ser limitado).
+const RATE_LIMITE = 5;
+const RATE_JANELA_MS = 15 * 60 * 1000;
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function resetPasswordHandler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+
+  // 0) Rate limit por IP — antes de qualquer validação cara (parse do
+  //    body, geração de link, envio de e-mail). Bloqueia 429 antes do
+  //    Firebase Admin ser instanciado.
+  const ip = extrairIp(req);
+  const rl = checarRateLimit({
+    chave: `reset-password:${ip}`,
+    limite: RATE_LIMITE,
+    janelaMs: RATE_JANELA_MS,
+  });
+  if (!rl.ok) {
+    res.setHeader("Retry-After", String(Math.ceil(rl.resetMs / 1000)));
+    return bad(
+      res,
+      PREFIX,
+      429,
+      "Muitas tentativas de redefinição. Tente novamente em alguns minutos.",
+    );
+  }
 
   // 1) Body
   const body = req.body && typeof req.body === "object" ? req.body : {};

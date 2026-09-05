@@ -42,6 +42,7 @@
 
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { RATE_OPTS_ADMIN } from "../../_lib/rateLimit.js";
 import { getAuth } from "../../_lib/dono.js";
 
 const PREFIX = "admin/update-owner";
@@ -211,7 +212,7 @@ export async function updateOwnerHandler(req, res) {
   const dbAdmin = getFirestore(admin);
 
   // 4) Verifica identidade
-  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken, RATE_OPTS);
   if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) BLOQUEIO PRINCIPAL

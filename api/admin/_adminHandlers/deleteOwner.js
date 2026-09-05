@@ -54,6 +54,7 @@
 
 import { getFirestore } from "firebase-admin/firestore";
 import { bad, extrairBearer, getAdminSdk, verificarToken } from "../../_lib/http.js";
+import { RATE_OPTS_ADMIN } from "../../_lib/rateLimit.js";
 import { excluirSubcolecoesRecursivo } from "../../_lib/tree.js";
 import { getAuth } from "../../_lib/dono.js";
 
@@ -126,7 +127,7 @@ export async function deleteOwnerHandler(req, res) {
   const dbAdmin = getFirestore(admin);
 
   // 4) Identidade do chamador
-  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken);
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken, RATE_OPTS);
   if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) ADMIN_UID (env var)
