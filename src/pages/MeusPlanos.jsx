@@ -22,6 +22,7 @@ import {
   Users,
   FileText,
   ArrowRight,
+  Calendar,
 } from "lucide-react";
 import {
   collection,
@@ -43,13 +44,51 @@ export default function MeusPlanos() {
   // Plano e limites efetivos do DONO (5/5/5 por padrão no FREE;
   // PRO = ilimitado — o useDonoAdmin devolve limites = 0 nesse caso).
   // O campo `plan` é o mesmo usado no Painel Admin: "free" | "pro".
-  const { plan, limites, loading: loadingDono } = useDonoAdmin();
+  const { plan, limites, vigencia, statusPlano, loading: loadingDono } = useDonoAdmin();
   const ehPro = plan === "pro";
   // No PRO, exibimos "Ilimitado" no lugar do número; o limite real
   // (que é 0) não é usado na UI mas continua valendo nos endpoints
   // de criação (que já tratam limite=0 como "sem limite").
   const limiteClientes = ehPro ? 0 : Number(limites?.clientes) || 0;
   const limiteContratos = ehPro ? 0 : Number(limites?.contratos) || 0;
+
+  // Mostra o bloco "Válido até ... / volta a ser Free a partir de ..."
+  // SOMENTE quando o plano configurado é PRO, existe vigência, e o
+  // status do plano é "ativo" (não expirado, não agendado, não
+  // indefinido). Compat: Pro sem `planVigencia` (legado) → não
+  // mostra nada (statusPlano === "indefinido" cai fora).
+  const mostrarValidade = ehPro && vigencia && statusPlano === "ativo";
+
+  // Formata a data do `fim` da vigência para "Válido até" e
+  // "volta a ser Free a partir de". A regra do sistema considera
+  // `fim` como o PRIMEIRO DIA em que o plano deixa de ser PRO.
+  // Para "Válido até", exibimos `fim - 1 dia`. Para "volta a ser
+  // Free a partir de", exibimos `fim`.
+  //
+  // Recebe a string ISO vinda do Firestore (ex:
+  // "2026-10-05T00:00:00.000Z") e extrai só o YYYY-MM-DD via
+  // regex para evitar conversão UTC que traria drift de timezone
+  // — o mesmo padrão usado em fmtDataLocal (PainelAdmin.jsx) e
+  // em isoParaInput (DonoGerenciarDrawer). Em seguida monta um
+  // Date LOCAL via new Date(y, m-1, d) — nunca via new Date(iso)
+  // (que interpretaria como UTC).
+  function calcularDatasValidade(iso) {
+    if (!iso || typeof iso !== "string") return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    // Fim: primeiro dia Free. "Válido até" = dia anterior (LOCAL).
+    const dtFim = new Date(y, mo - 1, d);
+    const dtValidoAte = new Date(y, mo - 1, d - 1);
+    const pad = (n) => String(n).padStart(2, "0");
+    return {
+      validoAte: `${pad(dtValidoAte.getDate())}/${pad(dtValidoAte.getMonth() + 1)}/${dtValidoAte.getFullYear()}`,
+      freeAPartirDe: `${pad(dtFim.getDate())}/${pad(dtFim.getMonth() + 1)}/${dtFim.getFullYear()}`,
+    };
+  }
+  const datasValidade = mostrarValidade ? calcularDatasValidade(vigencia.fim) : null;
 
   // Contadores em tempo real. Mantemos em estado separado (em vez de
   // guardar a lista inteira) porque a página só precisa do tamanho.
@@ -135,6 +174,29 @@ export default function MeusPlanos() {
                   </span>
                 )}
               </div>
+
+              {/* Bloco de validade: visível APENAS quando o plano
+                  efetivo é PRO ATIVO com vigência configurada. Não
+                  aparece para Free, Pro sem vigência, Pro agendado
+                  ou Pro expirado. */}
+              {mostrarValidade && datasValidade && (
+                <div className="mt-3.5 sm:mt-4 space-y-1.5">
+                  <div className="flex items-center gap-2 text-[15px] sm:text-base font-semibold text-slate-700 dark:text-slate-200">
+                    <Calendar
+                      className="w-5 h-5 sm:w-[22px] sm:h-[22px] shrink-0 text-jurex"
+                      strokeWidth={2}
+                    />
+                    <span>
+                      Válido até{" "}
+                      <span className="tabular-nums">{datasValidade.validoAte}</span>
+                    </span>
+                  </div>
+                  <p className="pl-7 sm:pl-[30px] text-[13px] text-slate-500 dark:text-slate-400 leading-snug">
+                    O plano volta a ser Free a partir de{" "}
+                    <span className="tabular-nums">{datasValidade.freeAPartirDe}</span>
+                  </p>
+                </div>
+              )}
 
               <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Clientes */}
