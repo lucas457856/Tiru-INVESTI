@@ -56,20 +56,24 @@ function fmtData(v) {
   }
 }
 
+// Card de total (Donos / Funcionários / Clientes / Contratos).
+// Composição igual em qualquer largura: ícone arredondado à esquerda,
+// label UPPERCASE + número grande à direita. No mobile, o ícone e o
+// número são proporcionados para preencher o card (referência).
 function CardTotal({ icone: Icone, rotulo, valor, cor = "jurex" }) {
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
       <div className="flex items-center gap-3">
         <span
-          className={`shrink-0 w-10 h-10 rounded-xl bg-${cor}-50 dark:bg-${cor}-500/10 ring-1 ring-${cor}-100 dark:ring-${cor}-500/20 flex items-center justify-center`}
+          className={`shrink-0 w-12 h-12 sm:w-10 sm:h-10 rounded-xl bg-${cor}-50 dark:bg-${cor}-500/10 ring-1 ring-${cor}-100 dark:ring-${cor}-500/20 flex items-center justify-center`}
         >
-          <Icone className={`w-5 h-5 text-${cor}-500`} />
+          <Icone className={`w-6 h-6 sm:w-5 sm:h-5 text-${cor}-500`} />
         </span>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+          <p className="text-[10px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             {rotulo}
           </p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
+          <p className="text-2xl sm:text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight">
             {valor}
           </p>
         </div>
@@ -187,22 +191,26 @@ export default function PainelAdmin() {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {/* Cabeçalho */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-emerald-950/20 px-6 py-5">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
+        {/* Cabeçalho — hierarquia em 3 linhas no mobile, mesma composição
+            no desktop. Sem flex-wrap: o botão "Atualizar" permanece
+            à direita com shrink-0 em qualquer largura. */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-emerald-50 to-white dark:from-slate-900 dark:to-emerald-950/20 px-4 sm:px-6 py-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <BackButton />
               <HomeButton />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-jurex" />
-                  <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                  <Shield className="w-5 h-5 text-jurex shrink-0" />
+                  <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white truncate">
                     Painel Administrativo
                   </h1>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Visão geral do sistema • UID{" "}
-                  <span className="font-mono text-[11px]">{ADMIN_UID}</span>
+                <p className="mt-0.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  Visão geral do sistema
+                </p>
+                <p className="mt-0.5 text-[10px] sm:text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate">
+                  UID: {ADMIN_UID}
                 </p>
               </div>
             </div>
@@ -210,10 +218,10 @@ export default function PainelAdmin() {
               type="button"
               onClick={carregar}
               disabled={loading}
-              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 disabled:opacity-50"
+              className="shrink-0 h-10 px-3.5 sm:px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              Atualizar
+              <span className="hidden xs:inline sm:inline">Atualizar</span>
             </button>
           </div>
         </div>
@@ -281,11 +289,11 @@ export default function PainelAdmin() {
               />
             </div>
 
-            {/* Resumo do sistema */}
+            {/* Resumo do sistema — header com ícone maior no mobile */}
             <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Activity className="w-4 h-4 text-jurex" />
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+              <div className="flex items-center gap-2.5 mb-3">
+                <Activity className="w-5 h-5 text-jurex" />
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
                   Resumo do sistema
                 </h2>
               </div>
@@ -428,30 +436,133 @@ function ListaDonos({ donos, aoGerenciar, aoExcluir }) {
     return <EstadoVazio mensagem="Nenhum dono cadastrado ainda." />;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">
-            <th className="text-left font-bold px-5 py-3">Dono</th>
-            <th className="text-left font-bold px-3 py-3">Contato</th>
-            <th className="text-left font-bold px-3 py-3">Cadastro</th>
-            <th className="text-center font-bold px-3 py-3">Status</th>
-            <th className="text-center font-bold px-3 py-3">Plano</th>
-            <th className="text-right font-bold px-3 py-3">Uso</th>
-            <th className="text-right font-bold px-5 py-3">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {donos.map((d) => (
-            <LinhaDono
-              key={d.uid}
-              dono={d}
-              aoGerenciar={aoGerenciar}
-              aoExcluir={aoExcluir}
-            />
-          ))}
-        </tbody>
-      </table>
+    <>
+      {/* Mobile: cards empilhados (referência). Desktop: tabela. */}
+      <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        {donos.map((d) => (
+          <CardDono
+            key={d.uid}
+            dono={d}
+            aoGerenciar={aoGerenciar}
+            aoExcluir={aoExcluir}
+          />
+        ))}
+      </div>
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">
+              <th className="text-left font-bold px-5 py-3">Dono</th>
+              <th className="text-left font-bold px-3 py-3">Contato</th>
+              <th className="text-left font-bold px-3 py-3">Cadastro</th>
+              <th className="text-center font-bold px-3 py-3">Status</th>
+              <th className="text-center font-bold px-3 py-3">Plano</th>
+              <th className="text-right font-bold px-3 py-3">Uso</th>
+              <th className="text-right font-bold px-5 py-3">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {donos.map((d) => (
+              <LinhaDono
+                key={d.uid}
+                dono={d}
+                aoGerenciar={aoGerenciar}
+                aoExcluir={aoExcluir}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// Card mobile de DONO — composição fiel à imagem de referência:
+//   [Avatar] [Nome + UID]   | [Status + Plano] | [C/Ct/F] | [⚙ 🗑]
+//   linha inferior: [📧 email] [📞 telefone] [📅 data]
+// Reaproveita `BadgePlano`, `ResumoUso`, `fmtData` e os ícones
+// já importados — zero lógica duplicada.
+function CardDono({ dono, aoGerenciar, aoExcluir }) {
+  const bloqueado = dono.status === "bloqueado";
+  return (
+    <div className="p-4 sm:p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="w-11 h-11 rounded-xl bg-jurex text-white text-sm font-bold flex items-center justify-center shrink-0">
+          {(dono.nome || dono.email || "?")
+            .trim()
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((s) => s[0]?.toUpperCase() || "")
+            .join("") || "?"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+            {dono.nome || "—"}
+          </p>
+          <p className="text-[10px] font-mono text-slate-400 truncate">
+            {dono.uid}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+            <span className="inline-flex items-center gap-1">
+              <Mail className="w-3 h-3 shrink-0" />
+              <span className="truncate max-w-[140px]">
+                {dono.email || "—"}
+              </span>
+            </span>
+            {dono.telefone && (
+              <span className="inline-flex items-center gap-1">
+                <Phone className="w-3 h-3 shrink-0" />
+                {dono.telefone}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="w-3 h-3 shrink-0" />
+              {fmtData(dono.criadoEm)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+            bloqueado
+              ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300"
+              : "bg-emerald-50 text-jurex dark:bg-emerald-500/10 dark:text-emerald-400"
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              bloqueado ? "bg-red-500" : "bg-jurex"
+            }`}
+          />
+          {bloqueado ? "Bloqueado" : "Ativo"}
+        </span>
+        <BadgePlano plano={dono.plano} vigencia={dono.vigencia} />
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <ResumoUso dono={dono} />
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => aoGerenciar?.(dono)}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-jurex hover:text-jurex transition"
+            aria-label={`Gerenciar dono ${dono.nome || dono.uid}`}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => aoExcluir?.(dono)}
+            aria-label={`Excluir dono ${dono.nome || dono.uid}`}
+            title="Excluir dono"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/40 dark:hover:text-red-400 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -679,38 +790,79 @@ function ListaFuncionarios({ funcionarios }) {
     return <EstadoVazio mensagem="Nenhum funcionário cadastrado ainda." />;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">
-            <th className="text-left font-bold px-5 py-3">Funcionário</th>
-            <th className="text-left font-bold px-3 py-3">E-mail</th>
-            <th className="text-left font-bold px-3 py-3">Vinculado a</th>
-            <th className="text-left font-bold px-5 py-3">Auth UID</th>
-          </tr>
-        </thead>
-        <tbody>
-          {funcionarios.map((f) => (
-            <tr
-              key={f.authUid}
-              className="border-t border-slate-100 dark:border-slate-800"
-            >
-              <td className="px-5 py-3.5 text-sm font-bold text-slate-900 dark:text-white">
-                {f.nome || "—"}
-              </td>
-              <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[200px]">
-                {f.email || "—"}
-              </td>
-              <td className="px-3 py-3.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
-                {f.ownerUid || "—"}
-              </td>
-              <td className="px-5 py-3.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
-                {f.authUid}
-              </td>
+    <>
+      {/* Mobile: cards empilhados. Desktop: tabela. */}
+      <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        {funcionarios.map((f) => (
+          <CardFuncionario key={f.authUid} funcionario={f} />
+        ))}
+      </div>
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">
+              <th className="text-left font-bold px-5 py-3">Funcionário</th>
+              <th className="text-left font-bold px-3 py-3">E-mail</th>
+              <th className="text-left font-bold px-3 py-3">Vinculado a</th>
+              <th className="text-left font-bold px-5 py-3">Auth UID</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {funcionarios.map((f) => (
+              <tr
+                key={f.authUid}
+                className="border-t border-slate-100 dark:border-slate-800"
+              >
+                <td className="px-5 py-3.5 text-sm font-bold text-slate-900 dark:text-white">
+                  {f.nome || "—"}
+                </td>
+                <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300 truncate max-w-[200px]">
+                  {f.email || "—"}
+                </td>
+                <td className="px-3 py-3.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                  {f.ownerUid || "—"}
+                </td>
+                <td className="px-5 py-3.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                  {f.authUid}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// Card mobile de FUNCIONÁRIO. Espelha `LinhaDono` em formato
+// empilhado. Reaproveita os ícones já importados.
+function CardFuncionario({ funcionario: f }) {
+  return (
+    <div className="p-4 sm:p-5 flex items-start gap-3">
+      <span className="w-11 h-11 rounded-xl bg-blue-500 text-white text-sm font-bold flex items-center justify-center shrink-0">
+        {(f.nome || f.email || "?")
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((s) => s[0]?.toUpperCase() || "")
+          .join("") || "?"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+          {f.nome || "—"}
+        </p>
+        <p className="text-[10px] font-mono text-slate-400 truncate">
+          {f.authUid}
+        </p>
+        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 min-w-0">
+          <Mail className="w-3 h-3 shrink-0" />
+          <span className="truncate max-w-[180px]">{f.email || "—"}</span>
+        </p>
+        <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-mono text-slate-500">
+          <span className="text-slate-400">Vinculado a:</span>
+          <span className="truncate max-w-[180px]">{f.ownerUid || "—"}</span>
+        </p>
+      </div>
     </div>
   );
 }
