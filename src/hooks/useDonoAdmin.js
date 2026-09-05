@@ -78,27 +78,52 @@ function planoEfetivoCliente(d, agora) {
       vigenciaFim: null,
     };
   }
-  // Converte Timestamp (Admin/Client) → Date LOCAL (00:00 do dia).
-  const toLocal = (v) => {
+  // Converte Timestamp (Admin/Client) ou Date ou string "YYYY-MM-DD"
+  // em um `Date` que representa 00:00 UTC do dia YYYY-MM-DD.
+  //
+  // IMPORTANTE — DRIFT DE TIMEZONE:
+  //   O servidor (Vercel, UTC) grava `Timestamp.fromDate(new Date(y,
+  //   m-1, d))` — meia-noite LOCAL do servidor, que é meia-noite
+  //   UTC. Quando o Client SDK do Firestore (browser do usuário)
+  //   lê esse Timestamp via `ts.toDate()`, retorna o mesmo
+  //   instante UTC. Mas `dt.getDate()`/`getMonth()`/`getFullYear()`
+  //   no browser retornam componentes no timezone LOCAL do
+  //   browser — em BRT (UTC-3), meia-noite UTC vira "ontem 21h",
+  //   então `getDate()` retorna o dia anterior. Isso fazia
+  //   `planoEfetivoCliente` calcular `status` como "expirado" 1
+  //   dia antes, e a UI mostrar o bloco de validade incorretamente.
+  //
+  //   Solução: usar os componentes UTC (`getUTCFullYear()` etc.)
+  //   para extrair o "dia" — o mesmo YYYY-MM-DD que o admin
+  //   configurou no drawer. O `Date` retornado fica em meia-noite
+  //   UTC do dia, e a comparação `hoje < tFim / hoje >= tFim` usa
+  //   `hoje` em meia-noite LOCAL do browser (correto: "hoje
+  //   no Brasil") contra `tFim` em meia-noite UTC (correto:
+  //   "data configurada pelo admin"). A diferença entre os dois
+  //   é de até 1 dia, e o resultado bate com a regra "inicio é
+  //   inclusivo, fim é o primeiro dia Free".
+  const toUtcDay = (v) => {
     if (!v) return null;
     if (typeof v === "object" && typeof v.toDate === "function") {
       const dt = v.toDate();
-      return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()));
     }
     if (v instanceof Date) {
-      return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+      return new Date(Date.UTC(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate()));
     }
     if (typeof v === "string") {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
-      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
     }
     return null;
   };
-  const inicio = toLocal(vigencia.inicio);
-  const fim = toLocal(vigencia.fim);
+  const inicio = toUtcDay(vigencia.inicio);
+  const fim = toUtcDay(vigencia.fim);
+  // `hoje` continua sendo meia-noite LOCAL do browser — é a data
+  // que o usuário vê no calendário do sistema operacional dele.
   const hoje = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
-  const tInicio = inicio ? new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime() : null;
-  const tFim = fim ? new Date(fim.getFullYear(), fim.getMonth(), fim.getDate()).getTime() : null;
+  const tInicio = inicio ? inicio.getTime() : null;
+  const tFim = fim ? fim.getTime() : null;
   let status = "indefinido";
   if (tInicio != null && tFim != null) {
     if (hoje < tInicio) status = "agendado";

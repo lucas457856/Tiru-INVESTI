@@ -34,11 +34,24 @@ export const DEFAULT_STATUS = "ativo";
 
 /**
  * Converte uma data em vários formatos (Timestamp do Admin SDK,
- * Date, string "YYYY-MM-DD") para um `Date` truncado em DIA LOCAL
- * (00:00 hora local do servidor). Usado pelo helper `planoEfetivo`
- * para evitar o drift de timezone que ocorre quando se interpreta
- * `"YYYY-MM-DD"` via `new Date(str)` (que é UTC) ou quando se usa
- * `.toDate()` direto (que preserva o instante UTC).
+ * Date, string "YYYY-MM-DD") para um `Date` que representa 00:00
+ * UTC do dia YYYY-MM-DD.
+ *
+ * DRIFT DE TIMEZONE — POR QUE COMPONENTES UTC:
+ *   O servidor grava `Timestamp.fromDate(new Date(y, m-1, d))` —
+ *   meia-noite LOCAL do servidor (Vercel = UTC, então meia-noite
+ *   UTC). Quando o backend ou o Client SDK lê esse Timestamp via
+ *   `ts.toDate()`, retorna o mesmo instante UTC. Mas
+ *   `d.getDate()`/`getMonth()`/`getFullYear()` retornam componentes
+ *   no timezone do contexto — em BRT (UTC-3), meia-noite UTC vira
+ *   "ontem 21h", então `getDate()` retorna o dia anterior. Isso
+ *   fazia `planoEfetivo` calcular `status` como "expirado" 1 dia
+ *   antes em timezones ≠ UTC.
+ *
+ *   Solução: extrair o "dia" pelos componentes UTC
+ *   (`getUTCFullYear()` etc.) — o mesmo YYYY-MM-DD que o admin
+ *   configurou. O `Date` retornado fica em meia-noite UTC do dia,
+ *   preservando exatamente a data configurada.
  *
  * @param {unknown} valor
  * @returns {Date | null}
@@ -48,17 +61,17 @@ function toLocalDate(valor) {
   // Firestore Admin SDK Timestamp
   if (typeof valor === "object" && typeof valor.toDate === "function") {
     const d = valor.toDate();
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   }
   // Date nativo
   if (valor instanceof Date) {
-    return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+    return new Date(Date.UTC(valor.getUTCFullYear(), valor.getUTCMonth(), valor.getUTCDate()));
   }
   // String "YYYY-MM-DD" (saída do <input type="date"> do front)
   if (typeof valor === "string") {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor.trim());
     if (m) {
-      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
     }
     return null;
   }
@@ -76,11 +89,13 @@ function toLocalDate(valor) {
  *   - configurado = "pro" e hoje < inicio → efetivo = "free", status "agendado"
  *   - configurado = "pro" e hoje >= fim → efetivo = "free", status "expirado"
  *
- * Comparação feita em DIA LOCAL (00:00 do dia) para que a troca de
- * plano ocorra exatamente à meia-noite do dia de término (no fuso
- * do servidor). Para evitar drift de timezone, datas Timestamp
- * armazenadas em UTC são convertidas para o dia local antes da
- * comparação.
+ * `inicio` e `fim` são normalizados para meia-noite UTC do dia
+ * (ver `toLocalDate` acima) — preservando o YYYY-MM-DD que o admin
+ * configurou. `hoje` é meia-noite LOCAL do contexto de execução
+ * (servidor ou, no espelho frontend, do browser). A comparação
+ * `hoje < tFim` / `hoje >= tFim` pode diferir em até 1 dia entre
+ * timezones, e isso bate com a regra "inicio é inclusivo, fim é
+ * o primeiro dia Free".
  *
  * @param {object | null | undefined} perfil
  * @param {Date} [agora] Opcional; para testes. Default = new Date()
@@ -109,9 +124,15 @@ export function planoEfetivo(perfil, agora) {
   }
   const inicio = toLocalDate(vigencia.inicio);
   const fim = toLocalDate(vigencia.fim);
+  // `hoje` continua sendo meia-noite LOCAL do servidor — é a data
+  // atual no fuso onde o código executa.
   const hoje = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
-  const tInicio = inicio ? new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()).getTime() : null;
-  const tFim = fim ? new Date(fim.getFullYear(), fim.getMonth(), fim.getDate()).getTime() : null;
+  // `inicio` e `fim` foram normalizados para meia-noite UTC em
+  // `toLocalDate`. O `.getTime()` em si retorna o instante UTC
+  // correto, então não precisa recompor via getUTCFullYear etc.
+  // — basta usar o timestamp direto.
+  const tInicio = inicio ? inicio.getTime() : null;
+  const tFim = fim ? fim.getTime() : null;
   let status = "indefinido";
   if (tInicio != null && tFim != null) {
     if (hoje < tInicio) status = "agendado";
