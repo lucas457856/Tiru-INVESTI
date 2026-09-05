@@ -132,7 +132,7 @@ export async function overviewHandler(req, res) {
   const dbAdmin = getFirestore(admin);
 
   // 4) Verifica identidade
-  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken, RATE_OPTS);
+  const chamadorUid = await verificarToken(res, PREFIX, authAdmin, idToken, RATE_OPTS_ADMIN);
   if (!chamadorUid) return; // verificarToken já escreveu a resposta de erro
 
   // 5) BLOQUEIO PRINCIPAL: só ADMIN_UID
