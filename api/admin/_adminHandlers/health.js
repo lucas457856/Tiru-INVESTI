@@ -34,7 +34,6 @@ export async function healthHandler(req, res) {
     mensagem: "Endpoint administrativo respondendo.",
     env,
     adminUidConfigurado,
-    adminUidConfere,
     timestamp: new Date().toISOString(),
   });
 }

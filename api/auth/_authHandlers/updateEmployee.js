@@ -164,11 +164,11 @@ export async function updateEmployeeHandler(req, res) {
   try {
     await funcRef.update(update);
   } catch (err) {
-    // Repassa a mensagem real do Firestore (sem expor stack interno).
-    // Antes estava genérica e escondia o problema; agora conseguimos
-    // ver exatamente o motivo (permission-denied, not-found, etc.).
+    // Log completo no servidor (inclui code, message e stack do Admin SDK)
+    // para diagnóstico; o cliente recebe apenas mensagem genérica, sem
+    // expor paths internos, nomes de coleções ou detalhes do Firestore.
     console.error(`[${PREFIX}] updateDoc funcionário falhou:`, err?.code, err?.message);
-    return bad(res, PREFIX, 500, err?.message || "Não foi possível atualizar o funcionário.");
+    return bad(res, PREFIX, 500, "Não foi possível atualizar o funcionário.");
   }
 
   return res.status(200).json({ ok: true, funcionarioId, status: novoStatus });
