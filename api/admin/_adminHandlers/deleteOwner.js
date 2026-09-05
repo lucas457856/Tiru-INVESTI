@@ -199,7 +199,7 @@ export async function deleteOwnerHandler(req, res) {
       res,
       PREFIX,
       500,
-      `Não foi possível excluir os contratos: ${err?.message || "erro desconhecido"}.`,
+      "Não foi possível excluir os contratos.",
     );
   }
 
@@ -221,7 +221,7 @@ export async function deleteOwnerHandler(req, res) {
       res,
       PREFIX,
       500,
-      `Não foi possível excluir os clientes: ${err?.message || "erro desconhecido"}.`,
+      "Não foi possível excluir os clientes.",
     );
   }
 
@@ -247,7 +247,7 @@ export async function deleteOwnerHandler(req, res) {
       res,
       PREFIX,
       500,
-      `Não foi possível excluir a subcoleção legada de clientes: ${err?.message || "erro"}.`,
+      "Não foi possível excluir a subcoleção legada de clientes.",
     );
   }
 
@@ -267,7 +267,7 @@ export async function deleteOwnerHandler(req, res) {
         res,
         PREFIX,
         500,
-        `Não foi possível excluir os dados vinculados ao funcionário: ${err?.message || "erro"}.`,
+        "Não foi possível excluir os dados vinculados ao funcionário.",
       );
     }
 
@@ -280,7 +280,7 @@ export async function deleteOwnerHandler(req, res) {
         res,
         PREFIX,
         500,
-        `Não foi possível remover o cadastro do funcionário: ${err?.message || "erro"}.`,
+        "Não foi possível remover o cadastro do funcionário.",
       );
     }
 
@@ -296,7 +296,7 @@ export async function deleteOwnerHandler(req, res) {
             res,
             PREFIX,
             500,
-            `Não foi possível remover o perfil do funcionário: ${err?.message || "erro"}.`,
+            "Não foi possível remover o perfil do funcionário.",
           );
         }
       }
@@ -313,7 +313,7 @@ export async function deleteOwnerHandler(req, res) {
             res,
             PREFIX,
             500,
-            `Funcionário removido dos dados, mas a conta de autenticação não pôde ser excluída: ${err?.message || "erro"}.`,
+            "Funcionário removido dos dados, mas a conta de autenticação não pôde ser excluída.",
           );
         }
       }
@@ -333,7 +333,7 @@ export async function deleteOwnerHandler(req, res) {
       res,
       PREFIX,
       500,
-      `Não foi possível remover as sub-coleções restantes: ${err?.message || "erro"}.`,
+      "Não foi possível remover as sub-coleções restantes.",
     );
   }
 
@@ -346,7 +346,7 @@ export async function deleteOwnerHandler(req, res) {
       res,
       PREFIX,
       500,
-      `Não foi possível remover o perfil do dono: ${err?.message || "erro"}.`,
+      "Não foi possível remover o perfil do dono.",
     );
   }
 
@@ -365,7 +365,7 @@ export async function deleteOwnerHandler(req, res) {
         res,
         PREFIX,
         500,
-        `Dados do dono removidos, mas a conta de autenticação não pôde ser excluída: ${err?.message || "erro"}.`,
+        "Dados do dono removidos, mas a conta de autenticação não pôde ser excluída.",
       );
     }
   }

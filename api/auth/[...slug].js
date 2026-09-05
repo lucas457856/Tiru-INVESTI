@@ -28,14 +28,33 @@ const ROTAS = {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // A Vercel popula `req.query.slug` como:
-  //   - "reset-password"  (se a rota for /api/auth/reset-password)
-  //   - ["a", "b"]        (se for /api/auth/a/b)
-  // Para nosso caso, sempre é uma única string.
-  const slugArr = req.query?.slug;
-  const slug = Array.isArray(slugArr) ? slugArr[0] : slugArr;
+  // Extrai o slug (action) da URL. Espelha o padrão de
+  // api/admin/[...slug].js para garantir o fallback 404 em qualquer
+  // deploy da Vercel (em alguns deploys `req.query.slug` chega
+  // `undefined` mesmo com o rewrite aplicado, então extraímos
+  // diretamente do pathname como fonte primária).
+  //
+  // Fontes, em ordem de prioridade:
+  //   1. Pathname de `req.url`: "/api/auth/reset-password" → "reset-password".
+  //   2. `req.query.slug` (caso a Vercel volte a popular em algum
+  //      deploy/região).
+  //   3. `req.query.slug` como array (legado).
+  let slug = "";
+  try {
+    const url = new URL(req.url || "", "http://localhost");
+    const partes = url.pathname.split("/").filter(Boolean); // ["api","auth","reset-password"]
+    if (partes[0] === "api" && partes[1] === "auth" && partes[2]) {
+      slug = partes[2];
+    }
+  } catch {
+    // Ignora: cai no fallback abaixo.
+  }
   if (!slug) {
-    res.setHeader("Allow", "POST");
+    const slugArr = req.query?.slug;
+    slug = Array.isArray(slugArr) ? slugArr[0] : slugArr;
+    if (slug) slug = String(slug);
+  }
+  if (!slug) {
     return res.status(404).json({ ok: false, erro: "Rota não encontrada." });
   }
 
