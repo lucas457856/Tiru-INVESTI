@@ -436,96 +436,75 @@ function ListaDonos({ donos, aoGerenciar, aoExcluir }) {
     return <EstadoVazio mensagem="Nenhum dono cadastrado ainda." />;
   }
   return (
-    <>
-      {/* Mobile: cards empilhados (referência). Desktop: tabela. */}
-      <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-        {donos.map((d) => (
-          <CardDono
-            key={d.uid}
-            dono={d}
-            aoGerenciar={aoGerenciar}
-            aoExcluir={aoExcluir}
-          />
-        ))}
-      </div>
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60">
-              <th className="text-left font-bold px-5 py-3">Dono</th>
-              <th className="text-left font-bold px-3 py-3">Contato</th>
-              <th className="text-left font-bold px-3 py-3">Cadastro</th>
-              <th className="text-center font-bold px-3 py-3">Status</th>
-              <th className="text-center font-bold px-3 py-3">Plano</th>
-              <th className="text-right font-bold px-3 py-3">Uso</th>
-              <th className="text-right font-bold px-5 py-3">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {donos.map((d) => (
-              <LinhaDono
-                key={d.uid}
-                dono={d}
-                aoGerenciar={aoGerenciar}
-                aoExcluir={aoExcluir}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+      {donos.map((d) => (
+        <LinhaDonoCard
+          key={d.uid}
+          dono={d}
+          aoGerenciar={aoGerenciar}
+          aoExcluir={aoExcluir}
+        />
+      ))}
+    </div>
   );
 }
 
-// Card mobile de DONO — composição fiel à imagem de referência:
-//   [Avatar] [Nome + UID]   | [Status + Plano] | [C/Ct/F] | [⚙ 🗑]
-//   linha inferior: [📧 email] [📞 telefone] [📅 data]
-// Reaproveita `BadgePlano`, `ResumoUso`, `fmtData` e os ícones
-// já importados — zero lógica duplicada.
-function CardDono({ dono, aoGerenciar, aoExcluir }) {
+// Iniciais para o avatar (mesma regra de LinhaDono/CardDono).
+function iniciaisDe(nome, email) {
+  return (
+    (nome || email || "?")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase() || "")
+      .join("") || "?"
+  );
+}
+
+// Card horizontal de DONO — composição fiel à imagem de referência:
+//   [Avatar]  [Nome + UID + E-mail/Tel + Data]  [Status/Plano]  [C/Ct/F]  |  [⚙]
+//                                                                             [🗑]
+// No mobile (<sm) reempilha: avatar + info no topo, status/plano
+// embaixo, e botões no rodapé, sem divisor vertical.
+function LinhaDonoCard({ dono, aoGerenciar, aoExcluir }) {
   const bloqueado = dono.status === "bloqueado";
   return (
-    <div className="p-4 sm:p-5 space-y-3">
-      <div className="flex items-start gap-3">
-        <span className="w-11 h-11 rounded-xl bg-jurex text-white text-sm font-bold flex items-center justify-center shrink-0">
-          {(dono.nome || dono.email || "?")
-            .trim()
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((s) => s[0]?.toUpperCase() || "")
-            .join("") || "?"}
+    <div className="flex flex-col gap-3 py-3.5 px-4 sm:flex-row sm:items-center sm:gap-4 sm:py-3.5 sm:px-5">
+      {/* Avatar + área central (info) — `items-center` em sm+ para
+          alinhar o avatar ao centro vertical do bloco de info. */}
+      <div className="flex items-center gap-3.5 min-w-0 sm:flex-1">
+        <span className="w-14 h-14 rounded-[10px] bg-jurex text-white text-base font-extrabold flex items-center justify-center shrink-0">
+          {iniciaisDe(dono.nome, dono.email)}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+          <p className="text-[15px] font-extrabold text-slate-900 dark:text-white truncate leading-tight">
             {dono.nome || "—"}
           </p>
-          <p className="text-[10px] font-mono text-slate-400 truncate">
+          <p className="mt-px text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate leading-tight">
             {dono.uid}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-            <span className="inline-flex items-center gap-1">
-              <Mail className="w-3 h-3 shrink-0" />
-              <span className="truncate max-w-[140px]">
-                {dono.email || "—"}
-              </span>
-            </span>
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 min-w-0 leading-tight">
+            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="truncate">{dono.email || "—"}</span>
             {dono.telefone && (
-              <span className="inline-flex items-center gap-1">
-                <Phone className="w-3 h-3 shrink-0" />
-                {dono.telefone}
-              </span>
+              <>
+                <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                <span className="whitespace-nowrap">{dono.telefone}</span>
+              </>
             )}
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3 shrink-0" />
-              {fmtData(dono.criadoEm)}
-            </span>
-          </div>
+          </p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 leading-tight">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            {fmtData(dono.criadoEm)}
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Status + Plano (badges empilhados, centrados verticalmente
+          em sm+ para alinhar com o centro do card) */}
+      <div className="flex flex-row sm:flex-col items-center sm:items-start justify-start gap-1.5 pl-[68px] sm:pl-0 sm:self-center sm:min-w-[88px]">
         <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold leading-tight ${
             bloqueado
               ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300"
               : "bg-emerald-50 text-jurex dark:bg-emerald-500/10 dark:text-emerald-400"
@@ -541,173 +520,73 @@ function CardDono({ dono, aoGerenciar, aoExcluir }) {
         <BadgePlano plano={dono.plano} vigencia={dono.vigencia} />
       </div>
 
-      <div className="flex items-end justify-between gap-3">
-        <ResumoUso dono={dono} />
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => aoGerenciar?.(dono)}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-jurex hover:text-jurex transition"
-            aria-label={`Gerenciar dono ${dono.nome || dono.uid}`}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => aoExcluir?.(dono)}
-            aria-label={`Excluir dono ${dono.nome || dono.uid}`}
-            title="Excluir dono"
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/40 dark:hover:text-red-400 transition"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Coluna de limites (C / Ct / F) — alinhada à esquerda,
+          rótulo em negrito, linhas bem unidas (gap-0). */}
+      <div className="hidden sm:flex flex-col gap-0 text-[12px] text-slate-600 dark:text-slate-300 tabular-nums min-w-[64px] sm:self-center leading-tight">
+        <span>
+          <span className="font-bold text-slate-900 dark:text-white">C:</span>{" "}
+          <LimiteLinha dono={dono} campo="contratos" valor={dono.contContratos} />
+        </span>
+        <span>
+          <span className="font-bold text-slate-900 dark:text-white">Ct:</span>{" "}
+          <LimiteLinha dono={dono} campo="clientes" valor={dono.contClientes} />
+        </span>
+        <span>
+          <span className="font-bold text-slate-900 dark:text-white">F:</span>{" "}
+          <LimiteLinha
+            dono={dono}
+            campo="funcionarios"
+            valor={dono.contFuncionarios}
+          />
+        </span>
+      </div>
+
+      {/* Divisor vertical sutil entre limites e ações */}
+      <div className="hidden sm:block w-px self-stretch bg-slate-100 dark:bg-slate-800" />
+
+      {/* Botões empilhados verticalmente (⚙ em cima, 🗑 embaixo),
+          centralizados verticalmente em sm+ */}
+      <div className="flex flex-row sm:flex-col items-center justify-end gap-2 sm:gap-1.5 pl-[68px] sm:pl-0 sm:self-center shrink-0">
+        <button
+          type="button"
+          onClick={() => aoGerenciar?.(dono)}
+          aria-label={`Gerenciar dono ${dono.nome || dono.uid}`}
+          className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-jurex hover:text-jurex transition"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => aoExcluir?.(dono)}
+          aria-label={`Excluir dono ${dono.nome || dono.uid}`}
+          title="Excluir dono"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/40 dark:hover:text-red-400 transition"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
 }
 
-function LinhaDono({ dono, aoGerenciar, aoExcluir }) {
-  const bloqueado = dono.status === "bloqueado";
-  return (
-    <tr className="border-t border-slate-100 dark:border-slate-800">
-      <td className="px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <span className="w-8 h-8 rounded-lg bg-jurex text-white text-xs font-bold flex items-center justify-center shrink-0">
-            {(dono.nome || dono.email || "?")
-              .trim()
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((s) => s[0]?.toUpperCase() || "")
-              .join("") || "?"}
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-              {dono.nome || "—"}
-            </p>
-            <p className="text-[10px] font-mono text-slate-400 truncate">
-              {dono.uid}
-            </p>
-          </div>
-        </div>
-      </td>
-      <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-        <p className="flex items-center gap-1 truncate">
-          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="truncate">{dono.email || "—"}</span>
-        </p>
-        {dono.telefone && (
-          <p className="flex items-center gap-1 mt-0.5">
-            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            {dono.telefone}
-          </p>
-        )}
-      </td>
-      <td className="px-3 py-3.5 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-        <p className="flex items-center gap-1">
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-          {fmtData(dono.criadoEm)}
-        </p>
-      </td>
-      <td className="px-3 py-3.5 text-center">
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-            bloqueado
-              ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300"
-              : "bg-emerald-50 text-jurex dark:bg-emerald-500/10 dark:text-emerald-400"
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              bloqueado ? "bg-red-500" : "bg-jurex"
-            }`}
-          />
-          {bloqueado ? "Bloqueado" : "Ativo"}
-        </span>
-      </td>
-      <td className="px-3 py-3.5 text-center">
-        <BadgePlano plano={dono.plano} vigencia={dono.vigencia} />
-      </td>
-      <td className="px-3 py-3.5 text-right">
-        <ResumoUso dono={dono} />
-      </td>
-      <td className="px-5 py-3.5 text-right">
-        <div className="inline-flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => aoGerenciar?.(dono)}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-jurex hover:text-jurex transition"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            Gerenciar
-          </button>
-          <button
-            type="button"
-            onClick={() => aoExcluir?.(dono)}
-            aria-label={`Excluir dono ${dono.nome || dono.uid}`}
-            title="Excluir dono"
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/40 dark:hover:text-red-400 transition"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// Mostra "X / Y" para cada recurso. Reutiliza o MESMO `dono.plano`
-// que a coluna PLANO usa (BadgePlano) — única fonte de verdade.
-//   - PRO: exibe "∞" (compacto, cabe bem na tabela) e o valor real
-//     usado continua sendo mostrado (não vira infinito).
-//   - FREE: exibe o limite FREE salvo no Firestore, sem alteração.
-//   - limite <= 0 (legado = "sem limite") também mostra "∞" para não
-//     exibir 0/0 confuso.
-// Os limites FREE nunca são apagados pelo overview: `normalizarPlano`
-// em api/admin/overview.js só troca o rótulo do plano, e os campos
-// `limites.contratos/clientes/funcionarios` retornam exatamente o
-// que está persistido no Firebase. Trocar FREE↔PRO no Gerenciar
-// chama `carregar()` (handleSalvarDono) → o próximo snapshot
-// traz `dono.plano` e `dono.limites` atualizados, e a tabela
-// re-renderiza imediatamente.
-function ResumoUso({ dono }) {
+// "0 / 5" com `∞` em verde quando o limite é ilimitado (PRO). Espelha
+// a regra anteriormente encapsulada em `ResumoUso` (removido junto
+// com a `<table>` desktop) com orientação horizontal em vez de vertical.
+function LimiteLinha({ dono, campo, valor }) {
   const lim = dono.limites || {};
-  // Compat: se a vigência ainda não chegou (overview antigo), usa
-  // `dono.plano` como fallback. Com a vigência nova, usamos o
-  // PLANO EFETIVO (que respeita `planVigencia` e o relógio).
   const ehPro = dono.vigencia
     ? dono.vigencia.efetivo === "pro"
     : dono.plano === "pro";
-  const itens = [
-    { rotulo: "C", valor: dono.contContratos, limite: lim.contratos },
-    { rotulo: "Cl", valor: dono.contClientes, limite: lim.clientes },
-    { rotulo: "F", valor: dono.contFuncionarios, limite: lim.funcionarios },
-  ];
+  const semLimite = ehPro || !lim[campo] || lim[campo] <= 0;
   return (
-    <div className="inline-flex flex-col items-end gap-0.5 tabular-nums">
-      {itens.map((it) => {
-        const semLimite = ehPro || !it.limite || it.limite <= 0;
-        return (
-          <span
-            key={it.rotulo}
-            className="text-[11px] text-slate-600 dark:text-slate-300"
-          >
-            <span className="font-bold text-slate-900 dark:text-white">
-              {it.rotulo}
-            </span>
-            {": "}
-            {it.valor} /{" "}
-            {semLimite ? (
-              <span className="font-bold text-jurex dark:text-emerald-400">
-                ∞
-              </span>
-            ) : (
-              it.limite
-            )}
-          </span>
-        );
-      })}
-    </div>
+    <>
+      {valor} /{" "}
+      {semLimite ? (
+        <span className="font-bold text-jurex dark:text-emerald-400">∞</span>
+      ) : (
+        lim[campo]
+      )}
+    </>
   );
 }
 
