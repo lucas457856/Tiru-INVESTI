@@ -42,13 +42,21 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../context/useAuth";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 
 // Lista de seções/itens do drawer. `destaque: true` aplica o fundo
 // cinza-claro arredondado conforme a referência (Modelos de cobrança
 // e Central de ajuda). "Meus Planos" e "Termos de Uso" reaproveitam
 // rotas já existentes (não há `/configuracoes/meus-planos` no sistema;
 // o usuário pediu para NÃO criar rotas novas).
-const secoes = [
+//
+// IMPORTANTE: o item "Painel Admin" NÃO fica neste array. Ele é
+// injetado no início da seção "Configurações" em runtime, somente
+// para a conta ADMIN_UID (mesma fonte de verdade de `useIsAdmin`).
+// Assim a constante fica inalterada para usuários não-admin e
+// nenhuma rota nova é criada — a rota `/admin` já existe e é
+// protegida por `RotaAdmin` no AppRoutes.
+const secoesBase = [
   {
     titulo: "Ferramentas",
     itens: [
@@ -114,7 +122,32 @@ function resolverNomeHeader(usuario) {
 export default function MobileMenuDrawer({ aberto, onFechar }) {
   const navigate = useNavigate();
   const { usuario } = useAuth();
+  // `useIsAdmin` consulta o mesmo ADMIN_UID usado por `RotaAdmin`,
+  // `Sidebar` e `PainelAdmin` — fonte única de verdade, sem hardcode
+  // nem lógica paralela.
+  const isAdmin = useIsAdmin();
   const nomeHeader = useMemo(() => resolverNomeHeader(usuario), [usuario]);
+  // Seções/itens renderizados. Em runtime, se o usuário for admin,
+  // injetamos "Painel Admin" como PRIMEIRO item da seção
+  // "Configurações" — sem alterar o array base, sem criar rota
+  // nova, sem duplicar o PainelAdmin.
+  const secoes = useMemo(() => {
+    if (!isAdmin) return secoesBase;
+    return secoesBase.map((secao) => {
+      if (secao.titulo !== "Configurações") return secao;
+      return {
+        ...secao,
+        itens: [
+          {
+            label: "Painel Admin",
+            to: "/admin",
+            icone: Shield,
+          },
+          ...secao.itens,
+        ],
+      };
+    });
+  }, [isAdmin]);
   // `montado` controla se o nó está no DOM. Mantemos montado durante o
   // exit-animation para a transição de saída rodar; depois desmontamos.
   const [montado, setMontado] = useState(false);
@@ -253,7 +286,9 @@ export default function MobileMenuDrawer({ aberto, onFechar }) {
                           strokeWidth={2}
                         />
                       </span>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                      <span
+                        className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate"
+                      >
                         {label}
                       </span>
                       <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 ml-auto shrink-0" />

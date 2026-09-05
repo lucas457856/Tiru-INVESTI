@@ -118,19 +118,14 @@ export default function Sidebar() {
 
         {/* Link ADMIN — só aparece para o ADMIN_UID. Defesa em
             camadas: mesmo que alguém force a rota via URL,
-            <RotaAdmin> redireciona. */}
+            <RotaAdmin> redireciona.
+            Reaproveita `classeItem` (mesma lógica de active state de
+            "Suporte", "Início", etc.) para que, em `/admin`, o item
+            fique com `bg-emerald-50 text-jurex` (estado ativo padrão)
+            em vez do destaque sólido anterior. Em outras rotas,
+            fica com a cor padrão dos demais (text-slate-600). */}
         {isAdmin && (
-          <NavLink
-            to="/admin"
-            end
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold transition ${
-                isActive
-                  ? "bg-jurex text-white shadow"
-                  : "text-jurex hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-              }`
-            }
-          >
+          <NavLink to="/admin" end className={classeItem}>
             <Shield className="w-4.5 h-4.5" />
             Painel Admin
           </NavLink>
