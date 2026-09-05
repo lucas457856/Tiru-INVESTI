@@ -34,12 +34,35 @@ const ROTAS = {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // A Vercel popula `req.query.slug` como:
-  //   - "overview"  (se a rota for /api/admin/overview)
-  //   - ["a", "b"]  (se for /api/admin/a/b)
-  // Para nosso caso, sempre é uma única string.
-  const slugArr = req.query?.slug;
-  const slug = Array.isArray(slugArr) ? slugArr[0] : slugArr;
+  // Extrai o slug (action) da URL. A Vercel em produção com catch-alls
+  // `[...slug].js` populava `req.query.slug` via rewrite, mas essa
+  // comportamento mostrou-se intermitente: em alguns deploys chega
+  // `undefined` mesmo com o rewrite `?slug=$1` aplicado. Para garantir
+  // robustez, extraímos diretamente do pathname e mantemos
+  // `req.query.slug` apenas como fallback.
+  //
+  // Fontes, em ordem de prioridade:
+  //   1. Pathname de `req.url`: "/api/admin/overview" → "overview"
+  //      (com ou sem query string).
+  //   2. `req.query.slug` (caso a Vercel volte a popular em algum
+  //      deploy/região).
+  //   3. `req.query.slug` como array (legado).
+  let slug = "";
+  try {
+    const url = new URL(req.url || "", "http://localhost");
+    const partes = url.pathname.split("/").filter(Boolean); // ["api","admin","overview"]
+    // O prefixo é "api/admin" — o slug é o primeiro segmento após.
+    if (partes[0] === "api" && partes[1] === "admin" && partes[2]) {
+      slug = partes[2];
+    }
+  } catch {
+    // Ignora: cai no fallback abaixo.
+  }
+  if (!slug) {
+    const slugArr = req.query?.slug;
+    slug = Array.isArray(slugArr) ? slugArr[0] : slugArr;
+    if (slug) slug = String(slug);
+  }
   if (!slug) {
     return res.status(404).json({ ok: false, erro: "Rota não encontrada." });
   }
